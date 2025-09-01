@@ -5,7 +5,7 @@ export async function GET() {
   
   try {
     // Test the Operations API connectivity
-    const opApiUrl = process.env.OP_API_BASE_URL || process.env.NEXT_PUBLIC_OP_API_BASE_URL;
+    const opApiUrl = process.env.OP_API_BUSTRIP_URL || process.env.NEXT_PUBLIC_OP_API_BUSTRIP_URL;
     
     if (!opApiUrl) {
       return NextResponse.json({
@@ -62,7 +62,7 @@ export async function GET() {
     return NextResponse.json({
       status: 'error',
       message: `Operations API connectivity failed: ${errorMessage}`,
-      url: process.env.OP_API_BASE_URL || process.env.NEXT_PUBLIC_OP_API_BASE_URL,
+      url: process.env.OP_API_BUSTRIP_URL || process.env.NEXT_PUBLIC_OP_API_BUSTRIP_URL,
       responseTime,
       timestamp: new Date().toISOString(),
       error: errorMessage

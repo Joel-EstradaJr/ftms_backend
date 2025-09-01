@@ -443,7 +443,7 @@ const ReportPage = () => {
   if (loading) {
     return (
       <div className="card">
-        <h1 className="title">Stock Management</h1>
+        <h1 className="title">Finance Tracking Management</h1>
         <Loading />
       </div>
     );

@@ -1,0 +1,153 @@
+// Human Resources Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id               Int          @id @default(autoincrement())
+  employeeNumber   String       @unique
+  firstName        String
+  middleName       String?
+  lastName         String
+  suffix           String?
+  employeeStatus   String
+  hiredate         DateTime
+  terminationDate  DateTime?
+  basicRate        Decimal
+
+  positionId       Int?
+  position         Position?    @relation(fields: [positionId], references: [id])
+
+  attendances      Attendance[]
+  benefits         Benefit[]
+  deductions       Deduction[]
+  user             User?        @relation(fields: [id], references: [employeeId])
+}
+
+model Position {
+  id             Int         @id @default(autoincrement())
+  positionName   String
+  departmentId   Int?
+  department     Department? @relation(fields: [departmentId], references: [id])
+  employees      Employee[]
+}
+
+model Department {
+  id             Int         @id @default(autoincrement())
+  departmentName String
+  positions      Position[]
+}
+
+model Attendance {
+  id         Int       @id @default(autoincrement())
+  date       DateTime
+  status     String
+  employeeId Int
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+}
+
+model Benefit {
+  id             Int         @id @default(autoincrement())
+  value          Decimal
+  frequency      String
+  effectiveDate  DateTime
+  endDate        DateTime?
+  isActive       Boolean
+  employeeId     Int
+  employee       Employee    @relation(fields: [employeeId], references: [id])
+  benefitTypeId  Int
+  benefitType    BenefitType @relation(fields: [benefitTypeId], references: [id])
+}
+
+model BenefitType {
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  benefits Benefit[]
+}
+
+model Deduction {
+  id              Int           @id @default(autoincrement())
+  type            String
+  value           Decimal
+  frequency       String
+  effectiveDate   DateTime
+  endDate         DateTime?
+  isActive        Boolean
+  employeeId      Int
+  employee        Employee      @relation(fields: [employeeId], references: [id])
+  deductionTypeId Int
+  deductionType   DeductionType @relation(fields: [deductionTypeId], references: [id])
+}
+
+model DeductionType {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique
+  deductions Deduction[]
+}
+
+// ---------------- USER / AUTH ----------------
+
+model Role {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+model SecurityQuestion {
+  id        Int      @id @default(autoincrement())
+  question  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+model User {
+  id                 Int       @id @default(autoincrement())
+  employeeId         Int       @unique
+  email              String    @unique
+  password           String
+  firstName          String
+  lastName           String
+  birthdate          DateTime
+  roleId             Int
+  mustChangePassword Boolean   @default(true)
+  phone              String?
+  streetAddress      String?
+  barangay           String?
+  city               String?
+  province           String?
+  zipCode            String?
+  country            String?
+  securityQuestionId Int
+  securityAnswer     String
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relationships
+  role             Role              @relation(fields: [roleId], references: [id])
+  securityQuestion SecurityQuestion? @relation(fields: [securityQuestionId], references: [id])
+  auditLogs        AuditLog[]
+  employee         Employee          @relation(fields: [employeeId], references: [id])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  timestamp DateTime @default(now())
+  ipAddress String?
+  details   String?
+}

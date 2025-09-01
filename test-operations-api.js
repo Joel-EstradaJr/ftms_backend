@@ -1,18 +1,18 @@
 // test-operations-api.js
 // Simple script to test Operations API connectivity
 
-const OP_API_BASE_URL = 'https://boms-api.agilabuscorp.me/api/Bus-Trips-Details';
+const OP_API_BUSTRIP_URL = 'https://boms-api.agilabuscorp.me/api/Bus-Trips-Details';
 
 async function testOperationsAPI() {
   console.log('Testing Operations API connectivity...');
-  console.log('URL:', OP_API_BASE_URL);
+  console.log('URL:', OP_API_BUSTRIP_URL);
   
   const startTime = Date.now();
   
   try {
     // Test 1: Basic connectivity
     console.log('\n1. Testing basic connectivity...');
-    const response = await fetch(`${OP_API_BASE_URL}?RequestType=revenue`, {
+    const response = await fetch(`${OP_API_BUSTRIP_URL}?RequestType=revenue`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

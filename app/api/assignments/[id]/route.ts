@@ -51,9 +51,9 @@ export async function PATCH(req: NextRequest) {
         IsRevenueRecorded: true
       }
     ];
-    const opApiUrl = process.env.OP_API_BASE_URL;
+    const opApiUrl = process.env.OP_API_BUSTRIP_URL;
     if (!opApiUrl) {
-      throw new Error('OP_API_BASE_URL environment variable is not set');
+      throw new Error('OP_API_BUSTRIP_URL environment variable is not set');
     }
     const patchResponse = await fetch(opApiUrl, {
       method: 'PATCH',

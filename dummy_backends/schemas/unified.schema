@@ -1,0 +1,597 @@
+// Corrected Unified Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- HR / EMPLOYEE ----------------
+
+model Employee {
+  id               Int          @id @default(autoincrement())
+  employeeNumber   String       @unique
+  firstName        String
+  middleName       String?
+  lastName         String
+  suffix           String?
+  employeeStatus   String
+  hiredate         DateTime
+  terminationDate  DateTime?
+  basicRate        Decimal
+
+  positionId       Int?
+  position         Position?    @relation(fields: [positionId], references: [id])
+
+  attendances      Attendance[]
+  benefits         Benefit[]
+  deductions       Deduction[]
+  user             User?        @relation(fields: [id], references: [employeeId])
+
+  // Inventory relations
+  employeeRequests EmployeeRequest[]
+
+  // Operations relations
+  regularBusAssignmentsAsDriver   RegularBusAssignment[] @relation("DriverAssignments")
+  regularBusAssignmentsAsConductor RegularBusAssignment[] @relation("ConductorAssignments")
+}
+
+model Position {
+  id             Int         @id @default(autoincrement())
+  positionName   String
+  departmentId   Int?
+  department     Department? @relation(fields: [departmentId], references: [id])
+  employees      Employee[]
+}
+
+model Department {
+  id             Int         @id @default(autoincrement())
+  departmentName String
+  positions      Position[]
+}
+
+model Attendance {
+  id         Int       @id @default(autoincrement())
+  date       DateTime
+  status     String
+  employeeId Int
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+}
+
+model Benefit {
+  id             Int         @id @default(autoincrement())
+  value          Decimal
+  frequency      String
+  effectiveDate  DateTime
+  endDate        DateTime?
+  isActive       Boolean
+  employeeId     Int
+  employee       Employee    @relation(fields: [employeeId], references: [id])
+  benefitTypeId  Int
+  benefitType    BenefitType @relation(fields: [benefitTypeId], references: [id])
+}
+
+model BenefitType {
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  benefits Benefit[]
+}
+
+model Deduction {
+  id              Int           @id @default(autoincrement())
+  type            String
+  value           Decimal
+  frequency       String
+  effectiveDate   DateTime
+  endDate         DateTime?
+  isActive        Boolean
+  employeeId      Int
+  employee        Employee      @relation(fields: [employeeId], references: [id])
+  deductionTypeId Int
+  deductionType   DeductionType @relation(fields: [deductionTypeId], references: [id])
+}
+
+model DeductionType {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique
+  deductions Deduction[]
+}
+
+// ---------------- USER / AUTH ----------------
+
+model Role {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+model SecurityQuestion {
+  id        Int      @id @default(autoincrement())
+  question  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+model User {
+  id                 Int       @id @default(autoincrement())
+  employeeId         Int       @unique
+  email              String    @unique
+  password           String
+  firstName          String
+  lastName           String
+  birthdate          DateTime
+  roleId             Int
+  mustChangePassword Boolean   @default(true)
+  phone              String?
+  streetAddress      String?
+  barangay           String?
+  city               String?
+  province           String?
+  zipCode            String?
+  country            String?
+  securityQuestionId Int
+  securityAnswer     String
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relationships
+  role             Role              @relation(fields: [roleId], references: [id])
+  securityQuestion SecurityQuestion? @relation(fields: [securityQuestionId], references: [id])
+  auditLogs        AuditLog[]
+  employee         Employee          @relation(fields: [employeeId], references: [id])
+
+  // Inventory created_by
+  createdInventoryItems InventoryItem[]
+  createdBatches        Batch[]
+  createdEmployeeRequests EmployeeRequest[]
+  createdBuses          Bus[]
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  timestamp DateTime @default(now())
+  ipAddress String?
+  details   String?
+}
+
+// ---------------- INVENTORY ----------------
+
+model InventoryItem {
+  item_id       String          @id @db.VarChar(20)
+  category_id   String
+  item_name     String          @db.VarChar(100)
+  unit_measure  String          @db.VarChar(20)
+  current_stock Int             @default(0)
+  reorder_level Int             @default(0)
+  status        InventoryStatus
+  date_created  DateTime        @default(now())
+  date_updated  DateTime        @updatedAt
+  isdeleted     Boolean         @default(false)
+  created_by    Int
+  createdBy     User            @relation(fields: [created_by], references: [id])
+
+  batches       Batch[]
+  employeeRequests EmployeeRequest[]
+  bus           Bus[]
+  category      Category        @relation(fields: [category_id], references: [category_id])
+
+  @@map("inventory_items")
+}
+
+model Batch {
+  batch_id           String        @id @db.VarChar(20)
+  item_id            String
+  f_item_id          String        @db.VarChar(20) // Added missing field
+  usable_quantity    Int           @default(0)
+  defective_quantity Int           @default(0)
+  missing_quantity   Int           @default(0)
+  remarks            String?       @db.VarChar(255)
+  expiration_date    DateTime?
+  date_created       DateTime      @default(now())
+  created_by         Int
+  createdBy          User          @relation(fields: [created_by], references: [id])
+  isdeleted          Boolean       @default(false)
+
+  inventoryItem      InventoryItem @relation(fields: [item_id], references: [item_id])
+
+  @@map("batches")
+}
+
+model Category {
+  category_id    String          @id @db.VarChar(20)
+  category_name  String          @unique @db.VarChar(100)
+  date_created   DateTime        @default(now())
+  isdeleted      Boolean         @default(false)
+  inventoryItems InventoryItem[]
+
+  @@map("categories")
+}
+
+model EmployeeRequest {
+  request_id    String          @id @db.VarChar(20)
+  item_id       String            
+  emp_id        Int             // Changed to Int to match Employee.id
+  request_type  RequestType     
+  quantity      Int
+  req_purpose   String          @db.VarChar(255)
+  status        RequestStatus   
+  expected_return_date DateTime?
+  actual_return_date DateTime?
+  date_created  DateTime        @default(now())
+  date_updated  DateTime        @updatedAt
+  isdeleted     Boolean         @default(false)
+  created_by    Int
+
+  inventoryItem InventoryItem   @relation(fields: [item_id], references: [item_id])
+  employee      Employee        @relation(fields: [emp_id], references: [id])
+  createdBy     User            @relation(fields: [created_by], references: [id])
+
+  @@map("employee_requests")
+}
+
+model Bus {
+  bus_id          String          @id @db.VarChar(20)
+  item_id         String
+  plate_number    String          @unique
+  body_number     String          @unique @db.VarChar(20)
+  body_builder    BodyBuilder
+  bus_type        BusType
+  manufacturer    String
+  status          BusStatus
+  chasis_number   String          @unique @db.VarChar(50)
+  engine_number   String          @unique @db.VarChar(50)
+  seat_capacity   Int
+  model           String          @db.VarChar(50)
+  year_model      Int
+  route           String?          @db.VarChar(10)
+  condition       BusCondition
+  acquisition_date DateTime
+  acquisition_method AcquisitionMethod
+  warranty_expiration_date DateTime?
+  registration_status  RegistrationStatus
+  date_created    DateTime        @default(now())
+  date_updated    DateTime        @updatedAt
+  created_by      Int
+  createdBy       User            @relation(fields: [created_by], references: [id])
+
+  inventoryItem   InventoryItem   @relation(fields: [item_id], references: [item_id])
+
+  secondHandDetails     SecondHandDetails?
+  brandNewDetails       BrandNewDetails?
+  busOtherFiles         BusOtherFiles[]
+
+  @@map("bus")
+}
+
+model SecondHandDetails {
+  s_bus_id               String    @id
+  previous_owner         String
+  previous_owner_contact String
+  source                 BusSource
+  odometer_reading       Int
+  last_registration_date DateTime
+  last_maintenance_date  DateTime
+  bus_condition_notes    String?
+
+  bus                    Bus    @relation(fields: [s_bus_id], references: [bus_id], onDelete: Cascade)
+}
+
+model BrandNewDetails {
+  b_bus_id        String    @id
+  dealer_name     String
+  dealer_contact  String
+
+  bus             Bus    @relation(fields: [b_bus_id], references: [bus_id], onDelete: Cascade)
+}
+
+model BusOtherFiles {
+  bus_files_id    String    @id @db.VarChar(20)
+  file_name       String
+  file_type       String
+  file_url        String
+  date_uploaded   DateTime @default(now())
+
+  bus_id          String
+  bus             Bus    @relation(fields: [bus_id], references: [bus_id], onDelete: Cascade)
+
+  @@map("bus_other_files")
+}
+
+// ---------------- OPERATIONS ----------------
+
+model Quota_Policy {
+  QuotaPolicyID String @id
+  StartDate     DateTime @default(now())
+  EndDate       DateTime @default(dbgenerated("(CURRENT_TIMESTAMP + interval '1 year')"))
+  RegularBusAssignmentID String
+
+  Fixed Fixed?
+  Percentage Percentage?
+
+  regularBusAssignment RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Fixed {
+  FQuotaPolicyID String @id
+  Quota Float 
+
+  quotaPolicy Quota_Policy @relation(fields: [FQuotaPolicyID], references: [QuotaPolicyID], onDelete: Cascade)
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Percentage {
+  PQuotaPolicyID String @id
+  Percentage     Float
+
+  quotaPolicy Quota_Policy @relation(fields: [PQuotaPolicyID], references: [QuotaPolicyID], onDelete: Cascade)
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Stop {
+  StopID     String @id
+  StopName   String
+  latitude   String
+  longitude  String
+  IsDeleted  Boolean @default(false)
+
+  routesAsStart Route[] @relation("StartStop")
+  routesAsEnd   Route[] @relation("EndStop")
+  RouteStops    RouteStop[]
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Route {
+  RouteID     String @id
+  StartStopID String
+  EndStopID   String
+  RouteName   String
+  IsDeleted   Boolean @default(false)
+
+  StartStop Stop @relation("StartStop", fields: [StartStopID], references: [StopID])
+  EndStop   Stop @relation("EndStop", fields: [EndStopID], references: [StopID])
+  RouteStops RouteStop[]
+  BusAssignments BusAssignment[]
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model RouteStop {
+  RouteStopID String @id
+  RouteID     String
+  StopID      String
+  StopOrder   Int
+
+  Route Route @relation(fields: [RouteID], references: [RouteID])
+  Stop  Stop  @relation(fields: [StopID], references: [StopID])
+
+  @@unique([RouteID, StopID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model BusAssignment {
+  BusAssignmentID String @id
+  BusID           String
+  RouteID         String
+
+  Battery         Boolean @default(false)
+  Lights          Boolean @default(false)
+  Oil             Boolean @default(false)
+  Water           Boolean @default(false)
+  Break           Boolean @default(false)
+  Air             Boolean @default(false)
+  Gas             Boolean @default(false)
+  Engine          Boolean @default(false)
+  TireCondition   Boolean @default(false)
+  Self_Driver     Boolean @default(false)
+  Self_Conductor  Boolean @default(false)
+  IsDeleted       Boolean @default(false)
+  Status          BusOperationStatus @default(NotReady)
+
+  Route Route @relation(fields: [RouteID], references: [RouteID])
+  RegularBusAssignment RegularBusAssignment?
+
+  @@index([BusID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model RegularBusAssignment {
+  RegularBusAssignmentID String @id
+  DriverID               Int    // Changed to Int to properly reference Employee
+  ConductorID            Int    // Changed to Int to properly reference Employee
+  BusAssignmentID        String @unique
+
+  BusAssignment          BusAssignment @relation(fields: [BusAssignmentID], references: [BusAssignmentID])
+  QuotaPolicies          Quota_Policy[]
+  BusTrips               BusTrip[]
+
+  LatestBusTripID String? @unique
+  LatestBusTrip   BusTrip? @relation("LatestBusTrip", fields: [LatestBusTripID], references: [BusTripID])
+
+  driver    Employee @relation("DriverAssignments", fields: [DriverID], references: [id])
+  conductor Employee @relation("ConductorAssignments", fields: [ConductorID], references: [id])
+
+  @@index([DriverID])
+  @@index([ConductorID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model BusTrip {
+  BusTripID              String   @id
+  RegularBusAssignmentID String
+  DispatchedAt           DateTime?
+  CompletedAt            DateTime?
+  Sales                  Float?
+  PettyCash              Float?
+  Remarks                String? 
+  TripExpense            Float?
+  Payment_Method         PaymentMethod?
+
+  IsRevenueRecorded      Boolean  @default(false)
+  IsExpenseRecorded      Boolean  @default(false)
+
+  regularBusAssignment RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
+  TicketBusTrips TicketBusTrip[]
+
+  LatestForAssignment RegularBusAssignment? @relation("LatestBusTrip")
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model TicketType {
+  TicketTypeID   String @id
+  Value          Float
+  TicketBusTrips TicketBusTrip[]
+
+  @@map("Ticket_Type")
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model TicketBusTrip {
+  TicketBusTripID String @id
+  BusTripID       String
+  TicketTypeID    String
+  StartingIDNumber Int?
+  EndingIDNumber   Int?
+  OverallEndingID  Int? 
+
+  BusTrip    BusTrip    @relation(fields: [BusTripID], references: [BusTripID])
+  TicketType TicketType @relation(fields: [TicketTypeID], references: [TicketTypeID])
+
+  @@map("TicketBusTripAssignment")
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+// ---------------- ENUMS ----------------
+
+enum InventoryStatus {
+  LOW_STOCK
+  AVAILABLE
+  NOT_AVAILABLE
+  OUT_OF_STOCK
+  UNDER_MAINTENANCE
+  EXPIRED
+  IN_USED
+  DISPOSED
+}
+
+enum RequestType {
+  BORROW
+  CONSUME
+}
+
+enum RequestStatus {
+  RETURNED
+  NOT_RETURNED
+  CONSUMED
+  PARTIALLY_CONSUMED
+  CANCELLED
+}
+
+enum BodyBuilder {
+  AGILA
+  HILLTOP
+  RBM
+  DARJ
+}
+
+enum BusType {
+  AIRCONDITIONED
+  ORDINARY
+}
+
+enum BusStatus {
+  ACTIVE
+  DECOMMISSIONED
+  UNDER_MAINTENANCE
+}
+
+enum BusCondition {
+  BRAND_NEW
+  SECOND_HAND
+}
+
+enum AcquisitionMethod {
+  PURCHASED
+  LEASED
+  DONATED
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  NOT_REGISTERED
+  NEEDS_RENEWAL
+  EXPIRED
+}
+
+enum BusSource {
+  DEALERSHIP
+  AUCTION
+  PRIVATE_INDIVIDUAL
+}
+
+enum BusOperationStatus {
+  NotStarted
+  NotReady
+  InOperation
+}
+
+enum PaymentMethod {
+  Reimbursement
+  Company_Cash
+}

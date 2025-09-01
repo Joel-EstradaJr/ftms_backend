@@ -45,10 +45,10 @@ type RawAssignment = {
 
 // Operations API base URL - must be set in environment variables
 // Use NEXT_PUBLIC_ prefix for client-side access, fallback to server-side variable
-const OP_API_BASE_URL = process.env.NEXT_PUBLIC_OP_API_BASE_URL || process.env.OP_API_BASE_URL;
+const OP_API_BUSTRIP_URL = process.env.NEXT_PUBLIC_OP_API_BUSTRIP_URL || process.env.OP_API_BUSTRIP_URL;
 
-if (!OP_API_BASE_URL) {
-  throw new Error('OP_API_BASE_URL or NEXT_PUBLIC_OP_API_BASE_URL environment variable is required');
+if (!OP_API_BUSTRIP_URL) {
+  throw new Error('OP_API_BUSTRIP_URL or NEXT_PUBLIC_OP_API_BUSTRIP_URL environment variable is required');
 }
 
 // Fetch all assignments from Operations API (client-side uses API route)
@@ -83,8 +83,8 @@ export async function getAllAssignments(): Promise<Assignment[]> {
 
 // Server-side only function for direct API calls with retry logic
 export async function fetchAssignmentsFromOperationsAPI(): Promise<Assignment[]> {
-  if (!process.env.OP_API_BASE_URL) {
-    throw new Error('OP_API_BASE_URL environment variable is required for server-side fetching');
+  if (!process.env.OP_API_BUSTRIP_URL) {
+    throw new Error('OP_API_BUSTRIP_URL environment variable is required for server-side fetching');
   }
 
   const maxRetries = 3;
@@ -99,7 +99,7 @@ export async function fetchAssignmentsFromOperationsAPI(): Promise<Assignment[]>
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      const response = await fetch(`${process.env.OP_API_BASE_URL}?RequestType=revenue`, {
+      const response = await fetch(`${process.env.OP_API_BUSTRIP_URL}?RequestType=revenue`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ export async function fetchAssignmentsFromOperationsAPI(): Promise<Assignment[]>
       console.error(`Attempt ${attempt}/${maxRetries} failed:`, {
         error: lastError.message,
         stack: lastError.stack,
-        url: process.env.OP_API_BASE_URL,
+        url: process.env.OP_API_BUSTRIP_URL,
         attempt,
         maxRetries
       });
@@ -191,7 +191,7 @@ export async function fetchAssignmentsFromOperationsAPI(): Promise<Assignment[]>
 // Get assignment by ID
 export async function getAssignmentById(id: string): Promise<Assignment | null> {
   try {
-    const isServerSide = typeof window === 'undefined' && process.env.OP_API_BASE_URL;
+    const isServerSide = typeof window === 'undefined' && process.env.OP_API_BUSTRIP_URL;
     if (isServerSide) {
       const assignments = await fetchAssignmentsFromOperationsAPI();
       const assignment = assignments.find(assignment => assignment.assignment_id === id);

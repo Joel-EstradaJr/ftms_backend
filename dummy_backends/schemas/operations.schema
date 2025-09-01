@@ -1,0 +1,222 @@
+// Operations Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Quota_Policy {
+  QuotaPolicyID String @id
+  StartDate     DateTime @default(now())
+  EndDate       DateTime @default(dbgenerated("(CURRENT_TIMESTAMP + interval '1 year')"))
+  RegularBusAssignmentID String
+
+  Fixed Fixed?
+  Percentage Percentage?
+
+  regularBusAssignment RegularBusAssignment? @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Fixed {
+  FQuotaPolicyID String @id
+  Quota Float 
+
+  quotaPolicy Quota_Policy @relation(fields: [FQuotaPolicyID], references: [QuotaPolicyID], onDelete: Cascade)
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Percentage {
+  PQuotaPolicyID String @id
+  Percentage     Float
+
+  quotaPolicy Quota_Policy @relation(fields: [PQuotaPolicyID], references: [QuotaPolicyID], onDelete: Cascade)
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Stop {
+  StopID     String @id
+  StopName   String
+  latitude   String
+  longitude  String
+  IsDeleted  Boolean @default(false)
+
+  routesAsStart Route[] @relation("StartStop")
+  routesAsEnd   Route[] @relation("EndStop")
+  RouteStops    RouteStop[]
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model Route {
+  RouteID     String @id
+  StartStopID String
+  EndStopID   String
+  RouteName   String
+  IsDeleted   Boolean @default(false)
+
+  StartStop Stop @relation("StartStop", fields: [StartStopID], references: [StopID])
+  EndStop   Stop @relation("EndStop", fields: [EndStopID], references: [StopID])
+  RouteStops RouteStop[]
+  BusAssignments BusAssignment[]
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model RouteStop {
+  RouteStopID String @id
+  RouteID     String
+  StopID      String
+  StopOrder   Int
+
+  Route Route @relation(fields: [RouteID], references: [RouteID])
+  Stop  Stop  @relation(fields: [StopID], references: [StopID])
+
+  @@unique([RouteID, StopID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+enum BusOperationStatus {
+  NotStarted
+  NotReady
+  InOperation
+}
+
+model BusAssignment {
+  BusAssignmentID String @id
+  BusID           String
+  RouteID         String
+
+  Battery         Boolean @default(false)
+  Lights          Boolean @default(false)
+  Oil             Boolean @default(false)
+  Water           Boolean @default(false)
+  Break           Boolean @default(false)
+  Air             Boolean @default(false)
+  Gas             Boolean @default(false)
+  Engine          Boolean @default(false)
+  TireCondition   Boolean @default(false)
+  Self_Driver     Boolean @default(false)
+  Self_Conductor  Boolean @default(false)
+  IsDeleted       Boolean @default(false)
+  Status          BusOperationStatus @default(NotReady)
+
+  Route Route @relation(fields: [RouteID], references: [RouteID])
+  RegularBusAssignment RegularBusAssignment?
+
+  @@index([BusID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model RegularBusAssignment {
+  RegularBusAssignmentID String @id
+  DriverID               String 
+  ConductorID            String 
+  BusAssignment          BusAssignment @relation(fields: [RegularBusAssignmentID], references: [BusAssignmentID])
+
+  QuotaPolicies Quota_Policy[]
+  BusTrips BusTrip[]
+
+  LatestBusTripID String? @unique
+  LatestBusTrip   BusTrip? @relation("LatestBusTrip", fields: [LatestBusTripID], references: [BusTripID])
+
+  @@index([DriverID])
+  @@index([ConductorID])
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+enum PaymentMethod {
+  Reimbursement
+  Company_Cash
+}
+
+model BusTrip {
+  BusTripID              String   @id
+  RegularBusAssignmentID String
+  DispatchedAt           DateTime?
+  CompletedAt            DateTime?
+  Sales                  Float?
+  PettyCash             Float?
+  Remarks                String? 
+  TripExpense            Float?
+  Payment_Method         PaymentMethod?
+
+  IsRevenueRecorded      Boolean  @default(false)
+  IsExpenseRecorded      Boolean  @default(false)
+
+  regularBusAssignment RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
+  TicketBusTrips TicketBusTrip[]
+
+  LatestForAssignment RegularBusAssignment? @relation("LatestBusTrip")
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model TicketType {
+  TicketTypeID   String @id
+  Value          Float
+  TicketBusTrips TicketBusTrip[]
+
+  @@map("Ticket_Type")
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model TicketBusTrip {
+  TicketBusTripID String @id
+  BusTripID       String
+  TicketTypeID    String
+  StartingIDNumber Int?
+  EndingIDNumber   Int?
+  OverallEndingID    Int? 
+
+  BusTrip    BusTrip    @relation(fields: [BusTripID], references: [BusTripID])
+  TicketType TicketType @relation(fields: [TicketTypeID], references: [TicketTypeID])
+
+  @@map("TicketBusTripAssignment")
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}

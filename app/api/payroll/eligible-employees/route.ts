@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 
-const HR_API_BASE_URL = process.env.HR_API_BASE_URL;
+const HR_API_PAYROLL_URL = process.env.HR_API_PAYROLL_URL;
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch all HR payroll data for the date range
-    const hrRes = await fetch(`${HR_API_BASE_URL}?start=${start}&end=${end}`);
+    const hrRes = await fetch(`${HR_API_PAYROLL_URL}?start=${start}&end=${end}`);
     if (!hrRes.ok) {
       return NextResponse.json({ success: false, error: 'Failed to fetch HR data' }, { status: 500 });
     }
