@@ -93,7 +93,7 @@ textarea.input-error {
   --error-color: #FF4949;   /* also for delete button */
   --info-color: #2D8EFF;    /* also for edit button */
   --warning-color: #FFCC3D;
-
+  
   /* Table Colors */
   --border-color: #B3B3B3;
   --table-header-color: #D8D8D8;
@@ -121,7 +121,7 @@ textarea.input-error {
   --info-hover-color: #267BDB;    /* hover edit button */ 
   --table-header-hover-color: #DDDDDD;
   --table-row-hover-color: #ECECEC;
-
+  --warning-hover-color: #E6B800;
   /* Shadow */
   --box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 

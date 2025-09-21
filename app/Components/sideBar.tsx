@@ -11,7 +11,6 @@ const routeToItem: { [key: string]: string } = {
   "/dashboard": "dashboard",
   "/revenue": "revenue",
   "/expense": "expense",
-  "/receipt": "receipt",
   "/audit": "audit",
   "/report": "report",
   "/reimbursement": "reimbursement",
@@ -101,15 +100,6 @@ const Sidebar: React.FC = () => {
             </div>
           )}
 
-          <Link
-            href="/receipt"
-            className={`nav-item ${activeItem === "receipt" ? "active" : ""}`}
-            onClick={() => setActiveItem("receipt")}
-          >
-            <i className="ri-receipt-line" />
-            <span>Receipt Management</span>
-          </Link>
-
           { <Link
             href="/financial-management/payroll"
             className={`nav-item ${activeItem === "payroll" ? "active" : ""}`}
@@ -118,6 +108,47 @@ const Sidebar: React.FC = () => {
             <i className="ri-group-line" />
             <span>Payroll</span>
           </Link> }
+
+          {/* Budget Management and Submenu */}
+          <div
+            className={`nav-item module ${
+              ["budgetRequest", "budgetAllocation","budgetApproval"].includes(activeItem!) ? "active" : ""
+            }`}
+            onClick={() => toggleSubMenu("budget-management")}
+          >
+            <i className="ri-wallet-3-line"></i>
+            <span>Budget Management</span>
+            <i
+              className={`dropdown-arrow ri-arrow-down-s-line ${
+                openSubMenu === "budget-management" ? "rotate" : ""
+              }`}
+            />
+          </div>
+
+          {openSubMenu === "budget-management" && (
+            <div className="sub-menu active">
+              <Link
+                href="/budget-management/budgetRequest"
+                className={`sub-item ${activeItem === "budgetRequest" ? "active" : ""}`}
+              >
+                Budget Request
+              </Link>
+              <Link
+                href="/budget-management/budgetAllocation"
+                className={`sub-item ${activeItem === "budgetAllocation" ? "active" : ""}`}
+              >
+                Budget Allocation
+              </Link>
+              <Link
+                href="/budget-management/budgetApproval"
+                className={`sub-item ${activeItem === "budgetApproval" ? "active" : ""}`}
+              >
+                Budget Approval
+              </Link>
+            </div>
+          )}
+
+
           { 
           <Link
             href="/report"
