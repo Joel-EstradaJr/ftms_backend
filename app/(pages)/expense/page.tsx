@@ -119,7 +119,7 @@ const ExpensePage = () => {
   const [dateTo, setDateTo] = useState("");
   const today = new Date().toISOString().split('T')[0];
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
   const [showModal, setShowModal] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);

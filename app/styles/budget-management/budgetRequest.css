@@ -215,15 +215,7 @@ button {
 .request-description {
   pointer-events: auto !important;
   position: relative !important;
-}
-
-/* Ensure tooltips can appear above table overflow */
-.tableContainer {
-  overflow: visible !important;
-}
-
-.table-wrapper {
-  overflow: visible !important;
+  z-index: 1 !important;
 }
 
 /* ---------- Loading States ---------- */
