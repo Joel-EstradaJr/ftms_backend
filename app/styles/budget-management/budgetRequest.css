@@ -208,6 +208,24 @@ button {
   color: var(--secondary-text-color) !important;
 }
 
+/* ...existing code... */
+
+/* ---------- Tooltip Fix ---------- */
+.request-title,
+.request-description {
+  pointer-events: auto !important;
+  position: relative !important;
+}
+
+/* Ensure tooltips can appear above table overflow */
+.tableContainer {
+  overflow: visible !important;
+}
+
+.table-wrapper {
+  overflow: visible !important;
+}
+
 /* ---------- Loading States ---------- */
 .budget-request-loading {
   display: flex !important;

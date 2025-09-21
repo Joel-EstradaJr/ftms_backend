@@ -10,6 +10,7 @@ import { formatDate, formatDateTime } from '../../../utility/dateFormatter';
 import Loading from '../../../Components/loading';
 import { showSuccess, showError } from '../../../utility/Alerts';
 import FilterDropdown, { FilterSection } from "../../../Components/filter";
+import AddBudgetRequest from './addBudgetRequest';
 
 interface BudgetRequest {
   request_id: string;
@@ -37,7 +38,7 @@ const BudgetRequestPage = () => {
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [showModal, setShowModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [availableCategories] = useState([
     'Operations',
     'Maintenance',
@@ -396,6 +397,37 @@ const BudgetRequestPage = () => {
     return buttons;
   };
 
+  // Add Budget Request
+    const handleAddBudgetRequest = async (newRequest: any) => {
+        try {
+            // Here you would make an API call to save the budget request
+            console.log('New budget request:', newRequest);
+            
+            // For now, add to local state (replace with actual API call)
+            const mockRequest = {
+                request_id: `BR${String(data.length + 1).padStart(3, '0')}`,
+                title: newRequest.title,
+                description: newRequest.description,
+                requested_amount: newRequest.total_amount, // Map total_amount to requested_amount
+                status: newRequest.status,
+                category: 'Operations', // You may want to add category to your form
+                requested_by: newRequest.requester_name,
+                request_date: newRequest.request_date,
+                approval_date: newRequest.approval_date,
+                approved_by: newRequest.approved_by,
+                rejection_reason: newRequest.rejection_reason,
+                created_at: new Date().toISOString()
+            };
+            
+            setData(prev => [mockRequest, ...prev]);
+            showSuccess('Budget request created successfully', 'Success');
+            setShowAddModal(false);
+        } catch (error) {
+            console.error('Error creating budget request:', error);
+            showError('Failed to create budget request', 'Error');
+        }
+    };
+
   // Action handlers
   const handleView = (item: BudgetRequest) => {
     Swal.fire({
@@ -643,8 +675,8 @@ const BudgetRequestPage = () => {
             </div>
 
             {/* Add New Request */}
-            <button onClick={() => setShowModal(true)} id="addRequest">
-              <i className="ri-add-line" /> New Request
+            <button onClick={() => setShowAddModal(true)} id="addRequest">
+                <i className="ri-add-line" /> New Request
             </button>
           </div>
         </div>
@@ -708,12 +740,17 @@ const BudgetRequestPage = () => {
                     <td>{formatDate(item.request_date)}</td>
                     <td>
                       <div className="request-title">
-                        <strong>{item.title}</strong>
-                        <div className="request-description">
-                          {item.description.length > 60 
+                        <strong title={item.title.length > 30 ? item.title : undefined}>
+                            {item.title}
+                        </strong>
+                        <div 
+                            className="request-description" 
+                            title={item.description.length > 60 ? item.description : undefined}
+                        >
+                            {item.description.length > 60 
                             ? `${item.description.substring(0, 60)}...` 
                             : item.description
-                          }
+                            }
                         </div>
                       </div>
                     </td>
@@ -748,6 +785,14 @@ const BudgetRequestPage = () => {
           onPageChange={setCurrentPage}
           onPageSizeChange={setPageSize}
         />
+
+        {showAddModal && (
+            <AddBudgetRequest
+                onClose={() => setShowAddModal(false)}
+                onAddBudgetRequest={handleAddBudgetRequest}
+                currentUser="ftms_user" // Replace with actual user
+            />
+        )}
       </div>
     </div>
   );
