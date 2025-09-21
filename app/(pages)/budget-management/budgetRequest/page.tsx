@@ -12,6 +12,8 @@ import { showSuccess, showError } from '../../../utility/Alerts';
 import FilterDropdown, { FilterSection } from "../../../Components/filter";
 import AddBudgetRequest from './addBudgetRequest';
 import ViewBudgetRequest from './viewBudgetRequest';
+import AuditTrailBudgetRequest from './auditTrailBudgetRequest';
+
 
 
 interface BudgetRequest {
@@ -42,6 +44,8 @@ const BudgetRequestPage = () => {
   const [pageSize, setPageSize] = useState(10);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [selectedRequestForAudit, setSelectedRequestForAudit] = useState<BudgetRequest | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [availableCategories] = useState([
     'Operations',
@@ -579,11 +583,13 @@ const BudgetRequestPage = () => {
     // Implement single request export
   };
 
-  const handleAuditTrail = (requestId: string) => {
-    console.log('Audit trail:', requestId);
-    showSuccess('Audit trail functionality will be implemented', 'Info');
-    // Implement audit trail modal
-  };
+    const handleAuditTrail = (requestId: string) => {
+        const request = data.find(item => item.request_id === requestId);
+        if (request) {
+            setSelectedRequestForAudit(request);
+            setShowAuditModal(true);
+        }
+    };
 
   // Export functions
   const handleExport = (format: 'csv' | 'excel' | 'pdf') => {
@@ -777,6 +783,17 @@ const BudgetRequestPage = () => {
                 onClose={() => setShowAddModal(false)}
                 onAddBudgetRequest={handleAddBudgetRequest}
                 currentUser="ftms_user" // Replace with actual user
+            />
+        )}
+
+        {showAuditModal && selectedRequestForAudit && (
+            <AuditTrailBudgetRequest
+                requestId={selectedRequestForAudit.request_id}
+                requestTitle={selectedRequestForAudit.title}
+                onClose={() => {
+                setShowAuditModal(false);
+                setSelectedRequestForAudit(null);
+                }}
             />
         )}
 
