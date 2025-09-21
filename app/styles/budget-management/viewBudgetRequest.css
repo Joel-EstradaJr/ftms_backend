@@ -1,0 +1,541 @@
+/* ============================================================
+   viewBudgetRequest.css – View Budget Request Modal
+   Based on addBudgetRequest.css but for read-only display
+   ============================================================ */
+
+/* ---------- Overlay ---------- */
+.modalOverlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 1050 !important;
+  overflow: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.modalOverlay::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* ---------- Modal Box ---------- */
+.viewBudgetRequestModal {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  background: var(--foreground-color) !important;
+  padding: var(--modal-padding) !important;
+  border-radius: var(--modal-border-radius) !important;
+  width: 90% !important;
+  max-width: 1200px !important;
+  max-height: 90vh !important;
+  overflow: hidden !important;
+  box-shadow: var(--box-shadow) !important;
+  position: relative !important;
+  font-family: var(--font-sans) !important;
+  color: var(--primary-text-color) !important;
+}
+
+.viewBudgetRequestModal .modalContent {
+  width: 100% !important;
+  overflow-y: auto !important;
+  max-height: calc(90vh - 100px) !important;
+  scrollbar-width: thin !important;
+}
+.viewBudgetRequestModal .modalContent::-webkit-scrollbar {
+  width: 6px !important;
+}
+.viewBudgetRequestModal .modalContent::-webkit-scrollbar-thumb {
+  background: var(--border-color) !important;
+  border-radius: 6px !important;
+}
+
+/* ---------- Header ---------- */
+.modalHeader {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin-bottom: var(--modal-header-margin-bottom) !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.modalHeader h1 {
+  font-size: var(--title-font-size) !important;
+  font-weight: var(--title-font-weight) !important;
+  color: var(--primary-text-color) !important;
+  margin: 0 !important;
+}
+
+/* ---------- Status Badge in Header ---------- */
+.statusBadgeHeader {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.statusLabel {
+  font-weight: 600 !important;
+  color: var(--secondary-text-color) !important;
+  font-size: 0.9rem !important;
+}
+
+/* ---------- Content ---------- */
+.modalContent {
+  width: var(--modal-content-width) !important;
+  max-width: 100% !important;
+  height: auto !important;
+  background-color: var(--modal-content-background-color) !important;
+  padding: var(--modal-content-padding) !important;
+  border-radius: var(--modal-content-border-radius) !important;
+  box-shadow: none !important;
+  overflow-y: visible !important;
+}
+
+/* ---------- Field Display Grid (Same as formRow) ---------- */
+.displayRow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  align-content: flex-start;
+  gap: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.displayInputs {
+  display: flex;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  gap: var(--modal-content-row-gap) !important;
+}
+
+.displayField {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1;
+  margin: none;
+  width: 100%;
+  max-width: 100%;
+  background-color: none;
+}
+
+.displayFieldHalf {
+  width: 48% !important;
+  max-width: 48% !important;
+}
+
+.displayField label {
+  font-size: var(--input-label-font-size) !important;
+  font-weight: var(--input-label-font-weight) !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* Read-only values (styled like inputs but disabled) */
+.displayValue {
+  width: 100% !important;
+  padding: 0.5rem 0.75rem !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 4px !important;
+  font-family: var(--font-sans) !important;
+  background-color: #f8f9fa !important;
+  box-shadow: var(--box-shadow) !important;
+  color: var(--primary-text-color) !important;
+  resize: vertical !important;
+  cursor: default !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.displayValueTextarea {
+  min-height: 80px !important;
+  max-height: 150px !important;
+  padding-top: 0.5rem !important;
+  line-height: 1.4 !important;
+  align-items: flex-start !important;
+  display: flex !important;
+}
+
+.displayValueEmpty {
+  color: var(--secondary-text-color) !important;
+  font-style: italic !important;
+}
+
+/* ---------- Section Headers ---------- */
+.sectionHeader {
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-color) !important;
+  margin: 1.5rem 0 1rem 0 !important;
+  padding-bottom: 0.5rem !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+/* ---------- Items Section ---------- */
+.itemsDisplaySection {
+  background: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 1rem 0 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+}
+
+.itemsDisplayHeader {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 1rem !important;
+}
+
+.itemsDisplayHeader h3 {
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+  color: var(--primary-color) !important;
+}
+
+.itemsCount {
+  background: var(--info-color) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 20px !important;
+  padding: 0.25rem 0.75rem !important;
+  cursor: default !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+}
+
+.itemDisplayContainer {
+  background: white !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-bottom: 1rem !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+  position: relative !important;
+}
+
+.itemDisplayGrid {
+  display: grid !important;
+  grid-template-columns: 2fr 1fr 1fr 1fr 2fr 1fr !important;
+  gap: 1rem !important;
+  align-items: end !important;
+}
+
+.itemDisplayField {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.itemDisplayField label {
+  font-size: var(--input-label-font-size) !important;
+  font-weight: var(--input-label-font-weight) !important;
+  margin-bottom: 0.25rem !important;
+  color: var(--primary-text-color) !important;
+}
+
+.itemDisplayValue {
+  width: 100% !important;
+  padding: 0.5rem 0.75rem !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 4px !important;
+  font-family: var(--font-sans) !important;
+  background-color: #f8f9fa !important;
+  box-shadow: var(--box-shadow) !important;
+  color: var(--primary-text-color) !important;
+  cursor: default !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.subtotalDisplayField {
+  display: flex !important;
+  align-items: center !important;
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+  background: #f1f3f4 !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* ---------- File Upload Section ---------- */
+.fileDisplaySection {
+  background: #f8f9fa !important;
+  border: 2px dashed var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 2rem !important;
+  margin: 1rem 0 !important;
+  text-align: center !important;
+}
+
+.fileDisplayIcon {
+  font-size: 2rem !important;
+  color: var(--secondary-text-color) !important;
+  margin-bottom: 1rem !important;
+}
+
+.fileDisplayText {
+  color: var(--secondary-text-color) !important;
+  margin-bottom: 1rem !important;
+}
+
+.fileDisplayList {
+  margin-top: 1rem !important;
+  text-align: left !important;
+}
+
+.fileDisplayItem {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.5rem !important;
+  background: white !important;
+  border-radius: 4px !important;
+  margin-bottom: 0.5rem !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+}
+
+.fileDisplayName {
+  font-size: 0.9rem !important;
+  color: var(--primary-text-color) !important;
+}
+
+.fileDisplaySize {
+  font-size: 0.8rem !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.downloadFileBtn {
+  background: var(--info-color) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 0.25rem 0.5rem !important;
+  cursor: pointer !important;
+  font-size: 0.8rem !important;
+  transition: background 0.15s ease !important;
+}
+
+.downloadFileBtn:hover {
+  background: var(--info-hover-color) !important;
+}
+
+.noFilesMessage {
+  color: var(--secondary-text-color) !important;
+  font-style: italic !important;
+}
+
+/* ---------- Total Amount Display ---------- */
+.totalAmountDisplayView {
+  background: var(--primary-color) !important;
+  color: white !important;
+  padding: 1rem !important;
+  border-radius: 8px !important;
+  margin: 1rem 0 !important;
+  text-align: center !important;
+}
+
+.totalAmountDisplayView h3 {
+  margin: 0 0 0.5rem 0 !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+}
+
+.totalAmountValueView {
+  font-size: 1.5rem !important;
+  font-weight: bold !important;
+}
+
+/* ---------- Action History Section ---------- */
+.actionHistorySection {
+  background: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 1rem 0 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+}
+
+.actionHistoryHeader h3 {
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+}
+
+.actionHistoryItem {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.75rem !important;
+  background: white !important;
+  border-radius: 4px !important;
+  margin-bottom: 0.5rem !important;
+  border-left: 4px solid var(--info-color) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+}
+
+.actionHistoryDetails {
+  flex: 1 !important;
+}
+
+.actionHistoryAction {
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.actionHistoryMeta {
+  font-size: 0.85rem !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.actionHistoryDate {
+  font-size: 0.8rem !important;
+  color: var(--secondary-text-color) !important;
+  text-align: right !important;
+}
+
+/* ---------- Button Area ---------- */
+.modalButtons {
+  width: 100% !important;
+  margin-top: 1.25rem !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: var(--modal-button-gap) !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid var(--border-color) !important;
+}
+
+.modalButtons button {
+  width: var(--modal-button-width) !important;
+  height: var(--modal-button-height) !important;
+  font-size: var(--modal-button-font-size) !important;
+  border-radius: var(--modal-button-border-radius) !important;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  color: var(--button-font-color) !important;
+  box-shadow: var(--box-shadow) !important;
+  transition: transform 0.15s ease, background 0.15s ease !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.editButton {
+  background: var(--info-color) !important;
+}
+.editButton:hover {
+  background: var(--info-hover-color) !important;
+}
+
+.exportButton {
+  background: var(--secondary-color) !important;
+}
+.exportButton:hover {
+  background: var(--secondary-hover-color) !important;
+}
+
+/* ---------- Utility Classes ---------- */
+.autoFillNote {
+  font-size: 0.8rem !important;
+  color: var(--secondary-text-color) !important;
+  font-style: italic !important;
+  margin-top: 0.25rem !important;
+}
+
+.highlightValue {
+  background: var(--primary-color) !important;
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+/* ---------- Header Layout ---------- */
+.modalHeader {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin-bottom: var(--modal-header-margin-bottom) !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.modalHeader .header-left {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0.5rem !important;
+}
+
+.modalHeader .header-left h1 {
+  font-size: var(--title-font-size) !important;
+  font-weight: var(--title-font-weight) !important;
+  color: var(--primary-text-color) !important;
+  margin: 0 !important;
+}
+
+.modalHeader .header-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+}
+
+/* ---------- Status Badge in Header ---------- */
+.statusBadgeHeader {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.statusLabel {
+  font-weight: 600 !important;
+  color: var(--secondary-text-color) !important;
+  font-size: 0.9rem !important;
+}
+
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  .viewBudgetRequestModal {
+    width: 95% !important;
+    max-width: 95% !important;
+    padding: 1rem !important;
+  }
+
+  .displayRow {
+    flex-direction: column !important;
+  }
+
+  .displayFieldHalf {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .itemDisplayGrid {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+
+  .modalButtons {
+    flex-direction: column !important;
+  }
+
+  .modalButtons button {
+    width: 100% !important;
+  }
+}

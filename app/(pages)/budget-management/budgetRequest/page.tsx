@@ -11,6 +11,8 @@ import Loading from '../../../Components/loading';
 import { showSuccess, showError } from '../../../utility/Alerts';
 import FilterDropdown, { FilterSection } from "../../../Components/filter";
 import AddBudgetRequest from './addBudgetRequest';
+import ViewBudgetRequest from './viewBudgetRequest';
+
 
 interface BudgetRequest {
   request_id: string;
@@ -39,6 +41,8 @@ const BudgetRequestPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [availableCategories] = useState([
     'Operations',
     'Maintenance',
@@ -428,29 +432,11 @@ const BudgetRequestPage = () => {
         }
     };
 
+
   // Action handlers
   const handleView = (item: BudgetRequest) => {
-    Swal.fire({
-      title: 'Budget Request Details',
-      html: `
-        <div style="text-align: left; margin: 1rem 0;">
-          <p><strong>Request ID:</strong> ${item.request_id}</p>
-          <p><strong>Title:</strong> ${item.title}</p>
-          <p><strong>Description:</strong> ${item.description}</p>
-          <p><strong>Category:</strong> ${item.category}</p>
-          <p><strong>Requested Amount:</strong> ₱${item.requested_amount.toLocaleString()}</p>
-          <p><strong>Status:</strong> ${item.status}</p>
-          <p><strong>Requested By:</strong> ${item.requested_by}</p>
-          <p><strong>Request Date:</strong> ${formatDate(item.request_date)}</p>
-          ${item.approval_date ? `<p><strong>Approval Date:</strong> ${formatDate(item.approval_date)}</p>` : ''}
-          ${item.approved_by ? `<p><strong>Approved By:</strong> ${item.approved_by}</p>` : ''}
-          ${item.rejection_reason ? `<p><strong>Rejection Reason:</strong> ${item.rejection_reason}</p>` : ''}
-        </div>
-      `,
-      confirmButtonText: 'Close',
-      confirmButtonColor: '#961C1E',
-      width: 600
-    });
+    setSelectedRequest(item);
+    setShowViewModal(true);
   };
 
   const handleEdit = (item: BudgetRequest) => {
@@ -791,6 +777,26 @@ const BudgetRequestPage = () => {
                 onClose={() => setShowAddModal(false)}
                 onAddBudgetRequest={handleAddBudgetRequest}
                 currentUser="ftms_user" // Replace with actual user
+            />
+        )}
+
+        {showViewModal && selectedRequest && (
+            <ViewBudgetRequest
+                request={selectedRequest}
+                onClose={() => {
+                setShowViewModal(false);
+                setSelectedRequest(null);
+                }}
+                onEdit={(request) => {
+                console.log('Edit request:', request);
+                // Handle edit functionality
+                setShowViewModal(false);
+                }}
+                onExport={(request) => {
+                console.log('Export request:', request);
+                // Handle export functionality
+                }}
+                showActions={true}
             />
         )}
       </div>
