@@ -346,25 +346,6 @@ const BudgetRequestPage = () => {
         break;
       
       case 'Pending Approval':
-        // Admin can approve or reject pending requests
-        buttons.push(
-          <button 
-            key="approve"
-            className="approveBtn" 
-            onClick={() => handleApprove(item.request_id)}
-            title="Approve Request"
-          >
-            <i className="ri-check-line" />
-          </button>,
-          <button 
-            key="reject"
-            className="rejectBtn" 
-            onClick={() => handleReject(item.request_id)}
-            title="Reject Request"
-          >
-            <i className="ri-close-line" />
-          </button>
-        );
         break;
       
       case 'Rejected':
