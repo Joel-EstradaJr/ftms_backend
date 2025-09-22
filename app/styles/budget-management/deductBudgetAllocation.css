@@ -1,0 +1,477 @@
+/* ============================================================
+   deductBudgetAllocation.css – Improved Deduct Budget Modal
+   ============================================================ */
+
+/* ---------- Overlay ---------- */
+.modalOverlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 1050 !important;
+  padding: 2rem !important;
+  box-sizing: border-box !important;
+}
+
+/* ---------- Modal Box ---------- */
+.deductBudgetModal {
+  background: white !important;
+  border-radius: 16px !important;
+  width: 100% !important;
+  max-width: 800px !important;
+  max-height: 90vh !important;
+  overflow: hidden !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* ---------- Modal Content ---------- */
+.modalContent {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 2rem !important;
+}
+
+.modalContent::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.modalContent::-webkit-scrollbar-track {
+  background: #f1f1f1 !important;
+  border-radius: 4px !important;
+}
+
+.modalContent::-webkit-scrollbar-thumb {
+  background: #c1c1c1 !important;
+  border-radius: 4px !important;
+}
+
+.modalContent::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8 !important;
+}
+
+/* ---------- Section Headers ---------- */
+.sectionHeader {
+  font-size: 1.3rem !important;
+  font-weight: 700 !important;
+  color: #1a1a1a !important;
+  margin: 2rem 0 1.5rem 0 !important;
+  padding-bottom: 0.75rem !important;
+  border-bottom: 2px solid #e5e7eb !important;
+  position: relative !important;
+}
+
+.sectionHeader:first-of-type {
+  margin-top: 0 !important;
+}
+
+.sectionHeader::before {
+  content: '' !important;
+  position: absolute !important;
+  bottom: -2px !important;
+  left: 0 !important;
+  width: 60px !important;
+  height: 2px !important;
+  background: var(--primary-color, #991b1b) !important;
+}
+
+/* ---------- Display Rows ---------- */
+.displayRow {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 2rem !important;
+  margin-bottom: 2rem !important;
+}
+
+/* ---------- Fields ---------- */
+.displayField, .inputField {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+}
+
+.displayField label, .inputField label {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: #374151 !important;
+  margin: 0 !important;
+}
+
+/* ---------- Display Values ---------- */
+.displayValue {
+  padding: 1rem !important;
+  background: #f9fafb !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  font-size: 1rem !important;
+  color: #1f2937 !important;
+  font-weight: 500 !important;
+}
+
+.highlightValue {
+  background: var(--primary-color, #991b1b) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-color: var(--primary-color, #991b1b) !important;
+}
+
+/* ---------- Input Fields ---------- */
+.deductionInput, .deductionTextarea {
+  padding: 1rem !important;
+  border: 2px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  font-size: 1rem !important;
+  color: #1f2937 !important;
+  background: white !important;
+  transition: all 0.2s ease !important;
+}
+
+.deductionInput:focus, .deductionTextarea:focus {
+  outline: none !important;
+  border-color: var(--primary-color, #991b1b) !important;
+  box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.1) !important;
+}
+
+.deductionTextarea {
+  resize: vertical !important;
+  min-height: 120px !important;
+}
+
+/* ---------- Character Count ---------- */
+.characterCount {
+  font-size: 0.875rem !important;
+  color: #6b7280 !important;
+  text-align: right !important;
+  margin-top: 0.5rem !important;
+}
+
+/* ---------- Budget Status Cards ---------- */
+.currentBudgetGrid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  gap: 1.5rem !important;
+  margin: 2rem 0 !important;
+}
+
+.budgetStatusCard {
+  background: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  padding: 2rem !important;
+  text-align: center !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+.budgetStatusCard:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 20px -4px rgba(0, 0, 0, 0.15) !important;
+}
+
+.budgetStatusIcon {
+  width: 64px !important;
+  height: 64px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 2rem !important;
+  color: white !important;
+  margin: 0 auto 1rem auto !important;
+}
+
+.budgetStatusCard.allocated .budgetStatusIcon {
+  background: var(--primary-color, #991b1b) !important;
+}
+
+.budgetStatusCard.used .budgetStatusIcon {
+  background: #f59e0b !important;
+}
+
+.budgetStatusCard.remaining .budgetStatusIcon {
+  background: #10b981 !important;
+}
+
+.budgetStatusContent label {
+  display: block !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.budgetStatusValue {
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  color: #1f2937 !important;
+}
+
+.budgetStatusValue.positive {
+  color: #10b981 !important;
+}
+
+.budgetStatusValue.negative {
+  color: #ef4444 !important;
+}
+
+/* ---------- Deduction Preview Section ---------- */
+.deductionPreviewSection {
+  background: linear-gradient(135deg, #fef2f2 0%, #fef2f2 100%) !important;
+  border: 1px solid #ef4444 !important;
+  border-radius: 12px !important;
+  padding: 2rem !important;
+  margin: 2rem 0 !important;
+}
+
+.previewBudgetGrid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  gap: 1.5rem !important;
+  margin-top: 1.5rem !important;
+}
+
+.budgetPreviewCard {
+  background: white !important;
+  border: 2px solid #ef4444 !important;
+  border-radius: 12px !important;
+  padding: 1.5rem !important;
+  text-align: center !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.budgetPreviewCard::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 4px !important;
+  background: #ef4444 !important;
+}
+
+.budgetPreviewIcon {
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 50% !important;
+  background: #ef4444 !important;
+  color: white !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.75rem !important;
+  margin: 0 auto 1rem auto !important;
+}
+
+.budgetPreviewContent label {
+  display: block !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.budgetPreviewValue {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #1f2937 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.budgetPreviewValue.negative {
+  color: #ef4444 !important;
+}
+
+.budgetPreviewValue.positive {
+  color: #10b981 !important;
+}
+
+.budgetPreviewChange {
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+}
+
+.budgetPreviewChange.negative {
+  color: #ef4444 !important;
+}
+
+/* ---------- Chips ---------- */
+.chip {
+  display: inline-block !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 20px !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.chip.active {
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.chip.status-good {
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.chip.status-active {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+.chip.status-warning {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.chip.status-exceeded {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+/* ---------- Error Messages ---------- */
+.error-message {
+  color: #ef4444 !important;
+  font-size: 0.875rem !important;
+  margin-top: 0.5rem !important;
+  font-weight: 500 !important;
+}
+
+.input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.submitErrorMessage {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  padding: 1rem 1.25rem !important;
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+  border-radius: 8px !important;
+  color: #991b1b !important;
+  font-weight: 600 !important;
+  margin: 1.5rem 0 !important;
+}
+
+/* ---------- Modal Buttons ---------- */
+.modalButtons {
+  padding: 2rem !important;
+  border-top: 1px solid #e5e7eb !important;
+  background: #f9fafb !important;
+  display: flex !important;
+  gap: 1rem !important;
+  justify-content: flex-end !important;
+}
+
+.modalButtons button {
+  padding: 0.75rem 2rem !important;
+  border-radius: 8px !important;
+  border: none !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  min-width: 140px !important;
+  justify-content: center !important;
+}
+
+.cancelButton {
+  background: #6b7280 !important;
+  color: white !important;
+}
+
+.cancelButton:hover:not(:disabled) {
+  background: #4b5563 !important;
+  transform: translateY(-1px) !important;
+}
+
+.submitButton {
+  background: var(--primary-color, #991b1b) !important;
+  color: white !important;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: #7f1d1d !important;
+  transform: translateY(-1px) !important;
+}
+
+.modalButtons button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* ---------- Loading Spinner ---------- */
+.spin {
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Required Tags ---------- */
+.requiredTags {
+  color: #ef4444 !important;
+  font-weight: 600 !important;
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 768px) {
+  .modalOverlay {
+    padding: 1rem !important;
+  }
+  
+  .deductBudgetModal {
+    max-width: 100% !important;
+  }
+  
+  .modalContent {
+    padding: 1.5rem !important;
+  }
+  
+  .displayRow {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+  }
+  
+  .currentBudgetGrid, .previewBudgetGrid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .modalButtons {
+    flex-direction: column !important;
+    padding: 1.5rem !important;
+  }
+  
+  .modalButtons button {
+    width: 100% !important;
+  }
+  
+  .sectionHeader {
+    font-size: 1.2rem !important;
+  }
+}
+
+/* ---------- Full Width Input Field ---------- */
+.inputField:not(.displayFieldHalf) {
+  grid-column: 1 / -1 !important;
+}

@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import "../../../styles/budget-management/budgetAllocation.css";
 import MonthYearPicker from '../../../Components/MonthYearPicker';
 import { formatDate } from '../../../utility/dateFormatter';
+import AllocateBudgetAllocation from './allocateBudgetAllocation';
+import DeductBudgetAllocation from './deductBudgetAllocation';
+
 
 // Types
 interface DepartmentBudget {
@@ -29,11 +32,23 @@ interface BudgetAllocationData {
   notes: string;
 }
 
+interface BudgetDeductionData {
+  deduction_id: string;
+  department_id: string;
+  department_name: string;
+  amount: number;
+  deducted_date: string;
+  deducted_by: string;
+  period: string;
+  notes: string;
+}
+
 const BudgetAllocationPage: React.FC = () => {
   // State management
   const [departmentBudgets, setDepartmentBudgets] = useState<DepartmentBudget[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllocationModal, setShowAllocationModal] = useState(false);
+  const [showDeductionModal, setShowDeductionModal] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentBudget | null>(null);
   const [allocationAmount, setAllocationAmount] = useState('');
   const [allocationNotes, setAllocationNotes] = useState('');
@@ -181,38 +196,75 @@ const BudgetAllocationPage: React.FC = () => {
     setShowAllocationModal(true);
   };
 
-  // Handle allocation submission
-  const handleSubmitAllocation = () => {
-    if (!selectedDepartment || !allocationAmount) return;
-
-    const amount = parseFloat(allocationAmount);
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid allocation amount');
+  // Handle deduct budget
+  const handleDeductBudget = (department: DepartmentBudget) => {
+    if (isPastPeriod(budgetPeriod)) {
+      alert('Cannot deduct budget for past periods');
       return;
     }
-
-    // Update department budget (in real app, this would be an API call)
-    const updatedBudgets = departmentBudgets.map(dept => {
-      if (dept.department_id === selectedDepartment.department_id) {
-        return {
-          ...dept,
-          allocated_budget: dept.allocated_budget + amount,
-          remaining_budget: dept.remaining_budget + amount,
-          last_allocation_date: new Date().toISOString(),
-          status: 'Active' as const
-        };
-      }
-      return dept;
-    });
-
-    setDepartmentBudgets(updatedBudgets);
-    setShowAllocationModal(false);
-    setSelectedDepartment(null);
-    
-    // Show success message
-    alert(`Successfully allocated ₱${amount.toLocaleString()} to ${selectedDepartment.department_name} department`);
+    if (department.allocated_budget <= 0) {
+      alert('Cannot deduct from a department with no allocated budget');
+      return;
+    }
+    setSelectedDepartment(department);
+    setShowDeductionModal(true);
   };
 
+  // Handle allocation submission
+  const handleSubmitAllocation = async (allocationData: BudgetAllocationData) => {
+    try {
+        // Update department budget (in real app, this would be an API call)
+        const updatedBudgets = departmentBudgets.map(dept => {
+        if (dept.department_id === allocationData.department_id) {
+            return {
+            ...dept,
+            allocated_budget: dept.allocated_budget + allocationData.amount,
+            remaining_budget: dept.remaining_budget + allocationData.amount,
+            last_allocation_date: allocationData.allocated_date,
+            status: 'Active' as const
+            };
+        }
+        return dept;
+        });
+
+        setDepartmentBudgets(updatedBudgets);
+        setShowAllocationModal(false);
+        setSelectedDepartment(null);
+
+    } catch (error) {
+        console.error('Error allocating budget:', error);
+        throw error; // Re-throw to let the component handle it
+    }
+    };
+
+  // Handle deduction submission
+  const handleSubmitDeduction = async (deductionData: BudgetDeductionData) => {
+    try {
+        // Update department budget (in real app, this would be an API call)
+        const updatedBudgets = departmentBudgets.map(dept => {
+        if (dept.department_id === deductionData.department_id) {
+            const newAllocated = dept.allocated_budget - deductionData.amount;
+            const newRemaining = dept.remaining_budget - deductionData.amount;
+            return {
+            ...dept,
+            allocated_budget: newAllocated,
+            remaining_budget: newRemaining,
+            last_allocation_date: deductionData.deducted_date,
+            status: newAllocated <= 0 ? 'Inactive' as const : dept.status
+            };
+        }
+        return dept;
+        });
+
+        setDepartmentBudgets(updatedBudgets);
+        setShowDeductionModal(false);
+        setSelectedDepartment(null);
+
+    } catch (error) {
+        console.error('Error deducting budget:', error);
+        throw error; // Re-throw to let the component handle it
+    }
+    };
   // Handle view department details
   const handleViewDetails = (department: DepartmentBudget) => {
     console.log('View details for:', department.department_name);
@@ -374,25 +426,44 @@ const BudgetAllocationPage: React.FC = () => {
                         >
                           <i className="ri-eye-line" />
                         </button>
-                        {/* Only show allocate button if period is current or future */}
+                        {/* Only show allocate and deduct buttons if period is current or future */}
                         {!isCurrentPeriodPast && (
-                          <button 
-                            className="allocateBtn"
-                            onClick={() => handleAllocateBudget(department)}
-                            title="Allocate Budget"
-                          >
-                            <i className="ri-add-circle-line" />
-                          </button>
+                          <>
+                            <button 
+                              className="allocateBtn"
+                              onClick={() => handleAllocateBudget(department)}
+                              title="Allocate Budget"
+                            >
+                              <i className="ri-add-circle-line" />
+                            </button>
+                            <button 
+                              className="deductBtn"
+                              onClick={() => handleDeductBudget(department)}
+                              title="Deduct Budget"
+                              disabled={department.allocated_budget <= 0}
+                            >
+                              <i className="ri-subtract-line" />
+                            </button>
+                          </>
                         )}
-                        {/* Show disabled button for past periods */}
+                        {/* Show disabled buttons for past periods */}
                         {isCurrentPeriodPast && (
-                          <button 
-                            className="allocateBtn disabled"
-                            disabled
-                            title="Cannot allocate budget for past periods"
-                          >
-                            <i className="ri-forbid-line" />
-                          </button>
+                          <>
+                            <button 
+                              className="allocateBtn disabled"
+                              disabled
+                              title="Cannot allocate budget for past periods"
+                            >
+                              <i className="ri-forbid-line" />
+                            </button>
+                            <button 
+                              className="deductBtn disabled"
+                              disabled
+                              title="Cannot deduct budget for past periods"
+                            >
+                              <i className="ri-forbid-line" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -459,105 +530,25 @@ const BudgetAllocationPage: React.FC = () => {
 
       {/* Budget Allocation Modal */}
       {showAllocationModal && selectedDepartment && (
-        <div className="allocationModalOverlay">
-          <div className="allocationModal">
-            <div className="allocationModalHeader">
-              <h3>Allocate Budget - {selectedDepartment.department_name}</h3>
-              <button 
-                className="closeAllocationBtn"
-                onClick={() => setShowAllocationModal(false)}
-              >
-                <i className="ri-close-line" />
-              </button>
-            </div>
+        <AllocateBudgetAllocation
+            department={selectedDepartment}
+            budgetPeriod={budgetPeriod}
+            onClose={() => setShowAllocationModal(false)}
+            onSubmit={handleSubmitAllocation}
+            showHeader={true}
+        />
+        )}
 
-            <div className="allocationModalContent">
-              <div className="currentBudgetInfo">
-                <div className="budgetInfoItem">
-                  <label>Current Allocated:</label>
-                  <span>₱{selectedDepartment.allocated_budget.toLocaleString()}</span>
-                </div>
-                <div className="budgetInfoItem">
-                  <label>Current Used:</label>
-                  <span>₱{selectedDepartment.used_budget.toLocaleString()}</span>
-                </div>
-                <div className="budgetInfoItem">
-                  <label>Current Remaining:</label>
-                  <span className={selectedDepartment.remaining_budget < 0 ? 'negative' : 'positive'}>
-                    ₱{selectedDepartment.remaining_budget.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="allocationForm">
-                <div className="formField">
-                  <label>Allocation Amount <span className="required">*</span></label>
-                  <input
-                    type="number"
-                    value={allocationAmount}
-                    onChange={(e) => setAllocationAmount(e.target.value)}
-                    placeholder="Enter allocation amount"
-                    min="0"
-                    step="0.01"
-                    className="allocationInput"
-                  />
-                </div>
-
-                <div className="formField">
-                  <label>Budget Period</label>
-                  <input
-                    type="text"
-                    value={new Date(budgetPeriod + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    readOnly
-                    className="allocationInput readonly"
-                  />
-                </div>
-
-                <div className="formField">
-                  <label>Notes</label>
-                  <textarea
-                    value={allocationNotes}
-                    onChange={(e) => setAllocationNotes(e.target.value)}
-                    placeholder="Enter allocation notes (optional)"
-                    rows={3}
-                    className="allocationTextarea"
-                  />
-                </div>
-
-                {allocationAmount && (
-                  <div className="allocationPreview">
-                    <h4>After Allocation Preview:</h4>
-                    <div className="previewItem">
-                      <label>New Allocated Budget:</label>
-                      <span>₱{(selectedDepartment.allocated_budget + parseFloat(allocationAmount || '0')).toLocaleString()}</span>
-                    </div>
-                    <div className="previewItem">
-                      <label>New Remaining Budget:</label>
-                      <span className="positive">₱{(selectedDepartment.remaining_budget + parseFloat(allocationAmount || '0')).toLocaleString()}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="allocationModalButtons">
-              <button 
-                className="cancelAllocationBtn"
-                onClick={() => setShowAllocationModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="submitAllocationBtn"
-                onClick={handleSubmitAllocation}
-                disabled={!allocationAmount || parseFloat(allocationAmount) <= 0}
-              >
-                <i className="ri-check-line" /> Allocate Budget
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Budget Deduction Modal */}
+      {showDeductionModal && selectedDepartment && (
+        <DeductBudgetAllocation
+            department={selectedDepartment}
+            budgetPeriod={budgetPeriod}
+            onClose={() => setShowDeductionModal(false)}
+            onSubmit={handleSubmitDeduction}
+            showHeader={true}
+        />
+        )}
     </div>
   );
 };

@@ -514,7 +514,8 @@
 }
 
 .viewDetailsBtn,
-.allocateBtn {
+.allocateBtn,
+.deductBtn {
   width: 42px !important;
   height: 42px !important;
   border: none !important;
@@ -545,6 +546,22 @@
 .allocateBtn:hover {
   background: var(--success-hover-color) !important;
   transform: scale(1.1) !important;
+}
+
+.deductBtn {
+  background: var(--error-color) !important;
+  color: white !important;
+}
+
+.deductBtn:hover:not(:disabled) {
+  background: var(--error-hover-color) !important;
+  transform: scale(1.1) !important;
+}
+
+.deductBtn:disabled {
+  background: #6c757d !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
 }
 
 /* ---------- Budget Metrics ---------- */
