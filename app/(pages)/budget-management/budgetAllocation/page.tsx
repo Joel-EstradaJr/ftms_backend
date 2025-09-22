@@ -6,6 +6,7 @@ import MonthYearPicker from '../../../Components/MonthYearPicker';
 import { formatDate } from '../../../utility/dateFormatter';
 import AllocateBudgetAllocation from './allocateBudgetAllocation';
 import DeductBudgetAllocation from './deductBudgetAllocation';
+import DepartmentDetailsModal from './departmentDetailsModal';
 
 
 // Types
@@ -49,6 +50,7 @@ const BudgetAllocationPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAllocationModal, setShowAllocationModal] = useState(false);
   const [showDeductionModal, setShowDeductionModal] = useState(false);
+  const [showDepartmentDetailsModal, setShowDepartmentDetailsModal] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentBudget | null>(null);
   const [allocationAmount, setAllocationAmount] = useState('');
   const [allocationNotes, setAllocationNotes] = useState('');
@@ -267,8 +269,8 @@ const BudgetAllocationPage: React.FC = () => {
     };
   // Handle view department details
   const handleViewDetails = (department: DepartmentBudget) => {
-    console.log('View details for:', department.department_name);
-    // Implement department detail view
+    setSelectedDepartment(department);
+    setShowDepartmentDetailsModal(true);
   };
 
   // Handle export
@@ -549,6 +551,18 @@ const BudgetAllocationPage: React.FC = () => {
             showHeader={true}
         />
         )}
+
+      {/* Department Details Modal */}
+      {showDepartmentDetailsModal && selectedDepartment && (
+        <DepartmentDetailsModal
+          department={selectedDepartment}
+          isOpen={showDepartmentDetailsModal}
+          onClose={() => {
+            setShowDepartmentDetailsModal(false);
+            setSelectedDepartment(null);
+          }}
+        />
+      )}
     </div>
   );
 };
