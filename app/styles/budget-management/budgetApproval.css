@@ -60,7 +60,8 @@ button {
 }
 
 .dateFilter,
-#categoryFilter {
+#categoryFilter,
+#statusFilter {
   padding: 0 8px !important;
   gap: var(--page-button-gap) !important;
   font-size: var(--page-button-font-size) !important;
@@ -70,8 +71,185 @@ button {
   box-shadow: var(--box-shadow) !important;
 }
 
-#categoryFilter {
+#categoryFilter,
+#statusFilter {
   max-width: max-content !important;
+}
+
+/* ---------- Export Dropdown ---------- */
+.export-dropdown {
+  position: relative !important;
+  display: inline-block !important;
+}
+
+.export-dropdown-toggle {
+  background-color: var(--secondary-color) !important;
+  color: var(--button-font-color) !important;
+  border: none !important;
+  cursor: pointer !important;
+  border-radius: var(--page-button-border-radius) !important;
+  font-weight: 500 !important;
+  transition: background-color 0.2s !important;
+  height: var(--page-button-height) !important;
+  width: var(--page-button-width) !important;
+  gap: var(--page-button-gap) !important;
+  font-size: var(--page-button-font-size) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.export-dropdown-toggle:hover {
+  background-color: var(--secondary-hover-color) !important;
+}
+
+.export-dropdown-menu {
+  display: none !important;
+  position: absolute !important;
+  top: 100% !important;
+  left: 0 !important;
+  background: var(--foreground-color) !important;
+  min-width: 140px !important;
+  box-shadow: var(--box-shadow) !important;
+  z-index: 10 !important;
+  border-radius: var(--page-button-border-radius) !important;
+  border: 1px solid var(--border-color) !important;
+  overflow: hidden !important;
+}
+
+.export-dropdown:hover .export-dropdown-menu {
+  display: block !important;
+}
+
+.export-dropdown-menu button {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  padding: 10px 15px !important;
+  border: none !important;
+  background: none !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  color: var(--primary-text-color) !important;
+  font-size: 14px !important;
+  transition: background-color 0.2s !important;
+}
+
+.export-dropdown-menu button:hover {
+  background-color: var(--table-row-hover-color) !important;
+}
+
+.export-dropdown-menu button i {
+  color: var(--secondary-text-color) !important;
+}
+
+/* ---------- Action Button Styling ---------- */
+/* Standard action buttons with boxed design */
+.viewBtn,
+.approveBtn,
+.rejectBtn,
+.rollbackBtn,
+.closeBtn,
+.exportBtn,
+.auditBtn {
+  border: none !important;
+  cursor: pointer !important;
+  border-radius: 5px !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  color: white !important;
+}
+
+.viewBtn i,
+.approveBtn i,
+.rejectBtn i,
+.rollbackBtn i,
+.closeBtn i,
+.exportBtn i,
+.auditBtn i {
+  font-size: 14px !important;
+}
+
+/* View Button */
+.viewBtn {
+  background-color: var(--info-color) !important;
+}
+
+.viewBtn:hover {
+  background-color: var(--info-hover-color) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(23, 162, 184, 0.3) !important;
+}
+
+/* Approve Button */
+.approveBtn {
+  background-color: var(--success-color) !important;
+}
+
+.approveBtn:hover {
+  background-color: var(--success-hover-color) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(19, 206, 102, 0.3) !important;
+}
+
+/* Reject Button */
+.rejectBtn {
+  background-color: var(--error-color) !important;
+}
+
+.rejectBtn:hover {
+  background-color: var(--error-hover-color) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(255, 73, 73, 0.3) !important;
+}
+
+/* Rollback Button */
+.rollbackBtn {
+  background-color: #FEB71F !important;
+}
+
+.rollbackBtn:hover {
+  background-color: #E6A41D !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(254, 183, 31, 0.3) !important;
+}
+
+/* Close Button */
+.closeBtn {
+  background-color: #6c757d !important;
+}
+
+.closeBtn:hover {
+  background-color: #5a6268 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3) !important;
+}
+
+/* Export Button (individual) */
+.exportBtn {
+  background-color: var(--secondary-color) !important;
+}
+
+.exportBtn:hover {
+  background-color: var(--secondary-hover-color) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(254, 183, 31, 0.3) !important;
+}
+
+/* Audit Button */
+.auditBtn {
+  background-color: #6f42c1 !important;
+}
+
+.auditBtn:hover {
+  background-color: #5a359a !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 4px rgba(111, 66, 193, 0.3) !important;
 }
 
 /* ---------- Table Specific Styling ---------- */
@@ -154,12 +332,19 @@ button {
   }
 
   .filters input[type="date"],
-  .filters select {
+  .filters input[type="number"],
+  .filters select,
+  .export-dropdown-toggle {
     width: 100% !important;
   }
   
   .request-description {
     display: none !important;
+  }
+  
+  .export-dropdown-menu {
+    right: 0 !important;
+    left: auto !important;
   }
   
   .amount-cell {

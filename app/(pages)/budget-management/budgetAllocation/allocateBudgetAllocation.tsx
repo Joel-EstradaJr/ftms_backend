@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import '../../../styles/budget-management/allocateBudgetAllocation.css';
+import styles from '../../../styles/budget-management/allocateBudgetAllocation.module.css';
 import ModalHeader from '../../../Components/ModalHeader';
 import { showSuccess, showError, showConfirmation } from '../../../utility/Alerts';
 
@@ -174,8 +174,8 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
   const utilizationStatus = getUtilizationStatus();
 
   return (
-    <div className="modalOverlay">
-      <div className="allocateBudgetModal">
+    <div className={styles.modalOverlay}>
+      <div className={styles.allocateBudgetModal}>
         {showHeader && (
           <ModalHeader
             title={`Allocate Budget - ${department.department_name}`}
@@ -184,21 +184,21 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
           />
         )}
 
-        <div className="modalContent">
-          <div className="allocationInputs">
+        <div className={styles.modalContent}>
+          <div className={styles.allocationInputs}>
             
             {/* Department Information Section */}
-            <div className="sectionHeader">Department Information</div>
+            <div className={styles.sectionHeader}>Department Information</div>
             
-            <div className="displayRow">
-              <div className="displayField displayFieldHalf">
+            <div className={styles.displayRow}>
+              <div className={`${styles.displayField} ${styles.displayFieldHalf}`}>
                 <label>Department Name</label>
-                <div className="displayValue highlightValue">{department.department_name}</div>
+                <div className={`${styles.displayValue} ${styles.highlightValue}`}>{department.department_name}</div>
               </div>
               
-              <div className="displayField displayFieldHalf">
+              <div className={`${styles.displayField} ${styles.displayFieldHalf}`}>
                 <label>Department Status</label>
-                <div className="displayValue">
+                <div className={styles.displayValue}>
                   <span className={`chip ${department.status.toLowerCase()}`}>
                     {department.status}
                   </span>
@@ -206,33 +206,33 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
               </div>
             </div>
 
-            <div className="displayRow">
-              <div className="displayField displayFieldHalf">
+            <div className={styles.displayRow}>
+              <div className={`${styles.displayField} ${styles.displayFieldHalf}`}>
                 <label>Budget Utilization</label>
-                <div className="displayValue">
+                <div className={styles.displayValue}>
                   <span className={`chip ${utilizationStatus.class}`}>
                     {getBudgetUtilization()}% - {utilizationStatus.text}
                   </span>
                 </div>
               </div>
               
-              <div className="displayField displayFieldHalf">
+              <div className={`${styles.displayField} ${styles.displayFieldHalf}`}>
                 <label>Budget Requests</label>
-                <div className="displayValue">{department.budget_requests_count} pending requests</div>
+                <div className={styles.displayValue}>{department.budget_requests_count} pending requests</div>
               </div>
             </div>
 
             {/* Current Budget Status Section */}
-            <div className="sectionHeader">Current Budget Status</div>
+            <div className={styles.sectionHeader}>Current Budget Status</div>
             
-            <div className="currentBudgetGrid">
-              <div className="budgetStatusCard allocated">
-                <div className="budgetStatusIcon">
+            <div className={styles.currentBudgetGrid}>
+              <div className={`${styles.budgetStatusCard} ${styles.allocated}`}>
+                <div className={styles.budgetStatusIcon}>
                   <i className="ri-money-dollar-circle-line" />
                 </div>
-                <div className="budgetStatusContent">
+                <div className={styles.budgetStatusContent}>
                   <label>Current Allocated</label>
-                  <div className="budgetStatusValue">
+                  <div className={styles.budgetStatusValue}>
                     ₱{department.allocated_budget.toLocaleString(undefined, { 
                       minimumFractionDigits: 2, 
                       maximumFractionDigits: 2 
@@ -241,13 +241,13 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
                 </div>
               </div>
 
-              <div className="budgetStatusCard used">
-                <div className="budgetStatusIcon">
+              <div className={`${styles.budgetStatusCard} ${styles.used}`}>
+                <div className={styles.budgetStatusIcon}>
                   <i className="ri-shopping-cart-line" />
                 </div>
-                <div className="budgetStatusContent">
+                <div className={styles.budgetStatusContent}>
                   <label>Current Used</label>
-                  <div className="budgetStatusValue">
+                  <div className={styles.budgetStatusValue}>
                     ₱{department.used_budget.toLocaleString(undefined, { 
                       minimumFractionDigits: 2, 
                       maximumFractionDigits: 2 
@@ -256,13 +256,13 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
                 </div>
               </div>
 
-              <div className="budgetStatusCard remaining">
-                <div className="budgetStatusIcon">
+              <div className={`${styles.budgetStatusCard} ${styles.remaining}`}>
+                <div className={styles.budgetStatusIcon}>
                   <i className="ri-wallet-line" />
                 </div>
-                <div className="budgetStatusContent">
+                <div className={styles.budgetStatusContent}>
                   <label>Current Remaining</label>
-                  <div className={`budgetStatusValue ${department.remaining_budget < 0 ? 'negative' : 'positive'}`}>
+                  <div className={`${styles.budgetStatusValue} ${department.remaining_budget < 0 ? styles.negative : styles.positive}`}>
                     ₱{department.remaining_budget.toLocaleString(undefined, { 
                       minimumFractionDigits: 2, 
                       maximumFractionDigits: 2 
@@ -273,16 +273,16 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
             </div>
 
             {/* Allocation Details Section */}
-            <div className="sectionHeader">Allocation Details</div>
+            <div className={styles.sectionHeader}>Allocation Details</div>
             
-            <div className="displayRow">
-              <div className="displayField displayFieldHalf">
-                <label>Budget Period <span className="requiredTags">*</span></label>
-                <div className="displayValue highlightValue">{formatBudgetPeriod()}</div>
+            <div className={styles.displayRow}>
+              <div className={`${styles.displayField} ${styles.displayFieldHalf}`}>
+                <label>Budget Period <span className={styles.requiredTags}>*</span></label>
+                <div className={`${styles.displayValue} ${styles.highlightValue}`}>{formatBudgetPeriod()}</div>
               </div>
               
-              <div className="inputField displayFieldHalf">
-                <label>Allocation Amount <span className="requiredTags">*</span></label>
+              <div className={`${styles.inputField} ${styles.displayFieldHalf}`}>
+                <label>Allocation Amount <span className={styles.requiredTags}>*</span></label>
                 <input
                   type="number"
                   value={allocationAmount}
@@ -290,15 +290,15 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
                   placeholder="Enter allocation amount"
                   min="0"
                   step="0.01"
-                  className={`allocationInput ${errors.allocationAmount ? 'input-error' : ''}`}
+                  className={`${styles.allocationInput} ${errors.allocationAmount ? styles.inputError : ''}`}
                 />
                 {errors.allocationAmount && (
-                  <div className="error-message">{errors.allocationAmount}</div>
+                  <div className={styles.errorMessage}>{errors.allocationAmount}</div>
                 )}
               </div>
             </div>
 
-            <div className="inputField">
+            <div className={styles.inputField}>
                 <label>Allocation Notes</label>
                 <textarea
                     value={allocationNotes}
@@ -306,35 +306,35 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
                     placeholder="Enter allocation notes or justification (optional)"
                     rows={4}
                     maxLength={500}
-                    className={`allocationTextarea ${errors.allocationNotes ? 'input-error' : ''}`}
+                    className={`${styles.allocationTextarea} ${errors.allocationNotes ? styles.inputError : ''}`}
                 />
-                <div className="characterCount">
+                <div className={styles.characterCount}>
                     {allocationNotes.length}/500 characters
                 </div>
                 {errors.allocationNotes && (
-                    <div className="error-message">{errors.allocationNotes}</div>
+                    <div className={styles.errorMessage}>{errors.allocationNotes}</div>
                 )}
             </div>
 
             {/* Allocation Preview Section */}
             {allocationAmount && !errors.allocationAmount && (
-              <div className="allocationPreviewSection">
-                <div className="sectionHeader">After Allocation Preview</div>
+              <div className={styles.allocationPreviewSection}>
+                <div className={styles.sectionHeader}>After Allocation Preview</div>
                 
-                <div className="previewBudgetGrid">
-                  <div className="budgetPreviewCard allocated">
-                    <div className="budgetPreviewIcon">
+                <div className={styles.previewBudgetGrid}>
+                  <div className={`${styles.budgetPreviewCard} ${styles.allocated}`}>
+                    <div className={styles.budgetPreviewIcon}>
                       <i className="ri-arrow-up-circle-line" />
                     </div>
-                    <div className="budgetPreviewContent">
+                    <div className={styles.budgetPreviewContent}>
                       <label>New Allocated Budget</label>
-                      <div className="budgetPreviewValue positive">
+                      <div className={`${styles.budgetPreviewValue} ${styles.positive}`}>
                         ₱{preview.newAllocated.toLocaleString(undefined, { 
                           minimumFractionDigits: 2, 
                           maximumFractionDigits: 2 
                         })}
                       </div>
-                      <div className="budgetPreviewChange">
+                      <div className={styles.budgetPreviewChange}>
                         +₱{parseFloat(allocationAmount).toLocaleString(undefined, { 
                           minimumFractionDigits: 2, 
                           maximumFractionDigits: 2 
@@ -343,19 +343,19 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
                     </div>
                   </div>
 
-                  <div className="budgetPreviewCard remaining">
-                    <div className="budgetPreviewIcon">
+                  <div className={`${styles.budgetPreviewCard} ${styles.remaining}`}>
+                    <div className={styles.budgetPreviewIcon}>
                       <i className="ri-wallet-3-line" />
                     </div>
-                    <div className="budgetPreviewContent">
+                    <div className={styles.budgetPreviewContent}>
                       <label>New Remaining Budget</label>
-                      <div className={`budgetPreviewValue ${preview.newRemaining < 0 ? 'negative' : 'positive'}`}>
+                      <div className={`${styles.budgetPreviewValue} ${preview.newRemaining < 0 ? styles.negative : styles.positive}`}>
                         ₱{preview.newRemaining.toLocaleString(undefined, { 
                           minimumFractionDigits: 2, 
                           maximumFractionDigits: 2 
                         })}
                       </div>
-                      <div className="budgetPreviewChange">
+                      <div className={styles.budgetPreviewChange}>
                         +₱{parseFloat(allocationAmount).toLocaleString(undefined, { 
                           minimumFractionDigits: 2, 
                           maximumFractionDigits: 2 
@@ -364,16 +364,16 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
                     </div>
                   </div>
 
-                  <div className="budgetPreviewCard utilization">
-                    <div className="budgetPreviewIcon">
+                  <div className={`${styles.budgetPreviewCard} ${styles.utilization}`}>
+                    <div className={styles.budgetPreviewIcon}>
                       <i className="ri-pie-chart-line" />
                     </div>
-                    <div className="budgetPreviewContent">
+                    <div className={styles.budgetPreviewContent}>
                       <label>New Utilization Rate</label>
-                      <div className="budgetPreviewValue">
+                      <div className={styles.budgetPreviewValue}>
                         {preview.newUtilization}%
                       </div>
-                      <div className="budgetPreviewChange">
+                      <div className={styles.budgetPreviewChange}>
                         {preview.newUtilization < getBudgetUtilization() ? 'Decreased' : 'Improved'}
                       </div>
                     </div>
@@ -384,7 +384,7 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
 
             {/* Error Message */}
             {errors.submit && (
-              <div className="submitErrorMessage">
+              <div className={styles.submitErrorMessage}>
                 <i className="ri-error-warning-line" />
                 {errors.submit}
               </div>
@@ -393,10 +393,10 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
         </div>
 
         {/* Modal Buttons */}
-        <div className="modalButtons">
+        <div className={styles.modalButtons}>
           <button 
             type="button"
-            className="cancelButton"
+            className={styles.cancelButton}
             onClick={onClose}
             disabled={isSubmitting}
           >
@@ -405,7 +405,7 @@ const AllocateBudgetAllocation: React.FC<AllocateBudgetAllocationProps> = ({
           
           <button 
             type="button"
-            className="submitButton"
+            className={styles.submitButton}
             onClick={handleSubmit}
             disabled={!allocationAmount || parseFloat(allocationAmount) <= 0 || isSubmitting}
           >
