@@ -1,0 +1,168 @@
+/* ============================================================
+   budgetApproval.css – Budget Approval Management page
+   Following the same styling patterns as budgetRequest.css
+   ============================================================ */
+
+/* ---------- Base ---------- */
+button {
+  border-radius: 5px !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* ---------- Settings Block ---------- */
+.settings {
+  display: flex !important;
+  width: 100% !important;
+  flex-wrap: wrap !important;
+  gap: 0 !important;
+  margin-bottom: 0px !important;
+  justify-content: space-between !important;
+}
+
+.settings select {
+  font-size: var(--page-button-font-size) !important;  
+  border-radius: 4px !important;
+  background-color: var(--foreground-color) !important;
+  color: var(--primary-text-color) !important;
+  width: 125px !important;
+  height: var(--search-input-height) !important;
+}
+
+/* ---------- Search bar - same as revenue page ---------- */
+.revenue_searchBar {
+  display: flex !important;
+  align-items: center !important;
+  width: auto !important;
+  padding: var(--search-input-padding-right) !important;
+  height: var(--search-input-height) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--search-input-border-radius) !important;
+  background-color: var(--foreground-color) !important;
+  box-shadow: var(--box-shadow) !important;
+}
+
+.revenue_searchBar .searchInput {
+  flex: 1 !important;
+  border: none !important;
+  outline: none !important;
+  padding: 0 8px !important;
+  font-size: 14px !important;
+  color: var(--primary-text-color) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ---------- Filter Inputs ---------- */
+.filters {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+.dateFilter,
+#categoryFilter {
+  padding: 0 8px !important;
+  gap: var(--page-button-gap) !important;
+  font-size: var(--page-button-font-size) !important;
+  height: var(--page-button-height) !important;
+  width: var(--page-button-width) !important;
+  border-radius: var(--page-button-border-radius) !important;
+  box-shadow: var(--box-shadow) !important;
+}
+
+#categoryFilter {
+  max-width: max-content !important;
+}
+
+/* ---------- Table Specific Styling ---------- */
+/* Request Title and Description */
+.request-title {
+  text-align: left !important;
+}
+
+.request-title strong {
+  display: block !important;
+  margin-bottom: 4px !important;
+  color: var(--primary-text-color) !important;
+  font-weight: 600 !important;
+}
+
+.request-description {
+  font-size: 12px !important;
+  color: var(--secondary-text-color) !important;
+  font-style: italic !important;
+  line-height: 1.2 !important;
+}
+
+/* Amount formatting */
+.amount-cell {
+  text-align: right !important;
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+}
+
+/* Sortable columns */
+.sortable {
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: background-color 0.2s ease !important;
+  position: relative !important;
+}
+
+.sortable:hover {
+  background-color: var(--table-row-hover-color) !important;
+}
+
+.sortable i {
+  margin-left: 5px !important;
+  font-size: 12px !important;
+  color: var(--secondary-text-color) !important;
+}
+
+/* ---------- Tooltip Fix ---------- */
+.request-title,
+.request-description {
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* ---------- Loading States ---------- */
+.budget-approval-loading {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  height: 400px !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.budget-approval-loading .loading-text {
+  color: var(--secondary-text-color) !important;
+  font-size: 16px !important;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  .budgetApprovalPage {
+    padding: 1rem !important;
+  }
+
+  .settings {
+    flex-direction: column !important;
+    gap: 1rem !important;
+  }
+
+  .filters input[type="date"],
+  .filters select {
+    width: 100% !important;
+  }
+  
+  .request-description {
+    display: none !important;
+  }
+  
+  .amount-cell {
+    text-align: center !important;
+  }
+}
