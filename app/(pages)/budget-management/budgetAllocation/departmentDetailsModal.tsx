@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import '../../../styles/budget-management/departmentDetailsModal.css';
+import '../../../styles/components/chips.css';
 import { formatDate } from '../../../utility/dateFormatter';
+import PaginationComponent from '../../../Components/pagination';
 
 // Enhanced interfaces for allocation history
 interface AllocationHistory {
@@ -61,7 +63,7 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
   const [allocationHistory, setAllocationHistory] = useState<AllocationHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     type: '',
@@ -254,11 +256,11 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
   // Get status badge class
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'Allocated': return 'status-allocated';
-      case 'Closed': return 'status-closed';
-      case 'Pending': return 'status-pending';
-      case 'Cancelled': return 'status-cancelled';
-      default: return 'status-allocated';
+      case 'Allocated': return 'Approved';
+      case 'Closed': return 'Closed';
+      case 'Pending': return 'pending-approval';
+      case 'Cancelled': return 'Rejected';
+      default: return 'Approved';
     }
   };
 
@@ -280,135 +282,6 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
         {isPositive ? '+' : ''}₱{Math.abs(amount).toLocaleString()}
       </span>
     );
-  };
-
-  // Get row actions based on status
-  const getRowActions = (item: AllocationHistory) => {
-    const actions = [];
-
-    // View action (always available)
-    actions.push(
-      <button
-        key="view"
-        className="actionBtn viewBtn"
-        onClick={() => handleViewAllocation(item)}
-        title="View Details"
-      >
-        <i className="ri-eye-line" />
-      </button>
-    );
-
-    switch (item.status) {
-      case 'Allocated':
-        actions.push(
-          <button
-            key="edit"
-            className="actionBtn editBtn"
-            onClick={() => handleEditAllocation(item)}
-            title="Edit Allocation"
-          >
-            <i className="ri-edit-line" />
-          </button>,
-          <button
-            key="rollback"
-            className="actionBtn rollbackBtn"
-            onClick={() => handleRollbackToPending(item)}
-            title="Rollback to Pending"
-          >
-            <i className="ri-arrow-go-back-line" />
-          </button>,
-          <button
-            key="close"
-            className="actionBtn closeBtn"
-            onClick={() => handleCloseAllocation(item)}
-            title="Close Allocation"
-          >
-            <i className="ri-close-circle-line" />
-          </button>
-        );
-        break;
-
-      case 'Closed':
-        actions.push(
-          <button
-            key="export"
-            className="actionBtn exportBtn"
-            onClick={() => handleExportAllocation(item)}
-            title="Export Details"
-          >
-            <i className="ri-download-line" />
-          </button>,
-          <button
-            key="audit"
-            className="actionBtn auditBtn"
-            onClick={() => handleAuditTrail(item)}
-            title="Audit Trail"
-          >
-            <i className="ri-history-line" />
-          </button>
-        );
-        break;
-
-      case 'Pending':
-        actions.push(
-          <button
-            key="approve"
-            className="actionBtn approveBtn"
-            onClick={() => handleApproveAllocation(item)}
-            title="Approve"
-          >
-            <i className="ri-check-line" />
-          </button>,
-          <button
-            key="reject"
-            className="actionBtn rejectBtn"
-            onClick={() => handleRejectAllocation(item)}
-            title="Reject"
-          >
-            <i className="ri-close-line" />
-          </button>
-        );
-        break;
-
-      default:
-        // Cancelled or other statuses only have view
-        break;
-    }
-
-    return actions;
-  };
-
-  // Action handlers
-  const handleViewAllocation = (item: AllocationHistory) => {
-    console.log('View allocation:', item);
-  };
-
-  const handleEditAllocation = (item: AllocationHistory) => {
-    console.log('Edit allocation:', item);
-  };
-
-  const handleRollbackToPending = (item: AllocationHistory) => {
-    console.log('Rollback to pending:', item);
-  };
-
-  const handleCloseAllocation = (item: AllocationHistory) => {
-    console.log('Close allocation:', item);
-  };
-
-  const handleExportAllocation = (item: AllocationHistory) => {
-    console.log('Export allocation:', item);
-  };
-
-  const handleAuditTrail = (item: AllocationHistory) => {
-    console.log('View audit trail:', item);
-  };
-
-  const handleApproveAllocation = (item: AllocationHistory) => {
-    console.log('Approve allocation:', item);
-  };
-
-  const handleRejectAllocation = (item: AllocationHistory) => {
-    console.log('Reject allocation:', item);
   };
 
   // Filter handlers
@@ -585,7 +458,7 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
         </div>
 
         {/* Allocation History Table */}
-        <div className="table-container">
+        <div className="table-wrapper">
           {loading ? (
             <div className="loading-state">
               <i className="ri-loader-4-line loading-spinner" />
@@ -600,7 +473,7 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
                 </span>
               </div>
 
-              <div className="table-wrapper">
+              <div className="tableContainer">
                 <table className="allocation-history-table">
                   <thead>
                     <tr>
@@ -625,7 +498,6 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
                         Status
                         <i className={`ri-arrow-${sort.field === 'status' && sort.direction === 'asc' ? 'up' : 'down'}-line`} />
                       </th>
-                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -650,45 +522,15 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
                           </div>
                         </td>
                         <td>
-                          <span className={`status-badge ${getStatusBadgeClass(item.status)}`}>
+                          <span className={`chip ${getStatusBadgeClass(item.status)}`}>
                             {item.status}
                           </span>
-                        </td>
-                        <td>
-                          <div className="row-actions">
-                            {getRowActions(item)}
-                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="pagination">
-                  <button
-                    className="pagination-btn"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                  >
-                    <i className="ri-arrow-left-line" /> Previous
-                  </button>
-
-                  <div className="pagination-info">
-                    Page {currentPage} of {totalPages}
-                  </div>
-
-                  <button
-                    className="pagination-btn"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                  >
-                    Next <i className="ri-arrow-right-line" />
-                  </button>
-                </div>
-              )}
 
               {filteredHistory.length === 0 && (
                 <div className="no-results">
@@ -700,6 +542,17 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
             </>
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading && filteredHistory.length > 0 && (
+          <PaginationComponent
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setItemsPerPage}
+          />
+        )}
       </div>
     </div>
   );

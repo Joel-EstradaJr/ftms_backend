@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { MICROSERVICES } from '../config/microservices';
 import "../styles/components/sidebar.css";
 
 const routeToItem: { [key: string]: string } = {
@@ -16,6 +17,7 @@ const routeToItem: { [key: string]: string } = {
   "/reimbursement": "reimbursement",
   "/JEV": "JEV",
   "/financial-management/payroll": "payroll",
+  "/microservice/budget-request-management": "budget-request",
 };
 
 const expenseSubItems = [
@@ -28,18 +30,58 @@ const Sidebar: React.FC = () => {
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
 
-  useEffect(() => {
-    const matched = routeToItem[pathname] || null;
-    setActiveItem(matched);
+      const staticRoutes: { [key: string]: string } = {
+      "/dashboard": "dashboard",
+      "/revenue": "revenue",
+      "/expense": "expense",
+      "/budget-management": "budget-management",
+      "/audit": "audit",
+      "/report": "report",
+      "/reimbursement": "reimbursement",
+      "/JEV": "JEV",
+      "/financial-management/payroll": "payroll",
+    };
 
-    if (expenseSubItems.includes(pathname)) {
-      setOpenSubMenu("expense-management");
+   useEffect(() => {
+    // Check static routes first
+    const staticMatch = staticRoutes[pathname];
+    if (staticMatch) {
+      setActiveItem(staticMatch);
+      return;
+    }
+
+    // Check microservice routes
+    if (pathname.startsWith('/microservice/budget-request-management')) {
+      setActiveItem('budget-request');
+      return;
+    }
+
+    // Generic microservice route detection
+    for (const service of MICROSERVICES) {
+      if (pathname.startsWith(`/microservice/${service.id}`)) {
+        setActiveItem(service.id);
+        return;
+      }
     }
   }, [pathname]);
 
   const toggleSubMenu = (id: string) => {
     setOpenSubMenu((prev) => (prev === id ? null : id));
   };
+
+  // Group microservices by category
+  const servicesByCategory = MICROSERVICES.reduce((acc, service) => {
+    const categoryKey = service.category.toLowerCase().replace(' ', '-');
+    if (!acc[categoryKey]) {
+      acc[categoryKey] = {
+        name: service.category,
+        services: []
+      };
+    }
+    acc[categoryKey].services.push(service);
+    return acc;
+  }, {} as Record<string, { name: string; services: typeof MICROSERVICES }>);
+
 
   return (
     <div className="sidebar shadow-lg" id="sidebar">
@@ -144,6 +186,52 @@ const Sidebar: React.FC = () => {
                 className={`sub-item ${activeItem === "budgetApproval" ? "active" : ""}`}
               >
                 Budget Approval
+              </Link>
+            </div>
+          )}
+
+
+          {/* Budget Request - Microservice Link */}
+          <Link
+            href="/microservice/budget-request-management/budget-management/budgetRequest"
+            className={`nav-item ${activeItem === "budget-request" ? "active" : ""}`}
+            onClick={() => setActiveItem("budget-request")}
+          >
+            <i className="ri-wallet-3-line" />
+            <span>Budget Request</span>
+          </Link>
+
+
+          {/* Purchase Request and Submenu */}
+          <div
+            className={`nav-item module ${
+              ["purchaseRequest", "purchaseApproval"].includes(activeItem!) ? "active" : ""
+            }`}
+            onClick={() => toggleSubMenu("purchase-management")}
+          >
+            <i className="ri-wallet-3-line"></i>
+            <span>Purchase Management</span>
+            <i
+              className={`dropdown-arrow ri-arrow-down-s-line ${
+                openSubMenu === "purchase-management" ? "rotate" : ""
+              }`}
+            />
+          </div>
+
+          {openSubMenu === "purchase-management" && (
+            <div className="sub-menu active">
+              <Link
+                href="/purchase-management/purchaseRequest"
+                className={`sub-item ${activeItem === "purchaseRequest" ? "active" : ""}`}
+              >
+                Purchase Request
+              </Link>
+    
+              <Link
+                href="/budget-management/budgetApproval"
+                className={`sub-item ${activeItem === "purchaseApproval" ? "active" : ""}`}
+              >
+                Purchase Approval
               </Link>
             </div>
           )}
