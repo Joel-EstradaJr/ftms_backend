@@ -8,7 +8,6 @@ import { showSuccess, showError, showConfirmation } from '../../utility/Alerts';
 import ViewReimbursement from "./viewReimbursement";
 import styles from '../../styles/components/ExportConfirmationModal.module.css';
 import { formatDateTime } from '../../utility/dateFormatter';
-import type { Receipt } from '../../types/receipt';
 
 type ExpenseRecord = {
   expense_id: string;
@@ -29,7 +28,7 @@ type ExpenseRecord = {
     conductor_id: string;
     trip_fuel_expense: number;
   };
-  receipt?: Receipt;
+  // receipt removed
   other_source?: string;
   payment_method: {
     id: string;
@@ -99,7 +98,6 @@ type ReimbursementData = {
     total_amount: number;
     expense_date: string;
     assignment_id?: string;
-    receipt_id?: string;
     payment_method: {
       id: string;
       name: string;

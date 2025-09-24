@@ -4,8 +4,6 @@ import React from 'react';
 import { formatDateTime } from '../../utility/dateFormatter';
 import '../../styles/expense/viewExpense.css';
 import { formatDisplayText } from '@/app/utils/formatting';
-import ViewReceiptModal from '../receipt/viewReceipt';
-import type { Receipt } from '../../types/receipt';
 import type { Assignment } from '@/lib/operations/assignments';
 import ModalHeader from '@/app/Components/ModalHeader';
 
@@ -46,7 +44,7 @@ type ExpenseRecord = {
   total_amount: number;
   expense_date: string;
   assignment?: Assignment;
-  receipt?: Receipt;
+  // receipt removed
   payment_method: {
     id: string;
     name: string;
@@ -60,37 +58,7 @@ type ViewExpenseModalProps = {
 };
 
 const ViewExpenseModal: React.FC<ViewExpenseModalProps> = ({ record, onClose }) => {
-  // If the record has a receipt, use the ViewReceiptModal to display all receipt details
-  if (record.receipt) {
-    // Ensure all receipt data is properly structured for ViewReceiptModal
-    const receiptData: Receipt = {
-      ...record.receipt,
-      // Ensure required fields have values
-      created_at: record.receipt.created_at || new Date().toISOString(),
-      created_by: record.receipt.created_by || 'Unknown',
-      // Ensure items have the complete structure expected by ViewReceiptModal
-      items: record.receipt.items.map(item => ({
-        ...item,
-        item: item.item ? {
-          ...item.item,
-          // Provide fallbacks for required fields
-          item_name: item.item.item_name || '',
-          unit: item.item.unit || { id: '', name: '' },
-          category: item.item.category || { category_id: '', name: '' },
-          other_unit: item.item.other_unit || ''
-        } : {
-          item_id: item.item_id || '',
-          item_name: '',
-          unit: { id: '', name: '' },
-          category: { category_id: '', name: '' },
-          other_unit: ''
-        }
-      }))
-    };
-    
-    // Pass the complete receipt data to ViewReceiptModal
-    return <ViewReceiptModal record={receiptData} onClose={onClose} />;
-  }
+  // receipt view removed
 
   const renderOperationsDetails = () => {
     if (!record.assignment) return null;
@@ -167,7 +135,7 @@ const ViewExpenseModal: React.FC<ViewExpenseModalProps> = ({ record, onClose }) 
 
         {record.assignment && renderOperationsDetails()}
 
-        {!record.assignment && !record.receipt && (
+        {!record.assignment && (
           <div className="otherDetails">
             <h3>Expense Source Details</h3>
             <div className="detailRow">

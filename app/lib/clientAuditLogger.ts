@@ -1,6 +1,6 @@
 interface AuditLogParams {
   action: string;
-  table_affected: 'RevenueRecord' | 'ExpenseRecord' | 'Receipt' | 'Revenue AND Expense' | 'Reimbursement';
+  table_affected: 'RevenueRecord' | 'ExpenseRecord' | 'Revenue AND Expense' | 'Reimbursement';
   record_id: string;
   performed_by: string;
   details: string;

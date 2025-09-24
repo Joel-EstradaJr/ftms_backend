@@ -17,27 +17,6 @@ export async function GET(
       category: true,
       payment_method: true,
       source: true,
-      receipt: {
-        include: {
-          payment_status: true,
-          terms: true,
-          category: true,
-          source: true,
-          items: {
-            where: {
-              is_deleted: false
-            },
-            include: {
-              item: {
-                include: {
-                  unit: true,
-                  category: true
-                }
-              }
-            }
-          }
-        }
-      },
       reimbursements: {
         where: {
           is_deleted: false
@@ -60,19 +39,6 @@ export async function GET(
     category_name: expense.category?.name || null,
     payment_method_name: expense.payment_method?.name || null,
     source_name: expense.source?.name || null,
-    // Transform receipt data if present
-    receipt: expense.receipt ? {
-      ...expense.receipt,
-      total_amount: Number(expense.receipt.total_amount),
-      vat_amount: expense.receipt.vat_amount ? Number(expense.receipt.vat_amount) : null,
-      total_amount_due: Number(expense.receipt.total_amount_due),
-      items: expense.receipt.items.map(item => ({
-        ...item,
-        quantity: Number(item.quantity),
-        unit_price: Number(item.unit_price),
-        total_price: Number(item.total_price)
-      }))
-    } : null,
     // Transform reimbursements data
     reimbursements: expense.reimbursements.map(reimb => ({
       ...reimb,
@@ -152,15 +118,6 @@ export async function PUT(
           include: {
             payment_method: true,
             reimbursements: true,
-            receipt: {
-              include: {
-                items: {
-                  include: {
-                    item: true
-                  }
-                }
-              }
-            }
           }
         });
         await logAudit({
@@ -188,15 +145,6 @@ export async function PUT(
           include: {
             payment_method: true,
             reimbursements: true,
-            receipt: {
-              include: {
-                items: {
-                  include: {
-                    item: true
-                  }
-                }
-              }
-            }
           }
         });
         await logAudit({
@@ -213,102 +161,7 @@ export async function PUT(
         });
       }
     }
-    // Receipt-sourced: receipt_id present (and not assignment_id)
-    else if (originalRecord.receipt_id) {
-      if (payment_method === 'REIMBURSEMENT') {
-        if (!reimbursable_amount || !employee_id) {
-          return NextResponse.json({ error: 'reimbursable_amount and employee_id are required for reimbursement.' }, { status: 400 });
-        }
-        // Find employee from HR API data
-        const employee = allEmployees.find(emp => emp.employee_id === employee_id);
-        if (!employee) {
-          return NextResponse.json({ error: 'Invalid employee_id' }, { status: 400 });
-        }
-        // Upsert reimbursement record
-        await prisma.reimbursement.upsert({
-          where: {
-            expense_id_employee_id: {
-              expense_id: id,
-              employee_id: employee_id,
-            },
-          },
-          update: {
-            amount: reimbursable_amount,
-            employee_name: employee.name,
-            status_id: pendingStatus.id,
-            is_deleted: false,
-          },
-          create: {
-            expense_id: id,
-            employee_id: employee.employee_id,
-            employee_name: employee.name,
-            amount: reimbursable_amount,
-            status_id: pendingStatus.id,
-            created_by: originalRecord.created_by,
-            is_deleted: false,
-          }
-        });
-        // Update expense record
-        const updatedExpense = await prisma.expenseRecord.update({
-          where: { expense_id: id },
-          data: {
-            payment_method_id: reimbMethod.id,
-            updated_at: new Date(),
-          },
-          include: {
-            receipt: {
-              include: {
-                items: {
-                  include: {
-                    item: true
-                  }
-                }
-              }
-            },
-            reimbursements: true,
-          }
-        });
-        await logAudit({
-          action: 'UPDATE',
-          table_affected: 'ExpenseRecord',
-          record_id: id,
-          performed_by: 'ftms_user',
-          details: `Set as REIMBURSEMENT for employee ${employee.name} (₱${reimbursable_amount}) [RECEIPT]`,
-        });
-        return NextResponse.json(updatedExpense);
-      } else if (payment_method === 'CASH') {
-        // Remove reimbursement record(s)
-        await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
-        // Update expense record
-        const updatedExpense = await prisma.expenseRecord.update({
-          where: { expense_id: id },
-          data: {
-            payment_method_id: cashMethod.id,
-            updated_at: new Date(),
-          },
-          include: {
-            receipt: {
-              include: {
-                items: {
-                  include: {
-                    item: true
-                  }
-                }
-              }
-            },
-            reimbursements: true,
-          }
-        });
-        await logAudit({
-          action: 'UPDATE',
-          table_affected: 'ExpenseRecord',
-          record_id: id,
-          performed_by: 'ftms_user',
-          details: `Set as CASH, removed reimbursement [RECEIPT]`,
-        });
-        return NextResponse.json(updatedExpense);
-      }
-    }
+    // Receipt linkage removed: only operations-based updates are supported
     
     // If no valid update was performed
     return NextResponse.json(
@@ -383,12 +236,7 @@ export async function DELETE(
       }
     }
 
-    if (expenseToDelete.receipt_id) {
-      await prisma.receipt.update({
-        where: { receipt_id: expenseToDelete.receipt_id },
-        data: { is_expense_recorded: false }
-      });
-    }
+    // Receipt linkage removed: no update needed
 
     await prisma.expenseRecord.update({
       where: { expense_id: id },

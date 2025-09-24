@@ -12,29 +12,6 @@ import Loading from '../../Components/loading';
 import { showError } from '../../utility/Alerts';
 import Swal from 'sweetalert2';
 
-interface Receipt {
-  receipt_id: string;
-  supplier: string;
-  transaction_date: string;
-  vat_reg_tin?: string;
-  terms?: string;
-  date_paid?: string;
-  status: string;
-  total_amount: number;
-  vat_amount?: number;
-  total_amount_due: number;
-  items: ReceiptItem[];
-}
-
-interface ReceiptItem {
-  receipt_item_id: string;
-  item_name: string;
-  unit: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-}
-
 type ExpenseData = {
   expense_id: string;
   revenue_id?: string;
@@ -44,11 +21,9 @@ type ExpenseData = {
   expense_date: string;             
   created_by: string;       
   assignment_id?: string;   
-  receipt_id?: string;
   other_source?: string;
   other_category?: string;
   assignment?: Assignment;
-  receipt?: Receipt;
 };
 
 const ReportPage = () => {
@@ -84,9 +59,7 @@ const ReportPage = () => {
     return `${busType} | ${assignment.bus_plate_number} - ${assignment.bus_route} | ${driverName.split(' ').pop()} & ${conductorName.split(' ').pop()} | ${formatDate(assignment.date_assigned)}`;
   };
 
-  const formatReceipt = (receipt: Receipt): string => {
-    return `${receipt.terms || 'N/A'} | ${receipt.supplier} | ${formatDate(receipt.transaction_date)}`;
-  };
+  // receipt formatting removed
 
   const fetchExpenses = useCallback(async () => {
     try {
@@ -240,12 +213,12 @@ const ReportPage = () => {
         const assignment = allAssignments.find(a => a.assignment_id === item.assignment_id);
         source = 'Assignment';
         sourceDetails = assignment ? formatAssignment(assignment) : 'Assignment not found';
-      } else if (item.receipt) {
-        source = 'Receipt';
-        sourceDetails = formatReceipt(item.receipt);
-      } else {
+      } else if (item.other_source) {
         source = 'Other';
         sourceDetails = item.other_source || 'N/A';
+      } else {
+        source = 'Other';
+        sourceDetails = 'N/A';
       }
 
       return [
@@ -633,10 +606,8 @@ const ReportPage = () => {
                         
                         if (item.assignment_id) {
                           source = 'Assignment';
-                        } else if (item.receipt_id) {
-                          source = 'Receipt';
                         } else {
-                          source = 'Manual';
+                          source = 'Other';
                         }
                         
                         return (

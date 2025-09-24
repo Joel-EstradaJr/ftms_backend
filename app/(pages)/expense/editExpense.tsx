@@ -10,7 +10,6 @@ import { getAssignmentById } from '@/lib/operations/assignments';
 import { formatDate } from '../../utility/dateFormatter';
 import { validateField, ValidationRule, isValidAmount } from "../../utility/validation";
 import type { Assignment } from '@/lib/operations/assignments';
-import type { Receipt } from '@/app/types/receipt';
 import ModalHeader from '../../Components/ModalHeader';
 import Swal from "sweetalert2";
 
@@ -21,7 +20,7 @@ export type ExpenseData = {
   department_from: string;
   category: string;
   total_amount: number;
-  receipt?: Receipt;
+  // receipt removed
   // Updated to match schema structure
   payment_method?: {
     id: string;
@@ -67,7 +66,7 @@ type EditExpenseModalProps = {
     total_amount: number;
     assignment_id?: string;
     assignment?: Assignment;
-    receipt?: Receipt;
+    // receipt removed
     // Updated to match schema structure
     payment_method: {
       id: string;
@@ -114,28 +113,12 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   const [originalAutoFilledAmount, setOriginalAutoFilledAmount] = useState<number | null>(null);
   const [originalAutoFilledDate, setOriginalAutoFilledDate] = useState<string>('');
 
-  // Determine if this is a receipt-based expense
-  const isReceiptBasedExpense = !!record.receipt;
+  // Receipt-based expenses removed
+  const isReceiptBasedExpense = false;
 
   // On mount, set original initial values from assignment or receipt data
   useEffect(() => {
-    if (isReceiptBasedExpense && record.receipt) {
-      // For receipt-based expenses, use receipt data for autofill values
-      setOriginalAutoFilledAmount(record.receipt.total_amount_due);
-      
-      // Set original date to receipt transaction date with current time
-      if (record.receipt.transaction_date) {
-        const receiptDate = new Date(record.receipt.transaction_date);
-        const now = new Date();
-        receiptDate.setHours(now.getHours(), now.getMinutes());
-        const year = receiptDate.getFullYear();
-        const month = String(receiptDate.getMonth() + 1).padStart(2, '0');
-        const day = String(receiptDate.getDate()).padStart(2, '0');
-        const hours = String(receiptDate.getHours()).padStart(2, '0');
-        const minutes = String(receiptDate.getMinutes()).padStart(2, '0');
-        setOriginalAutoFilledDate(`${year}-${month}-${day}T${hours}:${minutes}`);
-      }
-    } else if (record.assignment) {
+    if (record.assignment) {
       // For assignment-based expenses, use assignment data
       setAssignment(record.assignment);
       setOriginalAutoFilledAmount(record.assignment.trip_fuel_expense);
@@ -184,7 +167,7 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     } else {
       setAssignment(null);
     }
-  }, [record.assignment, record.assignment_id, record.receipt, isReceiptBasedExpense]);
+  }, [record.assignment, record.assignment_id, isReceiptBasedExpense]);
 
   const validationRules: Record<string, ValidationRule> = {
     amount: { 
@@ -317,21 +300,9 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     return formatted;
   };
 
-  // Format receipt for display
-  const formatReceipt = (receipt: Receipt) => {
-    if (!receipt) return 'N/A';
-    
-    const paymentStatusName = receipt.payment_status?.name || 'Unknown';
-    const transactionDate = receipt.transaction_date ? new Date(receipt.transaction_date).toLocaleDateString() : 'N/A';
-    
-    return `${receipt.supplier} | ${transactionDate} | ₱${receipt.total_amount_due?.toLocaleString() || 'N/A'} (${paymentStatusName})`;
-  };
-
   // Get the appropriate reference display based on expense type
   const getReferenceDisplay = () => {
-    if (isReceiptBasedExpense && record.receipt) {
-      return formatReceipt(record.receipt);
-    } else if (assignment) {
+    if (assignment) {
       return formatAssignment(assignment);
     } else {
       return 'N/A';
@@ -340,11 +311,7 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
 
   // Get the appropriate reference label based on expense type
   const getReferenceLabel = () => {
-    if (isReceiptBasedExpense) {
-      return 'Receipt Reference';
-    } else {
-      return 'Assignment';
-    }
+    return 'Assignment';
   };
 
   // Amount deviation calculation

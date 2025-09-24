@@ -7,7 +7,6 @@ import '../../styles/expense/addExpense.css';
 import { formatDate } from '../../utility/dateFormatter';
 import { showSuccess, showError, showConfirmation } from '../../utility/Alerts';
 import { validateField, isValidAmount, ValidationRule } from "../../utility/validation";
-import type { Receipt } from '@/app/types/receipt';
 import { formatDisplayText } from '../../utils/formatting';
 import BusSelector from '../../Components/busSelector';
 import ModalHeader from '../../Components/ModalHeader';
@@ -22,7 +21,6 @@ import { fetchEmployeesForReimbursementClient } from '@/lib/supabase/employees';
 //   department_from: string;
 //   category: string;
 //   total_amount: number;
-//   receipt?: Receipt;
 // };
 
 // Employee types based on Supabase tables
@@ -40,7 +38,6 @@ type AddExpenseProps = {
     category?: string;
     category_id?: string;
     assignment_id?: string;
-    receipt_id?: string;
     total_amount: number;
     expense_date: string;
     created_by: string;
@@ -54,7 +51,7 @@ type AddExpenseProps = {
   currentUser: string;
 };
 
-type FieldName = 'category' | 'assignment_id' | 'receipt_id' | 'total_amount' | 'expense_date';
+type FieldName = 'category' | 'assignment_id' | 'total_amount' | 'expense_date';
 
 const AddExpense: React.FC<AddExpenseProps> = ({ 
   onClose, 
@@ -63,14 +60,11 @@ const AddExpense: React.FC<AddExpenseProps> = ({
   currentUser 
 }) => {
   const [showBusSelector, setShowBusSelector] = useState(false);
-  const [source, setSource] = useState<'operations' | 'receipt'>('operations');
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [receiptLoading, setReceiptLoading] = useState(true);
+  const [source] = useState<'operations'>('operations');
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [errors, setErrors] = useState<Record<FieldName, string[]>>({
     category: [],
     assignment_id: [],
-    receipt_id: [],
     total_amount: [],
     expense_date: [],
   });
@@ -81,7 +75,6 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     category: 'Fuel',
     category_id: '',
     assignment_id: '',
-    receipt_id: '',
     total_amount: 0,
     expense_date: new Date().toISOString().split('T')[0],
     created_by: currentUser,
@@ -92,7 +85,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
   const [conductorReimb, setConductorReimb] = useState('');
   const [reimbError, setReimbError] = useState('');
 
-  // --- Reimbursement fields for receipt-sourced expenses ---
+  // --- Reimbursement rows (receipt-sourced UI removed, kept for future use) ---
   type ReimbursementEntry = {
     employee_id: string;
     job_title: string;
@@ -106,9 +99,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     error: '',
   }]);
 
-  // Add state for original auto-filled values from receipt
-  const [originalReceiptAutoFilledAmount, setOriginalReceiptAutoFilledAmount] = useState<number | null>(null);
-  const [originalReceiptAutoFilledDate, setOriginalReceiptAutoFilledDate] = useState<string>('');
+  // Receipt autofill removed
 
   // Add state for original auto-filled values
   const [originalAutoFilledAmount, setOriginalAutoFilledAmount] = useState<number | null>(null);
@@ -180,7 +171,6 @@ const AddExpense: React.FC<AddExpenseProps> = ({
   const validationRules: Record<FieldName, ValidationRule> = {
     category: { required: true, label: "Category"},
     assignment_id: { required: source === 'operations', label: "Assignment" },
-    receipt_id: { required: source === 'receipt', label: "Receipt" },
     total_amount: { 
       required: true, 
       min: 0.01, 
@@ -223,10 +213,10 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     fetchEmployees();
   }, []);
 
-  // Fetch employees from HR API when source is 'receipt' and payment method is 'REIMBURSEMENT'
+  // Fetch employees from HR API when needed
   useEffect(() => {
     const fetchHREmployees = async () => {
-      if (source === 'receipt' && paymentMethod === 'REIMBURSEMENT') {
+  if (paymentMethod === 'REIMBURSEMENT') {
         try {
           const hrEmployees = await fetchEmployeesForReimbursementClient();
           setAllEmployees(hrEmployees);
@@ -239,41 +229,19 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     fetchHREmployees();
   }, [source, paymentMethod]);
 
-  useEffect(() => {
-    const fetchReceipts = async () => {
-      try {
-        setReceiptLoading(true);
-        const response = await fetch('/api/receipts?isExpenseRecorded=false&fetchAll=true');
-        if (!response.ok) throw new Error('Failed to fetch receipts');
-        const { receipts } = await response.json();
-        // Sort by transaction_date
-        const sortedReceipts = receipts.sort((a: Receipt, b: Receipt) => 
-          new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
-        );
-        setReceipts(sortedReceipts);
-      } catch (error) {
-        console.error('Error fetching receipts:', error);
-        showError('Error', 'Failed to load receipts');
-      } finally {
-        setReceiptLoading(false);
-      }
-    };
-
-    fetchReceipts();
-  }, []);
+  // Receipt fetching removed
 
   useEffect(() => {
     // Reset form when source changes
     setFormData(prev => ({
       ...prev,
       assignment_id: '',
-      receipt_id: '',
       total_amount: 0,
-      category: source === 'operations' ? 'Fuel' : '',
+      category: 'Fuel',
       expense_date: new Date().toISOString().split('T')[0],
     }));
     setPaymentMethod('CASH');
-  }, [source]);
+  }, []);
 
   useEffect(() => {
     if (formData.assignment_id) {
@@ -315,45 +283,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     }
   }, [formData.assignment_id, assignments]);
 
-  // Add useEffect for receipt autofill
-  useEffect(() => {
-    if (formData.receipt_id && source === 'receipt') {
-      const selectedReceipt = receipts.find(r => r.receipt_id === formData.receipt_id);
-      if (selectedReceipt) {
-        // Set original auto-filled values from receipt
-        setOriginalReceiptAutoFilledAmount(selectedReceipt.total_amount_due);
-        
-        // Convert receipt transaction_date to datetime-local format
-        const receiptDate = new Date(selectedReceipt.transaction_date);
-        const year = receiptDate.getFullYear();
-        const month = String(receiptDate.getMonth() + 1).padStart(2, '0');
-        const day = String(receiptDate.getDate()).padStart(2, '0');
-        const hours = String(receiptDate.getHours()).padStart(2, '0');
-        const minutes = String(receiptDate.getMinutes()).padStart(2, '0');
-        const dateTimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
-        setOriginalReceiptAutoFilledDate(dateTimeLocal);
-        
-        // Determine payment method based on receipt payment status
-        const paymentMethodFromReceipt = 'CASH';
-        // Always default to CASH for receipt-sourced expenses, regardless of receipt payment status
-        
-        setFormData(prev => ({
-          ...prev,
-          category: selectedReceipt.category?.name || 'Other',
-          category_id: selectedReceipt.category?.category_id || '',
-          total_amount: selectedReceipt.total_amount_due,
-          expense_date: dateTimeLocal,
-          payment_method: paymentMethodFromReceipt,
-        }));
-        
-        // Update payment method state
-        setPaymentMethod(paymentMethodFromReceipt as 'CASH' | 'REIMBURSEMENT');
-      }
-    } else {
-      setOriginalReceiptAutoFilledAmount(null);
-      setOriginalReceiptAutoFilledDate('');
-    }
-  }, [formData.receipt_id, source, receipts]);
+  // Receipt autofill removed
 
   // Calculate amount deviation
   const getAmountDeviation = () => {
@@ -374,22 +304,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
       };
     }
     
-    // Check for receipt autofill
-    if (originalReceiptAutoFilledAmount !== null && originalReceiptAutoFilledAmount !== 0) {
-      const currentAmount = Number(formData.total_amount);
-      if (currentAmount === originalReceiptAutoFilledAmount) return null;
-      const difference = currentAmount - originalReceiptAutoFilledAmount;
-      const percentageChange = Math.abs((difference / originalReceiptAutoFilledAmount) * 100);
-      const isIncrease = difference > 0;
-      return {
-        difference: Math.abs(difference),
-        percentage: percentageChange,
-        isIncrease,
-        formattedDifference: `₱${Math.abs(difference).toLocaleString()}`,
-        formattedPercentage: `${percentageChange.toFixed(1)}%`,
-        source: 'receipt'
-      };
-    }
+    // Receipt autofill removed
     
     return null;
   };
@@ -432,41 +347,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
       };
     }
     
-    // Check for receipt autofill
-    if (originalReceiptAutoFilledDate && formData.expense_date) {
-      const originalDate = new Date(originalReceiptAutoFilledDate);
-      const currentDate = new Date(formData.expense_date);
-      if (originalDate.getTime() === currentDate.getTime()) return null;
-      const timeDifference = Math.abs(currentDate.getTime() - originalDate.getTime());
-      const daysDifference = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
-      const hoursDifference = Math.floor((timeDifference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutesDifference = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
-      let deviationText = '';
-      if (daysDifference > 0) {
-        deviationText = `${daysDifference} day${daysDifference !== 1 ? 's' : ''}`;
-        if (hoursDifference > 0) {
-          deviationText += `, ${hoursDifference}h`;
-        }
-      } else if (hoursDifference > 0) {
-        deviationText = `${hoursDifference}h`;
-        if (minutesDifference > 0) {
-          deviationText += ` ${minutesDifference}m`;
-        }
-      } else if (minutesDifference > 0) {
-        deviationText = `${minutesDifference}m`;
-      } else {
-        deviationText = 'few seconds';
-      }
-      const isLater = currentDate.getTime() > originalDate.getTime();
-      return {
-        deviationText,
-        isLater,
-        daysDifference,
-        hoursDifference,
-        minutesDifference,
-        source: 'receipt'
-      };
-    }
+    // Receipt autofill removed
     
     return null;
   };
@@ -478,7 +359,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
 
   // Update reimbursement validation logic
   useEffect(() => {
-    if (paymentMethod === 'REIMBURSEMENT' && source === 'operations') {
+    if (paymentMethod === 'REIMBURSEMENT') {
       const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
       if (assignment) {
         const total = parseFloat(driverReimb || '0') + parseFloat(conductorReimb || '0');
@@ -506,9 +387,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     // Prepare the new value for formData
     let newValue: string | number = value;
 
-    if (name === 'source') {
-      setSource(value as 'operations' | 'receipt');
-    }
+    // source is fixed to 'operations'
 
     if (name === 'total_amount') {
       newValue = parseFloat(value) || 0;
@@ -539,7 +418,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const { category, assignment_id, receipt_id, total_amount, expense_date } = formData;
+  const { category, assignment_id, total_amount, expense_date } = formData;
 
     if (!category || !expense_date || !currentUser) {
       await showError('Please fill in all required fields', 'Error');
@@ -548,11 +427,6 @@ const AddExpense: React.FC<AddExpenseProps> = ({
 
     if (source === 'operations' && !assignment_id) {
       await showError('Please select an assignment', 'Error');
-      return;
-    }
-
-    if (source === 'receipt' && !receipt_id) {
-      await showError('Please select a receipt', 'Error');
       return;
     }
 
@@ -573,12 +447,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
       }
     }
 
-    if (source === 'receipt' && paymentMethod === 'REIMBURSEMENT') {
-      if (!validateReimbRows() || hasDuplicateEmployees()) {
-        await showError('Please fix reimbursement entries (no duplicates, all fields required, positive amounts).', 'Error');
-        return;
-      }
-    }
+    // Receipt-based reimbursement path removed
 
     const result = await showConfirmation(
       'Are you sure you want to add this expense record?',
@@ -593,26 +462,17 @@ const AddExpense: React.FC<AddExpenseProps> = ({
           : null;
 
         const payload = {
-          // For receipt-sourced expenses, send category_id instead of category
-          ...(source === 'receipt' ? { category_id: formData.category_id } : { category: category }),
+          category: category,
           total_amount,
           expense_date,
           created_by: currentUser,
           ...(source === 'operations' ? { assignment_id } : {}),
-          ...(source === 'receipt' ? { receipt_id } : {}),
           payment_method: paymentMethod,
           ...(paymentMethod === 'REIMBURSEMENT' && source === 'operations' ? {
             driver_reimbursement: Number(driverReimb),
             conductor_reimbursement: Number(conductorReimb),
             driver_name: assignment?.driver_name || 'Unknown Driver',
             conductor_name: assignment?.conductor_name || 'Unknown Conductor',
-          } : {}),
-          ...(source === 'receipt' && paymentMethod === 'REIMBURSEMENT' ? {
-            reimbursements: reimbursementRows.map(row => ({
-              employee_id: row.employee_id,
-              job_title: row.job_title,
-              amount: Number(row.amount),
-            }))
           } : {}),
           source,
         };
@@ -652,10 +512,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     return `${formatDate(assignment.date_assigned)} | ₱ ${assignment.trip_fuel_expense} | ${assignment.bus_plate_number || 'N/A'} (${busType}) - ${assignment.bus_route} | ${driverName} & ${conductorName}`;
   };
 
-  // Format receipt for display
-  const formatReceipt = (receipt: Receipt) => {
-    return `₱ ${receipt.total_amount_due} | ${formatDisplayText(receipt.terms?.name || 'N/A')} | ${receipt.supplier} | ${formatDate(receipt.transaction_date)}`;
-  };
+  // Receipt display removed
 
   return (
     <div className="modalOverlay">
@@ -685,65 +542,37 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                     className='formSelect'
                   >
                     <option value="operations">{formatDisplayText('Operations')}</option>
-                    <option value="receipt">{formatDisplayText('Receipt')}</option>
                   </select>
                   </div>
 
                   {/* SOURCE */}
                   <div className="formField">
                     <label htmlFor="sourceDetail">Source<span className='requiredTags'> *</span></label>
-                    {source === 'operations' && (
-                      <>
-                        <button
-                          type="button"
-                          className="formSelect"
-                          id='busSelector'
-                          style={{ textAlign: 'left', width: '100%' }}
-                          onClick={() => setShowBusSelector(true)}
-                        >
-                          {formData.assignment_id
-                            ? formatAssignment(assignments.find(a => a.assignment_id === formData.assignment_id)!)
-                            : 'Select Assignment'}
-                        </button>
-                        {errors.assignment_id.map((msg, i) => (
-                          <div className="error-message" key={i}>{msg}</div>
-                        ))}
-                        {showBusSelector && (
-                          <BusSelector
-                            assignments={filteredAssignments}
-                            onSelect={assignment => {
-                              setFormData(prev => ({ ...prev, assignment_id: assignment.assignment_id }));
-                              setShowBusSelector(false);
-                            }}
-                            isOpen={showBusSelector}
-                            allEmployees={allEmployees}
-                            onClose={() => setShowBusSelector(false)}
-                          />
-                        )}
-                      </>
-                                      )}
-                    {source === 'receipt' && (
-                      <>
-                        <select
-                          id="sourceDetail"
-                          name="receipt_id"
-                          value={formData.receipt_id}
-                          onChange={handleInputChange}
-                          required
-                          className={`formSelect${errors.receipt_id.length ? ' input-error' : ''}`}
-                          disabled={receiptLoading}
-                        >
-                          <option value="">Select Receipt</option>
-                          {receipts.map((receipt) => (
-                            <option key={receipt.receipt_id} value={receipt.receipt_id}>
-                              {formatReceipt(receipt)}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.receipt_id.map((msg, i) => (
-                          <div className="error-message" key={i}>{msg}</div>
-                        ))}
-                      </>
+                    <button
+                      type="button"
+                      className="formSelect"
+                      id='busSelector'
+                      style={{ textAlign: 'left', width: '100%' }}
+                      onClick={() => setShowBusSelector(true)}
+                    >
+                      {formData.assignment_id
+                        ? formatAssignment(assignments.find(a => a.assignment_id === formData.assignment_id)!)
+                        : 'Select Assignment'}
+                    </button>
+                    {errors.assignment_id.map((msg, i) => (
+                      <div className="error-message" key={i}>{msg}</div>
+                    ))}
+                    {showBusSelector && (
+                      <BusSelector
+                        assignments={filteredAssignments}
+                        onSelect={assignment => {
+                          setFormData(prev => ({ ...prev, assignment_id: assignment.assignment_id }));
+                          setShowBusSelector(false);
+                        }}
+                        isOpen={showBusSelector}
+                        allEmployees={allEmployees}
+                        onClose={() => setShowBusSelector(false)}
+                      />
                     )}
                   </div>
                 </div>
@@ -761,9 +590,6 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                       readOnly
                       className="formInput"
                     />
-                    {source === 'receipt' && formData.receipt_id && (
-                      <span className="autofill-note">Autofilled from Receipt</span>
-                    )}
                   </div>
 
                   
@@ -784,9 +610,6 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                       {formData.assignment_id && (
                         <span className="autofill-note">Auto-calculated from assignment (editable)</span>
                       )}
-                      {source === 'receipt' && formData.receipt_id && (
-                        <span className="autofill-note">Auto-filled from receipt total amount due (editable)</span>
-                      )}
                       {(() => {
                         const amountDeviation = getAmountDeviation();
                         return amountDeviation && (
@@ -794,7 +617,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                             <i className="ri-error-warning-line"></i> 
                             {amountDeviation.isIncrease ? '+' : '-'}{amountDeviation.formattedDifference} 
                             ({amountDeviation.isIncrease ? '+' : '-'}{amountDeviation.formattedPercentage}) 
-                            from auto-filled {amountDeviation.source === 'receipt' ? 'receipt' : 'assignment'} amount
+                            from auto-filled assignment amount
                           </div>
                         );
                       })()}
@@ -818,15 +641,12 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                   {formData.assignment_id && (
                     <span className="autofill-note">Auto-filled from assignment date with current time (editable)</span>
                   )}
-                  {source === 'receipt' && formData.receipt_id && (
-                    <span className="autofill-note">Auto-filled from receipt transaction date (editable)</span>
-                  )}
                   {(() => {
                     const dateDeviation = getDateDeviation();
                     return dateDeviation && (
                       <div className="deviation-note" style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
                         <i className="ri-time-line"></i> 
-                        {dateDeviation.deviationText} {dateDeviation.isLater ? 'after' : 'before'} auto-filled {dateDeviation.source === 'receipt' ? 'receipt' : 'assignment'} date
+                        {dateDeviation.deviationText} {dateDeviation.isLater ? 'after' : 'before'} auto-filled assignment date
                       </div>
                     );
                   })()}
@@ -835,27 +655,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                 {/* PAYMENT METHOD */}
                 <div className="formField">
                   <label htmlFor="payment_method">Payment Method<span className='requiredTags'> *</span></label>
-                  {source === 'receipt' ? (
-                    <>
-                      <select
-                        id="payment_method"
-                        name="payment_method"
-                        value={paymentMethod}
-                        onChange={e => {
-                          setPaymentMethod(e.target.value as 'CASH' | 'REIMBURSEMENT');
-                          if (e.target.value === 'REIMBURSEMENT') setReimbursementRows([{ employee_id: '', job_title: '', amount: '', error: '' }]);
-                        }}
-                        required
-                        className="formSelect"
-                      >
-                        <option value="CASH">Company Paid (CASH)</option>
-                        <option value="REIMBURSEMENT">Employee Reimbursement</option>
-                      </select>
-                      {formData.receipt_id && (
-                        <span className="autofill-note">Defaults to CASH for receipt-sourced expenses (editable)</span>
-                      )}
-                    </>
-                  ) : (
+                  {
                     <input
                       type="text"
                       id="payment_method"
@@ -864,7 +664,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                       readOnly
                       className="formInput"
                     />
-                  )}
+                  }
                 </div>
 
                 {/* EMPLOYEE FIELDS for REIMBURSEMENT (Operations) */}
@@ -909,77 +709,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                   );
                 })()}
 
-                {/* --- Reimbursement fields for receipt-sourced expenses --- */}
-                {source === 'receipt' && paymentMethod === 'REIMBURSEMENT' && (
-                  <div className="reimb-multi-rows">
-                    <h3>Employee Reimbursement Details</h3>
-                    {reimbursementRows.map((row, idx) => (
-                      <div className="employee-reimb-container" key={idx}>
-                        <div className="employee-section">
-                          <div className="employee-labels">
-                            <div className="employee-label-group">
-                              <label>Employee Name<span className='requiredTags'> *</span></label>
-                              <label>Job Title</label>
-                              <label>Reimbursement Amount<span className='requiredTags'> *</span></label>
-                            </div>
-                          </div>
-                          <div className="employee-inputs">
-                            <select
-                              value={row.employee_id}
-                              onChange={handleReimbRowChange(idx, 'employee_id')}
-                              className={`formSelect${row.error && !row.employee_id ? ' input-error' : ''}`}
-                              required
-                            >
-                              <option value="">Select Employee</option>
-                              {getAvailableEmployees(idx).map(emp => (
-                                <option key={emp.employee_id} value={emp.employee_id}>{emp.name}</option>
-                              ))}
-                            </select>
-                            <input
-                              type="text"
-                              value={row.job_title}
-                              readOnly
-                              className="formInput"
-                              placeholder="Job Title"
-                            />
-                            <input
-                              type="number"
-                              value={row.amount}
-                              onChange={handleReimbRowChange(idx, 'amount')}
-                              min="1"
-                              className={`formInput${row.error && (!row.amount || isNaN(Number(row.amount)) || Number(row.amount) <= 0) ? ' input-error' : ''}`}
-                              placeholder="Enter amount"
-                              required
-                            />
-                          </div>
-                          <div className="employee-actions">
-                            <button
-                              type="button"
-                              className="removeRowBtn"
-                              onClick={() => handleRemoveReimbRow(idx)}
-                              title="Remove Employee"
-                              disabled={reimbursementRows.length === 1}
-                            >
-                              <i className="ri-delete-bin-line" />
-                            </button>
-                          </div>
-                        </div>
-                        {row.error && <div className="employee-error">{row.error}</div>}
-                      </div>
-                    ))}
-                    <div className="add-employee-section">
-                      <button
-                        type="button"
-                        className="addRowBtn"
-                        onClick={handleAddReimbRow}
-                        disabled={!canAddRow}
-                      >
-                        <i className="ri-add-line" /> Add Another Employee
-                      </button>
-                    </div>
-                    {hasDuplicateEmployees() && <div className="error-message">Duplicate employees not allowed.</div>}
-                  </div>
-                )}
+                {/* Receipt-sourced reimbursement UI removed */}
               </div>
             </div>
           </div>

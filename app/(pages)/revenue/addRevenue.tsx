@@ -18,7 +18,7 @@ import RevenueSourceSelector from '../../Components/revenueBusSelector';
 import ModalHeader from '@/app/Components/ModalHeader';
 
 type GlobalCategory = {
-  category_id: string;
+  category_id: string; // server provides both id and category_id as same
   name: string;
   applicable_modules: string[];
 };
@@ -88,13 +88,11 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
           // Set first revenue category as default if available
           if (categoriesData.length > 0) {
             const firstCategory = categoriesData.find((cat: GlobalCategory) => 
-              cat.applicable_modules.includes('revenue') &&
               cat.name !== 'Bus_Rental'
             );
             if (firstCategory) {
               setFormData(prev => ({
                 ...prev,
-                category: firstCategory.name,
                 category_id: firstCategory.category_id
               }));
             }
@@ -115,7 +113,7 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
     return assignments
       .filter(a => {
         if (!formData.category_id) return false;
-        const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
+  const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
         if (!selectedCategory) return false;
         if (selectedCategory.name === 'Boundary') return a.assignment_type === 'Boundary';
         if (selectedCategory.name === 'Percentage') return a.assignment_type === 'Percentage';
