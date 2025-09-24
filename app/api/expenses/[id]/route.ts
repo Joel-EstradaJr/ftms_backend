@@ -205,17 +205,37 @@ export async function PUT(
     // Normalize reimbursements from body
     let normalizedReimbursements: Array<{ employee_id: string; amount: number }> | null = null;
     if (Array.isArray(reimbursements) && reimbursements.length > 0) {
-      normalizedReimbursements = reimbursements.map((r: any) => ({ employee_id: r.employee_id, amount: Number(r.amount) }));
+      normalizedReimbursements = reimbursements
+        .map((r: any) => {
+          const empId = r.employee_id ?? r.employee_number ?? r.id ?? r.employee_name;
+          const rawAmt = r.amount ?? r.reimbursable_amount ?? r.reimbursement_amount ?? r.value;
+          const amt = Number(rawAmt);
+          return empId && !Number.isNaN(amt) ? { employee_id: String(empId), amount: amt } : null;
+        })
+        .filter((x: any) => x && x.amount >= 0) as Array<{ employee_id: string; amount: number }>;
     } else if (
       typeof driver_reimbursement !== 'undefined' || typeof conductor_reimbursement !== 'undefined'
     ) {
       const opAssignment = originalRecord.assignment_id ? await prisma.assignmentCache.findUnique({ where: { assignment_id: originalRecord.assignment_id } }) : null;
+      const drvAmtRaw = Number(driver_reimbursement);
+      const cndAmtRaw = Number(conductor_reimbursement);
+      const drvAmt = !Number.isNaN(drvAmtRaw) ? drvAmtRaw : 0;
+      const cndAmt = !Number.isNaN(cndAmtRaw) ? cndAmtRaw : 0;
       if (opAssignment) {
-        const drvAmt = Number(driver_reimbursement) || 0;
-        const cndAmt = Number(conductor_reimbursement) || 0;
         normalizedReimbursements = [];
         if (drvAmt > 0 && opAssignment.driver_id) normalizedReimbursements.push({ employee_id: opAssignment.driver_id, amount: drvAmt });
         if (cndAmt > 0 && opAssignment.conductor_id) normalizedReimbursements.push({ employee_id: opAssignment.conductor_id, amount: cndAmt });
+      } else if (originalRecord.reimbursements && originalRecord.reimbursements.length > 0) {
+        const driverRow = originalRecord.reimbursements.find((r: any) => (r.job_title || '').toLowerCase() === 'driver');
+        const conductorRow = originalRecord.reimbursements.find((r: any) => (r.job_title || '').toLowerCase() === 'conductor');
+        normalizedReimbursements = [];
+        if (drvAmt > 0 && driverRow) normalizedReimbursements.push({ employee_id: driverRow.employee_id, amount: drvAmt });
+        if (cndAmt > 0 && conductorRow) normalizedReimbursements.push({ employee_id: conductorRow.employee_id, amount: cndAmt });
+      }
+    } else if (employee_id && typeof reimbursable_amount !== 'undefined') {
+      const amt = Number(reimbursable_amount);
+      if (!Number.isNaN(amt) && amt >= 0) {
+        normalizedReimbursements = [{ employee_id, amount: amt }];
       }
     }
 
@@ -228,8 +248,10 @@ export async function PUT(
       }
     }
 
-    if (Object.keys(updateData).length > 1) {
-      let updated;
+    // Proceed with general updates and/or reimbursement sync
+    const hasFieldUpdates = Object.keys(updateData).length > 1; // updated_at is always present
+    let updated: any;
+    if (hasFieldUpdates) {
       try {
         updated = await (prisma as any).expenseRecord.update({
           where: { expense_id: id },
@@ -248,51 +270,29 @@ export async function PUT(
         }
         throw err;
       }
+    } else {
+      // No expense field changes; load current for response composition
+      updated = await (prisma as any).expenseRecord.findUnique({
+        where: { expense_id: id },
+        include: { category: true, payment_method: true, payment_status: true, source: true, reimbursements: true }
+      });
+      if (!updated) return NextResponse.json({ error: 'Expense record not found' }, { status: 404 });
+    }
 
-      // If reimbursements are provided on update, replace existing reimbursements
-      if (normalizedReimbursements && normalizedReimbursements.length > 0) {
-        const allEmployees = await fetchEmployeesForReimbursement();
-        await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
-        for (const entry of normalizedReimbursements) {
-          const emp = allEmployees.find(e => e.employee_id === entry.employee_id);
-          if (!emp) {
-            return NextResponse.json({ error: 'Invalid employee_id for reimbursement' }, { status: 400 });
-          }
-          await prisma.reimbursement.create({
-            data: ({
-              expense_id: id,
-              employee_id: emp.employee_id,
-              employee_name: emp.name,
-              job_title: emp.job_title,
-              amount: entry.amount,
-              status: 'PENDING' as any,
-              created_by: originalRecord.created_by,
-              is_deleted: false,
-            } as any)
-          });
-        }
-        // Re-fetch with reimbursements
-        updated = await (prisma as any).expenseRecord.findUnique({
-          where: { expense_id: id },
-          include: { category: true, payment_method: true, payment_status: true, source: true, reimbursements: true }
-        });
-      } else if (setToCash) {
-        // If switching to Cash, remove existing reimbursements
-        await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
-        updated = await (prisma as any).expenseRecord.findUnique({
-          where: { expense_id: id },
-          include: { category: true, payment_method: true, payment_status: true, source: true, reimbursements: true }
-        });
-      }
-
+    // If switching to Cash via payment_method_id, remove existing reimbursements now
+    if (setToCash) {
+      await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
+      updated = await (prisma as any).expenseRecord.findUnique({
+        where: { expense_id: id },
+        include: { category: true, payment_method: true, payment_status: true, source: true, reimbursements: true }
+      });
       await logAudit({
         action: 'UPDATE',
         table_affected: 'ExpenseRecord',
         record_id: id,
         performed_by: 'ftms_user',
-        details: 'Updated expense fields (general update)'
+        details: 'Updated expense fields (general update)' 
       });
-
       return NextResponse.json({
         ...updated,
         total_amount: Number(updated.total_amount),
@@ -303,8 +303,74 @@ export async function PUT(
       });
     }
 
-    // If no supported update was performed
-    return NextResponse.json({ error: 'No valid update data provided' }, { status: 400 });
+    // Sync reimbursements if provided (upsert per employee, remove omitted)
+    if (normalizedReimbursements && normalizedReimbursements.length > 0) {
+      const allEmployees = await fetchEmployeesForReimbursement();
+      const existing = await prisma.reimbursement.findMany({ where: { expense_id: id } });
+      const existingByEmp = new Map(existing.map(r => [r.employee_id, r]));
+      const incomingEmpIds = new Set<string>();
+
+      for (const entry of normalizedReimbursements) {
+        const emp = allEmployees.find(e => e.employee_id === entry.employee_id);
+        const existingRow = existingByEmp.get(entry.employee_id);
+        const effectiveEmpId = emp?.employee_id || existingRow?.employee_id || entry.employee_id;
+        const effectiveName = emp?.name || existingRow?.employee_name || entry.employee_id;
+        const effectiveJob = emp?.job_title || existingRow?.job_title || null;
+        incomingEmpIds.add(effectiveEmpId);
+        if (existingRow) {
+          await prisma.reimbursement.updateMany({
+            where: { expense_id: id, employee_id: effectiveEmpId },
+            data: {
+              amount: entry.amount,
+              employee_name: effectiveName,
+              job_title: effectiveJob as any,
+              is_deleted: false,
+            }
+          });
+        } else {
+          await prisma.reimbursement.create({
+            data: ({
+              expense_id: id,
+              employee_id: effectiveEmpId,
+              employee_name: effectiveName,
+              job_title: effectiveJob as any,
+              amount: entry.amount,
+              status: 'PENDING' as any,
+              created_by: originalRecord.created_by,
+              is_deleted: false,
+            } as any)
+          });
+        }
+      }
+      // Re-fetch with reimbursements
+      updated = await (prisma as any).expenseRecord.findUnique({
+        where: { expense_id: id },
+        include: { category: true, payment_method: true, payment_status: true, source: true, reimbursements: true }
+      });
+    }
+
+    // If nothing changed and no reimbursements provided, return 400
+    const didSomething = hasFieldUpdates || (normalizedReimbursements && normalizedReimbursements.length > 0);
+    if (!didSomething) {
+      return NextResponse.json({ error: 'No valid update data provided' }, { status: 400 });
+    }
+
+    await logAudit({
+      action: 'UPDATE',
+      table_affected: 'ExpenseRecord',
+      record_id: id,
+      performed_by: 'ftms_user',
+      details: 'Updated expense fields (general update)'
+    });
+
+    return NextResponse.json({
+      ...updated,
+      total_amount: Number(updated.total_amount),
+      payment_method_name: updated.payment_method?.name || null,
+      payment_status_name: updated.payment_status?.name || null,
+      category_name: updated.category?.name || null,
+      source_name: updated.source?.name || null,
+    });
   } catch (error) {
     console.error('Error updating expense:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';

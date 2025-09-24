@@ -111,7 +111,13 @@ export async function PATCH(req: NextRequest) {
       updateData.payment_reference = payment_reference;
       // Map payment method name to id if provided
       if (payment_method) {
-        const pm = await prisma.globalPaymentMethod.findFirst({ where: { name: payment_method } });
+        const pmName = (payment_method as string).trim();
+        const pm = await prisma.globalPaymentMethod.findFirst({ 
+          where: { 
+            name: { equals: pmName, mode: 'insensitive' },
+            is_deleted: false
+          } 
+        });
         if (!pm) return NextResponse.json({ error: `Payment method not found: ${payment_method}` }, { status: 400 });
         updateData.payment_method_id = pm.id;
       }

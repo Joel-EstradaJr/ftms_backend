@@ -46,20 +46,32 @@ export async function POST(req: NextRequest) {
       if (!categoryRecordAny) return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
 
+    // Resolve source id and name
     let finalSourceId: string | undefined = source_id;
+    let finalSourceName: string | undefined = undefined;
     if (!finalSourceId && source) {
       const srcRec: any = await (prisma as any).globalSource.findFirst({ where: { name: { equals: source, mode: 'insensitive' }, is_deleted: false } });
       if (!srcRec) return NextResponse.json({ error: `Source '${source}' not found` }, { status: 400 });
       finalSourceId = (srcRec.id || srcRec.source_id) as string;
+      finalSourceName = srcRec.name as string;
+    } else if (finalSourceId) {
+      const srcRec: any = await (prisma as any).globalSource.findFirst({ where: { id: finalSourceId, is_deleted: false } });
+      finalSourceName = (srcRec?.name as string) || source;
     }
 
+    // Resolve payment method id and name
     let finalPaymentMethodId: string | undefined = payment_method_id;
+    let finalPaymentMethodName: string | undefined = undefined;
     if (!finalPaymentMethodId) {
       const pm = (payment_method || '').trim();
       if (!pm) return NextResponse.json({ error: 'Payment method is required' }, { status: 400 });
       const pmRec = await prisma.globalPaymentMethod.findFirst({ where: { name: { equals: pm, mode: 'insensitive' } } });
       if (!pmRec) return NextResponse.json({ error: `Payment method '${pm}' not found` }, { status: 400 });
       finalPaymentMethodId = pmRec.id as string;
+      finalPaymentMethodName = pmRec.name as string;
+    } else {
+      const pmRec = await prisma.globalPaymentMethod.findFirst({ where: { id: finalPaymentMethodId } });
+      finalPaymentMethodName = (pmRec?.name as string) || payment_method;
     }
     if (!finalPaymentMethodId) return NextResponse.json({ error: 'Payment method is required' }, { status: 400 });
 
@@ -100,6 +112,36 @@ export async function POST(req: NextRequest) {
       normalizedReimbursements = [];
       if (drvAmt > 0 && opAssignment.driver_id) normalizedReimbursements.push({ employee_id: opAssignment.driver_id, amount: drvAmt, role: 'Driver' });
       if (cndAmt > 0 && opAssignment.conductor_id) normalizedReimbursements.push({ employee_id: opAssignment.conductor_id, amount: cndAmt, role: 'Conductor' });
+    } else {
+      // Auto-create reimbursement(s) whenever source or payment method indicates reimbursement
+      const isReimbursementFlow = [finalSourceName, finalPaymentMethodName, source, payment_method]
+        .filter(Boolean)
+        .some((n) => (n as string).toLowerCase().includes('reimb'));
+      if (isReimbursementFlow) {
+        if (assignment_id) {
+          const opAssignment = await getAssignmentById(assignment_id);
+          if (!opAssignment) return NextResponse.json({ error: 'Invalid assignment for reimbursements' }, { status: 400 });
+          const drvAmt = Number(driver_reimbursement) || 0;
+          const cndAmt = Number(conductor_reimbursement) || 0;
+          let useDrv = drvAmt;
+          let useCnd = cndAmt;
+          if (useDrv <= 0 && useCnd <= 0) {
+            // Default: allocate all to driver if available
+            if (opAssignment.driver_id) {
+              useDrv = finalTotalAmount;
+            } else if (opAssignment.conductor_id) {
+              useCnd = finalTotalAmount;
+            }
+          }
+          const rows: Array<{ employee_id: string; amount: number; role?: string }> = [];
+          if (useDrv > 0 && opAssignment.driver_id) rows.push({ employee_id: opAssignment.driver_id, amount: useDrv, role: 'Driver' });
+          if (useCnd > 0 && opAssignment.conductor_id) rows.push({ employee_id: opAssignment.conductor_id, amount: useCnd, role: 'Conductor' });
+          normalizedReimbursements = rows.length ? rows : null;
+        } else if ((body as any).employee_id) {
+          const empId = String((body as any).employee_id);
+          normalizedReimbursements = [{ employee_id: empId, amount: finalTotalAmount }];
+        }
+      }
     }
     if (normalizedReimbursements && normalizedReimbursements.length > 0) {
       const reimbSum = normalizedReimbursements.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
@@ -107,6 +149,17 @@ export async function POST(req: NextRequest) {
     }
 
     const allEmployees = normalizedReimbursements ? await fetchEmployeesForReimbursement() : [];
+    // Build fallback lookup from assignment for names if employee directory is missing entries
+    const assignmentLookup = new Map<string, { name: string; job_title?: string }>();
+    if (assignment_id) {
+      try {
+        const opAssignment = await getAssignmentById(assignment_id);
+        if (opAssignment) {
+          if (opAssignment.driver_id) assignmentLookup.set(opAssignment.driver_id, { name: opAssignment.driver_name || 'Driver', job_title: 'Driver' });
+          if (opAssignment.conductor_id) assignmentLookup.set(opAssignment.conductor_id, { name: opAssignment.conductor_name || 'Conductor', job_title: 'Conductor' });
+        }
+      } catch {}
+    }
     let pendingReimbStatus: any = null;
     try {
       const model: any = (prisma as any).globalReimbursementStatus;
@@ -136,15 +189,16 @@ export async function POST(req: NextRequest) {
       if (normalizedReimbursements && normalizedReimbursements.length > 0) {
         for (const entry of normalizedReimbursements) {
           const employee = allEmployees.find(emp => emp.employee_id === entry.employee_id);
-          if (!employee) throw new Error('Invalid employee_id for reimbursement');
+          const fallback = assignmentLookup.get(entry.employee_id);
+          if (!employee && !fallback) throw new Error('Invalid employee_id for reimbursement');
           await (tx as any).reimbursement.create({
             data: ({
               expense_id: createdExpense.expense_id,
-              employee_id: employee.employee_id,
-              employee_name: employee.name,
-              job_title: employee.job_title,
+              employee_id: employee?.employee_id || entry.employee_id,
+              employee_name: employee?.name || fallback?.name || 'Unknown',
+              job_title: employee?.job_title || fallback?.job_title,
               amount: entry.amount,
-              status: pendingReimbStatus ? { connect: { id: pendingReimbStatus.id } } as any : ('PENDING' as any),
+              status: ('PENDING' as any),
               created_by,
               is_deleted: false,
             } as any)
