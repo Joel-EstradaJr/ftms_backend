@@ -70,8 +70,8 @@ export async function PUT(
 
     // Get payment methods
     const [cashMethod, reimbMethod, pendingStatus] = await Promise.all([
-      prisma.globalPaymentMethod.findFirst({ where: { name: 'CASH' } }),
-      prisma.globalPaymentMethod.findFirst({ where: { name: 'REIMBURSEMENT' } }),
+      prisma.globalPaymentMethod.findFirst({ where: { name: 'Company Cash' } }),
+      prisma.globalPaymentMethod.findFirst({ where: { name: 'Reimbursement' } }),
       prisma.globalReimbursementStatus.findFirst({ where: { name: 'PENDING' } })
     ]);
 
@@ -84,7 +84,7 @@ export async function PUT(
 
     // Operations-sourced: assignment_id present
     if (originalRecord.assignment_id) {
-      if (payment_method === 'REIMBURSEMENT') {
+      if (payment_method === 'Reimbursement') {
         if (!reimbursable_amount || !employee_id) {
           return NextResponse.json({ error: 'reimbursable_amount and employee_id are required for reimbursement.' }, { status: 400 });
         }
@@ -125,14 +125,14 @@ export async function PUT(
           table_affected: 'ExpenseRecord',
           record_id: id,
           performed_by: 'ftms_user',
-          details: `Set as REIMBURSEMENT for employee ${employee.name} (₱${reimbursable_amount})`,
+          details: `Set as Reimbursement for employee ${employee.name} (₱${reimbursable_amount})`,
         });
         // Attach payment_method_name for frontend
         return NextResponse.json({
           ...updatedExpense,
           payment_method_name: updatedExpense.payment_method?.name || null,
         });
-      } else if (payment_method === 'CASH') {
+      } else if (payment_method === 'Company Cash') {
         // Remove reimbursement record(s)
         await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
         // Update expense record
@@ -152,7 +152,7 @@ export async function PUT(
           table_affected: 'ExpenseRecord',
           record_id: id,
           performed_by: 'ftms_user',
-          details: `Set as CASH, removed reimbursement`,
+          details: `Set as Company Cash, removed reimbursement`,
         });
         // Attach payment_method_name for frontend
         return NextResponse.json({

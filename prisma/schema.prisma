@@ -41,18 +41,23 @@ model RevenueRecord {
   assignment_id   String?
   bus_trip_id     String?
   total_amount    Decimal        @db.Decimal(20, 4)
-  created_by      String
+  created_by      String         @default("system")
   created_at      DateTime       @default(now())
-  updated_at      DateTime?
+  updated_at      DateTime       @updatedAt
   is_deleted      Boolean        @default(false)
-  collection_date DateTime
+  collection_date DateTime       @default(now())
   category_id     String
   source_id       String?
+  // Stores Operations.BusTripID for trip-based revenues, or free text/external reference for non-GlobalSource origins
+  source_ref      String?
   category        GlobalCategory @relation(fields: [category_id], references: [id])
   source          GlobalSource?  @relation(fields: [source_id], references: [id])
 
-  @@unique([category_id, assignment_id, collection_date], name: "unique_revenue_assignment")
+  // Ensure only one revenue per BusTrip+Category
+  @@unique([category_id, bus_trip_id], name: "unique_revenue_trip_category")
   @@unique([category_id, source_id, total_amount, collection_date], name: "unique_revenue_other")
+  @@index([assignment_id])
+  @@index([bus_trip_id])
 }
 
 model AuditLog {

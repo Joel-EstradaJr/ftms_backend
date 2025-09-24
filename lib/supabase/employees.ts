@@ -60,28 +60,7 @@ export async function fetchEmployeesForReimbursement(): Promise<Employee[]> {
  * Fetch employees from HR API (client-side version)
  * @returns Promise<Employee[]> Array of employees formatted for reimbursement
  */
-export async function fetchEmployeesForReimbursementClient(): Promise<Employee[]> {
-  try {
-    // Use our own API route to avoid CORS issues
-    const response = await fetch('/api/hr-employees', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HR API request failed: ${response.status} ${response.statusText}`);
-    }
-
-    const employees: Employee[] = await response.json();
-
-    return employees;
-  } catch (error) {
-    console.error('Error fetching employees from HR API:', error);
-    throw new Error('Failed to fetch employees from HR API');
-  }
-}
+// Client-side HR helper removed. Use `/api/employees` via fetch in pages if needed.
 
 /**
  * Fetch all employees from HR API (replaces the old getAllEmployees function)

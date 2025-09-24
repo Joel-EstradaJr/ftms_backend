@@ -98,12 +98,8 @@ const EditRevenueModal: React.FC<EditProps> = ({ record, onClose, onSave }) => {
             const data = await res.json();
             setAssignment(data);
             
-            // Calculate the correct default amount based on category type
+            // total_amount is stored as Operations.Sales; default reference amount is trip_revenue
             let calculatedAmount = data.trip_revenue || 0;
-            const selectedCategory = categories.find(cat => cat.category_id === selectedCategoryId);
-            if (selectedCategory?.name === 'Percentage' && data.assignment_value) {
-              calculatedAmount = (data.trip_revenue || 0) * (data.assignment_value);
-            }
             setOriginalAutoFilledAmount(calculatedAmount);
             
             // Set original date to assignment date with current time (like AddRevenue)

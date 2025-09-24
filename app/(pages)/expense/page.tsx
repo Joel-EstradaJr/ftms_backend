@@ -599,7 +599,7 @@ const filteredData = data.filter((item: ExpenseData) => {
         source,
         formatDisplayText(item.category_name || item.category?.name || ''),
         `₱${Number(item.total_amount).toLocaleString()}`,
-        item.payment_method_name ? (item.payment_method_name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash')
+        item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash')
       ].join(",");
     }).join("\n");
   
@@ -699,7 +699,7 @@ const filteredData = data.filter((item: ExpenseData) => {
                       <td>{source}</td>
                       <td>{formatDisplayText(item.category_name || item.category?.name || '')}</td>
                       <td>₱{Number(item.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>{item.payment_method_name ? (item.payment_method_name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash')}</td>
+                      <td>{item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash')}</td>
                       <td className="styles.actionButtons">
                         <div className="actionButtonsContainer">
                           {/* view button */}

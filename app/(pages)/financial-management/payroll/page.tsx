@@ -356,7 +356,7 @@ const PayrollPage = () => {
     setEligibleEmployees([]);
     setSelectedEmployees([]);
     try {
-      const res = await fetch(`/api/hr-employees?start=${genStart}&end=${genEnd}&payrollPeriod=${genPeriodType}`);
+      const res = await fetch(`/api/payroll/eligible-employees?start=${genStart}&end=${genEnd}&payrollPeriod=${genPeriodType}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Failed to fetch employees");
       

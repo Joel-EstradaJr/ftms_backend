@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
       category,
       category_id,
       assignment_id,
+      bus_trip_id,
       total_amount,
       expense_date,
       created_by,
@@ -26,43 +27,50 @@ export async function POST(req: NextRequest) {
         throw new Error('Missing required fields: total_amount, expense_date, or created_by');
       }
 
-      // Handle category - convert name to ID if needed
-      let finalCategoryId = category_id;
+      // Resolve category id
+      let finalCategoryId: string | undefined = category_id;
       if (!finalCategoryId && category) {
-        const categoryRecord = await tx.globalCategory.findFirst({ 
-          where: { name: category, is_deleted: false } 
+        const cat: any = await (tx as any).globalCategory.findFirst({
+          where: { name: { equals: category, mode: 'insensitive' }, is_deleted: false }
         });
-        if (!categoryRecord) {
-          throw new Error(`Category '${category}' not found`);
-        }
-        finalCategoryId = (categoryRecord as any).category_id ?? (categoryRecord as any).id;
+        if (!cat) throw new Error(`Category '${category}' not found`);
+        finalCategoryId = (cat.id || cat.category_id) as string;
       }
-      if (!finalCategoryId) {
-        throw new Error('Missing category_id or valid category name');
-      }
+      if (!finalCategoryId) throw new Error('Category is required');
+      // Validate category exists when id was provided
+      const categoryRecordAny: any = await (tx as any).globalCategory.findFirst({
+        where: { OR: [{ id: finalCategoryId }, { category_id: finalCategoryId }], is_deleted: false }
+      });
+      if (!categoryRecordAny) throw new Error('Invalid category');
 
-      // Handle payment method - convert name to ID if needed
-      let finalPaymentMethodId = payment_method_id;
-      if (!finalPaymentMethodId && payment_method) {
-        const paymentMethodRecord = await tx.globalPaymentMethod.findFirst({ 
-          where: { name: payment_method, is_deleted: false } 
-        });
-        if (!paymentMethodRecord) {
-          throw new Error(`Payment method '${payment_method}' not found`);
-        }
-        finalPaymentMethodId = paymentMethodRecord.id;
-      }
+      // Map source vs payment method
+      let finalPaymentMethodId: string | undefined = payment_method_id;
+      let finalSourceId: string | undefined = undefined;
+
       if (!finalPaymentMethodId) {
-        throw new Error('Missing payment_method_id or valid payment_method name');
+        const pm = (payment_method || '').trim();
+        if (!pm) throw new Error('Payment method is required');
+        const pmLower = pm.toLowerCase();
+        const isSource = pmLower === 'reimbursement' || pmLower === 'company cash' || pmLower === 'renterdamage' || pmLower === 'renter damage';
+        if (isSource) {
+          const normalizedSourceName = pmLower === 'renterdamage' ? 'Renter Damage' : pm;
+          const sourceRec: any = await (tx as any).globalSource.findFirst({ where: { name: { equals: normalizedSourceName, mode: 'insensitive' }, is_deleted: false } });
+          if (!sourceRec) throw new Error(`Source '${pm}' not found`);
+          finalSourceId = (sourceRec.id || sourceRec.source_id) as string;
+          const defaultPM = await tx.globalPaymentMethod.findFirst({ where: { name: { equals: 'Cash', mode: 'insensitive' } } });
+          if (!defaultPM) throw new Error(`Default payment method 'Cash' not found`);
+          finalPaymentMethodId = defaultPM.id as string;
+        } else {
+          const pmRec = await tx.globalPaymentMethod.findFirst({ where: { name: { equals: pm, mode: 'insensitive' } } });
+          if (!pmRec) throw new Error(`Payment method '${pm}' not found`);
+          finalPaymentMethodId = pmRec.id as string;
+        }
       }
+      if (!finalPaymentMethodId) throw new Error('Payment method is required');
 
-      // Get category and payment method
-  const categoryRecord = await tx.globalCategory.findUnique({ where: { category_id: finalCategoryId } as any });
-      const paymentMethodRecord = await tx.globalPaymentMethod.findUnique({ where: { id: finalPaymentMethodId } });
-
-      if (!categoryRecord || !paymentMethodRecord) {
-        throw new Error('Invalid category or payment method');
-      }
+      // Validate existence of payment method
+      const paymentRecord = await tx.globalPaymentMethod.findUnique({ where: { id: finalPaymentMethodId } });
+      if (!paymentRecord) throw new Error('Invalid payment method');
 
       // Create expense record
       const expense = await tx.expenseRecord.create({
@@ -70,10 +78,12 @@ export async function POST(req: NextRequest) {
           expense_id: await generateId('EXP'),
           category_id: finalCategoryId,
           assignment_id: assignment_id || null,
+          bus_trip_id: bus_trip_id || null,
           total_amount,
           expense_date: new Date(expense_date),
           created_by,
-          payment_method_id: paymentMethodRecord.id,
+          payment_method_id: finalPaymentMethodId,
+          source_id: finalSourceId || null,
           is_deleted: false,
         }
       });

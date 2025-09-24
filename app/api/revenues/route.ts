@@ -4,17 +4,28 @@ import { getAssignmentById } from '@/lib/operations/assignments'
 import { generateId } from '@/lib/idGenerator'
 import type { NextRequest } from 'next/server'
 import { logAudit } from '@/lib/auditLogger'
+import { createRevenueFromBusTrip } from '@/lib/revenues/createFromBusTrip'
 
 export async function POST(req: NextRequest) {
   const data = await req.json();
-  const { assignment_id, category_id, total_amount, collection_date, created_by } = data;
+  const { assignment_id, bus_trip_id, category_id, total_amount, collection_date, created_by, source_ref } = data;
 
   try {
+    // If creating from BusTripID, delegate to helper aligned with Operations API
+    if (bus_trip_id) {
+      const created = await createRevenueFromBusTrip({
+        bus_trip_id,
+        created_by,
+        collection_date: collection_date || undefined,
+      });
+      return NextResponse.json(created);
+    }
+
     const finalAmount = total_amount;
     let assignmentData = null;
 
-    // Convert collection_date string to Date object for comparison and storage
-    const collectionDateTime = new Date(collection_date);
+    // Convert collection_date string to Date object for comparison and storage, default to today
+    const collectionDateTime = collection_date ? new Date(collection_date) : new Date();
     
     // Validate that the collection_date is not in the future
     const now = new Date();
@@ -72,12 +83,10 @@ export async function POST(req: NextRequest) {
         bus_trip_id: assignmentData?.bus_trip_id ?? null,
         category_id,
         source_id: null,
+        source_ref: source_ref ?? null,
         total_amount: finalAmount,
         collection_date: collectionDateTime,
         created_by,
-        created_at: new Date(),
-        updated_at: null,
-        is_deleted: false,
       },
       include: {
         category: true,

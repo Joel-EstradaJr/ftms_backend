@@ -44,7 +44,7 @@ async function seedCategories() {
 }
 
 async function seedSources() {
-  const sources = ['Company Cash', 'Reimbursement'];
+  const sources = ['Company Cash', 'Reimbursement', 'Renter Damage'];
   const nameToId = new Map<string, string>();
 
   for (const name of sources) {

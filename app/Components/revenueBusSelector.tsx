@@ -41,15 +41,18 @@ const RevenueSourceSelector: React.FC<RevenueSourceSelectorProps> = ({
   const [search, setSearch] = useState("");
   const [isLoading] = useState(false);
 
-  // Filter assignments based on selected category (Boundary/Percentage) and search
+  // Filter assignments based on selected category (Boundary/Percentage/Bus Rental) and search
   const filteredAssignments = useMemo(() => {
     let filtered = assignments;
     if (!selectedCategoryId) return [];
     const selectedCategory = categories.find(cat => cat.category_id === selectedCategoryId);
     if (!selectedCategory) return [];
+    const normalize = (s: string) => (s || '').replace(/_/g, ' ').trim();
     filtered = filtered.filter(a => {
-      if (selectedCategory.name === "Boundary") return a.assignment_type === "Boundary";
-      if (selectedCategory.name === "Percentage") return a.assignment_type === "Percentage";
+      const name = normalize(selectedCategory.name);
+      if (name === "Boundary") return a.assignment_type === "Boundary";
+      if (name === "Percentage") return a.assignment_type === "Percentage";
+      if (name === "Bus Rental") return a.assignment_type === "Bus Rental" || !a.assignment_type;
       return false;
     });
     if (search.trim()) {

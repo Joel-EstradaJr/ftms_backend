@@ -11,7 +11,7 @@ import { formatDisplayText } from '../../utils/formatting';
 import BusSelector from '../../Components/busSelector';
 import ModalHeader from '../../Components/ModalHeader';
 import type { Assignment } from '@/lib/operations/assignments';
-import { fetchEmployeesForReimbursementClient } from '@/lib/supabase/employees';
+// Unified to use server-side `/api/employees` for all cases
 
 //---------------------DECLARATIONS HERE----------------------//
 // Uncomment and use these types
@@ -23,7 +23,6 @@ import { fetchEmployeesForReimbursementClient } from '@/lib/supabase/employees';
 //   total_amount: number;
 // };
 
-// Employee types based on Supabase tables
 type Employee = {
   employee_id: string;
   name: string;
@@ -69,7 +68,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     expense_date: [],
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'REIMBURSEMENT'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'Company Cash' | 'Reimbursement'>('Company Cash');
 
   const [formData, setFormData] = useState({
     category: 'Fuel',
@@ -213,21 +212,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     fetchEmployees();
   }, []);
 
-  // Fetch employees from HR API when needed
-  useEffect(() => {
-    const fetchHREmployees = async () => {
-  if (paymentMethod === 'REIMBURSEMENT') {
-        try {
-          const hrEmployees = await fetchEmployeesForReimbursementClient();
-          setAllEmployees(hrEmployees);
-        } catch (error) {
-          console.error('Error fetching HR employees:', error);
-          showError('Error', 'Failed to load employees from HR system');
-        }
-      }
-    };
-    fetchHREmployees();
-  }, [source, paymentMethod]);
+  // Removed: client-side HR fetch. We consistently use `/api/employees`.
 
   // Receipt fetching removed
 
@@ -240,7 +225,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
       category: 'Fuel',
       expense_date: new Date().toISOString().split('T')[0],
     }));
-    setPaymentMethod('CASH');
+    setPaymentMethod('Company Cash');
   }, []);
 
   useEffect(() => {
@@ -261,10 +246,14 @@ const AddExpense: React.FC<AddExpenseProps> = ({
         const dateTimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
         setOriginalAutoFilledDate(dateTimeLocal);
         
-        // Normalize payment_method from assignment to match form values
-        let normalizedPaymentMethod = 'CASH';
-        if (selectedAssignment.payment_method && selectedAssignment.payment_method.toUpperCase() === 'REIMBURSEMENT') {
-          normalizedPaymentMethod = 'REIMBURSEMENT';
+        // Normalize payment_method from assignment to match form values (case-insensitive)
+        let normalizedPaymentMethod: 'Company Cash' | 'Reimbursement' = 'Company Cash';
+        const rawPayment = (selectedAssignment.payment_method || '').trim().toLowerCase();
+        if (rawPayment.includes('reimb')) {
+          normalizedPaymentMethod = 'Reimbursement';
+        } else {
+          // Treat any other payment method variants as Company Cash for this UI
+          normalizedPaymentMethod = 'Company Cash';
         }
         
         setFormData(prev => ({
@@ -275,11 +264,12 @@ const AddExpense: React.FC<AddExpenseProps> = ({
         }));
         
         // Update payment method state
-        setPaymentMethod(normalizedPaymentMethod as 'CASH' | 'REIMBURSEMENT');
+        setPaymentMethod(normalizedPaymentMethod);
       }
     } else {
       setOriginalAutoFilledAmount(null);
       setOriginalAutoFilledDate('');
+      setPaymentMethod('Company Cash');
     }
   }, [formData.assignment_id, assignments]);
 
@@ -359,7 +349,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
 
   // Update reimbursement validation logic
   useEffect(() => {
-    if (paymentMethod === 'REIMBURSEMENT') {
+    if (paymentMethod === 'Reimbursement') {
       const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
       if (assignment) {
         const total = parseFloat(driverReimb || '0') + parseFloat(conductorReimb || '0');
@@ -430,7 +420,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
       return;
     }
 
-    if (paymentMethod === 'REIMBURSEMENT' && source === 'operations') {
+    if (paymentMethod === 'Reimbursement' && source === 'operations') {
       const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
       if (!assignment) {
         await showError('Please select an assignment', 'Error');
@@ -468,7 +458,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
           created_by: currentUser,
           ...(source === 'operations' ? { assignment_id } : {}),
           payment_method: paymentMethod,
-          ...(paymentMethod === 'REIMBURSEMENT' && source === 'operations' ? {
+          ...(paymentMethod === 'Reimbursement' && source === 'operations' ? {
             driver_reimbursement: Number(driverReimb),
             conductor_reimbursement: Number(conductorReimb),
             driver_name: assignment?.driver_name || 'Unknown Driver',
@@ -667,8 +657,8 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                   }
                 </div>
 
-                {/* EMPLOYEE FIELDS for REIMBURSEMENT (Operations) */}
-                {paymentMethod === 'REIMBURSEMENT' && source === 'operations' && formData.assignment_id && (() => {
+                {/* EMPLOYEE FIELDS for Reimbursement (Operations) */}
+                {paymentMethod === 'Reimbursement' && source === 'operations' && formData.assignment_id && (() => {
                   const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
                   if (!assignment) return null;
                   // Use driver_name and conductor_name directly from assignment
