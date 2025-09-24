@@ -90,7 +90,7 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
   return (
     <div className="modalOverlay">
       <div className="addExpenseModal">
-        <ModalHeader title="Select Bus Assignment" onClose={onClose} />
+        <ModalHeader title="Select Bus Assignment for Expense" onClose={onClose} />
         <div className="modalContent">
           <input
             type="text"

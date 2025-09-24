@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
 import PaginationComponent from "./pagination"; // Reuse your pagination
 import Loading from "./loading"; // Reuse your loading spinner
-import "../styles/components/revenueBusSelector.css";
+import "../styles/components/busSelector.css";
+import "../styles/components/table.css";
 import type { Assignment } from '@/lib/operations/assignments';
 import ModalHeader from './ModalHeader';
 
@@ -88,9 +89,9 @@ const RevenueSourceSelector: React.FC<RevenueSourceSelectorProps> = ({
 
   return (
     <div className="modalOverlay">
-      <div className="addRevenueModal">
-        <ModalHeader title="Select Assignment" onClose={onClose} />
-        <div className="revenue_modalContent">
+      <div className="addExpenseModal">
+        <ModalHeader title="Select Assignment for Revenue" onClose={onClose} />
+        <div className="modalContent">
           <input
             type="text"
             placeholder="Search by plate or route"
@@ -102,7 +103,7 @@ const RevenueSourceSelector: React.FC<RevenueSourceSelectorProps> = ({
           {isLoading ? (
             <Loading />
           ) : (
-            <table id="revenue-assignment-table">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Date Assigned</th>
@@ -129,7 +130,6 @@ const RevenueSourceSelector: React.FC<RevenueSourceSelectorProps> = ({
                         onSelect(assignment);
                         onClose();
                       }}
-                      style={{ cursor: "pointer" }}
                     >
                       <td>{assignment.date_assigned.split("T")[0]}</td>
                       <td>{formatAmount(assignment)}</td>
