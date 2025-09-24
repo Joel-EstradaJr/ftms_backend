@@ -7,11 +7,12 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/expense/editExpense.css';
 import { getAssignmentById } from '@/lib/operations/assignments';
-import { formatDate } from '../../utility/dateFormatter';
+// import { formatDate } from '../../utility/dateFormatter';
 import { validateField, ValidationRule, isValidAmount } from "../../utility/validation";
 import type { Assignment } from '@/lib/operations/assignments';
 import ModalHeader from '../../Components/ModalHeader';
 import Swal from "sweetalert2";
+import ReimbursementBreakdownForm from '../../Components/ReimbursementBreakdownForm';
 
 /* ───── types ──────────────────────────────────────────────── */
 export type ExpenseData = {
@@ -66,12 +67,14 @@ type EditExpenseModalProps = {
     total_amount: number;
     assignment_id?: string;
     assignment?: Assignment;
+    source?: { source_id?: string; name: string };
     // receipt removed
     // Updated to match schema structure
     payment_method: {
       id: string;
       name: string;
     };
+    // payment_status may not be present from the list view; we'll fetch globals and default to Pending
     reimbursements?: Reimbursement[];
   };
   onClose: () => void;
@@ -79,6 +82,10 @@ type EditExpenseModalProps = {
     expense_id: string;
     expense_date: string;
     total_amount: number;
+    payment_method_id?: string;
+    payment_status_id?: string;
+    driver_reimbursement?: number;
+    conductor_reimbursement?: number;
   }) => void;
 };
 
@@ -105,6 +112,20 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     amount: [],
     expense_date: []
   });
+
+  // Reimbursement state (operations)
+  const [driverReimb, setDriverReimb] = useState<string>('');
+  const [conductorReimb, setConductorReimb] = useState<string>('');
+  const [reimbError, setReimbError] = useState<string>('');
+  const [reimbValid, setReimbValid] = useState<boolean>(true);
+  const [reimbSum, setReimbSum] = useState<number>(0);
+
+  // Dynamic globals
+  type NamedItem = { id: string; name: string };
+  const [paymentMethods, setPaymentMethods] = useState<NamedItem[]>([]);
+  const [paymentStatuses, setPaymentStatuses] = useState<NamedItem[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState<string>(record.payment_method?.id || '');
+  const [paymentStatusId, setPaymentStatusId] = useState<string>('');
 
   // Add state for assignment details
   const [assignment, setAssignment] = useState<Assignment | null>(record.assignment || null);
@@ -168,6 +189,51 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
       setAssignment(null);
     }
   }, [record.assignment, record.assignment_id, isReceiptBasedExpense]);
+
+  // Initialize reimbursement amounts from existing reimbursements if present
+  useEffect(() => {
+    if (!record.reimbursements || record.reimbursements.length === 0) return;
+    const drv = record.reimbursements.find(r => (r.job_title || '').toLowerCase() === 'driver');
+    const cnd = record.reimbursements.find(r => (r.job_title || '').toLowerCase() === 'conductor');
+    if (drv) setDriverReimb(String(drv.amount));
+    if (cnd) setConductorReimb(String(cnd.amount));
+  }, [record.reimbursements]);
+
+  // Fetch dynamic globals for payment method and status
+  useEffect(() => {
+    const fetchGlobals = async () => {
+      try {
+        const [pmRes, psRes] = await Promise.all([
+          fetch('/api/globals/payment-methods'),
+          fetch('/api/globals/payment-statuses'),
+        ]);
+        if (!pmRes.ok) throw new Error('Failed loading payment methods');
+        if (!psRes.ok) throw new Error('Failed loading payment statuses');
+        const [pmData, psData] = await Promise.all([pmRes.json(), psRes.json()]);
+        const norm = (arr: any[]): NamedItem[] => (Array.isArray(arr) ? arr : [])
+          .map((x: any) => ({ id: x.id, name: x.name }))
+          .filter((x: any) => x && x.id && x.name);
+        const byName = (a: NamedItem, b: NamedItem) => a.name.localeCompare(b.name);
+        const pms = norm(pmData).sort(byName);
+        const pss = norm(psData).sort(byName);
+        setPaymentMethods(pms);
+        setPaymentStatuses(pss);
+
+        // Initialize selections
+        setPaymentMethodId(prev => prev || record.payment_method?.id || pms[0]?.id || '');
+        if (!paymentStatusId) {
+          const pending = pss.find(s => s.name.toLowerCase() === 'pending');
+          setPaymentStatusId(pending?.id || pss[0]?.id || '');
+        }
+      } catch (err) {
+        console.error('Failed fetching globals for edit expense', err);
+      }
+    };
+    fetchGlobals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Validation now handled within shared component via onValidityChange
 
   const validationRules: Record<string, ValidationRule> = {
     amount: { 
@@ -267,10 +333,28 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     });
 
     if (result.isConfirmed) {
+      // Additional validations for reimbursement at edit time via shared component state
+      const isReimb = (record.source?.name || '').toLowerCase().includes('reimb');
+      if (isReimb && assignment) {
+        if (!reimbValid) {
+          await Swal.fire({ title: 'Validation Error', text: reimbError || 'Please fix reimbursement amounts.', icon: 'error', confirmButtonColor: '#961C1E', background: 'white' });
+          return;
+        }
+        if (reimbSum > amount) {
+          await Swal.fire({ title: 'Validation Error', text: 'Sum of reimbursements cannot exceed total expense amount.', icon: 'error', confirmButtonColor: '#961C1E', background: 'white' });
+          return;
+        }
+      }
       onSave({
         expense_id: record.expense_id,
         expense_date,
         total_amount: amount,
+        payment_method_id: paymentMethodId || undefined,
+        payment_status_id: paymentStatusId || undefined,
+        ...(((record.source?.name || '').toLowerCase().includes('reimb')) && assignment ? {
+          driver_reimbursement: Number(driverReimb) || 0,
+          conductor_reimbursement: Number(conductorReimb) || 0,
+        } : {})
       });
     }
   };
@@ -465,6 +549,60 @@ const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                     })()}
                   </div>
                 </div>
+
+                {/* PAYMENT METHOD */}
+                <div className="formField">
+                  <label htmlFor="payment_method_id">Payment Method<span className='requiredTags'> *</span></label>
+                  <select
+                    id="payment_method_id"
+                    name="payment_method_id"
+                    value={paymentMethodId}
+                    onChange={(e) => setPaymentMethodId(e.target.value)}
+                    required
+                    className='formSelect'
+                  >
+                    {paymentMethods.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* PAYMENT STATUS */}
+                <div className="formField">
+                  <label htmlFor="payment_status_id">Payment Status<span className='requiredTags'> *</span></label>
+                  <select
+                    id="payment_status_id"
+                    name="payment_status_id"
+                    value={paymentStatusId}
+                    onChange={(e) => setPaymentStatusId(e.target.value)}
+                    required
+                    className='formSelect'
+                  >
+                    {paymentStatuses.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Reimbursement breakdown (shared component) */}
+                {(() => {
+                  const isReimbSource = (record.source?.name || '').toLowerCase().includes('reimb');
+                  if (!isReimbSource) return null;
+                  const driverName = assignment?.driver_name || 'N/A';
+                  const conductorName = assignment?.conductor_name || 'N/A';
+                  return (
+                    <ReimbursementBreakdownForm
+                      driverName={driverName}
+                      conductorName={conductorName}
+                      driverAmount={driverReimb}
+                      conductorAmount={conductorReimb}
+                      totalAmount={Number(amount) || 0}
+                      onDriverAmountChange={(v) => setDriverReimb(v)}
+                      onConductorAmountChange={(v) => setConductorReimb(v)}
+                      onValidityChange={(ok, msg, sum) => { setReimbValid(ok); setReimbError(msg || ''); setReimbSum(sum); }}
+                    />
+                  );
+                })()}
 
               </div>
             </div>

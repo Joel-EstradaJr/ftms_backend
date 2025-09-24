@@ -20,7 +20,7 @@ async function clearDynamicGlobals() {
 }
 
 async function seedCategories() {
-  const expenseCategories = ['Fuel', 'Equipments', 'Consumables', 'Service', 'Tools'];
+  const expenseCategories = ['Fuel', 'Payroll', 'Equipments', 'Consumables', 'Service', 'Tools'];
   const revenueCategories = ['Percentage', 'Boundary', 'Bus Rental'];
 
   const all = Array.from(new Set([...expenseCategories, ...revenueCategories]));
@@ -32,7 +32,7 @@ async function seedCategories() {
       update: { is_active: true, is_deleted: false },
       create: { name },
     });
-    nameToId.set(name, cat.id);
+    nameToId.set(name, (cat as any).id);
   }
 
   const linkData: { module_name: string; category_id: string }[] = [];
@@ -44,7 +44,7 @@ async function seedCategories() {
 }
 
 async function seedSources() {
-  const sources = ['Company Cash', 'Reimbursement', 'Renter Damage'];
+  const sources = ['Cash', 'Reimbursement', 'RenterDamage'];
   const nameToId = new Map<string, string>();
 
   for (const name of sources) {
@@ -53,7 +53,7 @@ async function seedSources() {
       update: { is_active: true, is_deleted: false },
       create: { name },
     });
-    nameToId.set(name, src.id);
+    nameToId.set(name, (src as any).id);
   }
 
   const linkData = Array.from(nameToId.values()).map((id) => ({ module_name: 'expense', source_id: id }));
@@ -100,14 +100,29 @@ async function seedPaymentMethods() {
   return { methods, links: linkData };
 }
 
+async function seedPaymentStatuses() {
+  const statuses = ['Paid', 'Pending', 'Due'];
+  const created = [] as string[];
+  for (const name of statuses) {
+    const ps = await prisma.globalPaymentStatus.upsert({
+      where: { name },
+      update: { applicable_modules: ['expense'] },
+      create: { name, applicable_modules: ['expense'] },
+    });
+    created.push(ps.id);
+  }
+  return { statuses, ids: created };
+}
+
 async function main() {
   await clearDynamicGlobals();
 
-  const [catRes, srcRes, termRes, pmRes] = await Promise.all([
+  const [catRes, srcRes, termRes, pmRes, psRes] = await Promise.all([
     seedCategories(),
     seedSources(),
     seedTerms(),
     seedPaymentMethods(),
+    seedPaymentStatuses(),
   ]);
 
   console.log('Seeding completed:');
@@ -115,6 +130,7 @@ async function main() {
   console.log(`  Sources: ${srcRes.sources.length}, Links: ${srcRes.links.length}`);
   console.log(`  Terms: ${termRes.terms.length}, Links: ${termRes.links.length}`);
   console.log(`  Payment Methods: ${pmRes.methods.length}, Links: ${pmRes.links.length}`);
+  console.log(`  Payment Statuses: ${psRes.statuses.length}`);
 }
 
 main()

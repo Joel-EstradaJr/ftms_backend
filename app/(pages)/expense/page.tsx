@@ -30,6 +30,7 @@ interface NewExpense {
   category?: string;
   category_id?: string;
   assignment_id?: string;
+  bus_trip_id?: string;
   source_id?: string;
   payment_method_id?: string;
   total_amount: number;
@@ -364,6 +365,10 @@ const filteredData = data.filter((item: ExpenseData) => {
     expense_id: string;
     expense_date: string;
     total_amount: number;
+    payment_method_id?: string;
+    payment_status_id?: string;
+    driver_reimbursement?: number;
+    conductor_reimbursement?: number;
   }) => {
     try {
       const response = await fetch(`/api/expenses/${updatedRecord.expense_id}`, {
@@ -372,7 +377,16 @@ const filteredData = data.filter((item: ExpenseData) => {
         body: JSON.stringify(updatedRecord)
       });
 
-      if (!response.ok) throw new Error('Update failed');
+      if (!response.ok) {
+        let serverMsg = 'Update failed';
+        try {
+          const errJson = await response.json();
+          serverMsg = errJson?.error || serverMsg;
+          if (errJson?.details) serverMsg += `: ${errJson.details}`;
+          if (errJson?.code === 'P2002') serverMsg = 'Duplicate expense detected (unique constraint)';
+        } catch {}
+        throw new Error(serverMsg);
+      }
 
       const result = await response.json();
       
@@ -396,7 +410,8 @@ const filteredData = data.filter((item: ExpenseData) => {
       showSuccess('Updated Successfully', 'Record updated successfully');
     } catch (error) {
       console.error('Update error:', error);
-      showError('Failed to update record', 'Error');
+      const msg = error instanceof Error ? error.message : 'Error';
+      showError('Failed to update record', msg);
     }
   };
 
@@ -599,7 +614,7 @@ const filteredData = data.filter((item: ExpenseData) => {
         source,
         formatDisplayText(item.category_name || item.category?.name || ''),
         `₱${Number(item.total_amount).toLocaleString()}`,
-        item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash')
+        item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Cash')
       ].join(",");
     }).join("\n");
   
@@ -699,7 +714,7 @@ const filteredData = data.filter((item: ExpenseData) => {
                       <td>{source}</td>
                       <td>{formatDisplayText(item.category_name || item.category?.name || '')}</td>
                       <td>₱{Number(item.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>{item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Company Cash')}</td>
+                      <td>{item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Cash')}</td>
                       <td className="styles.actionButtons">
                         <div className="actionButtonsContainer">
                           {/* view button */}
@@ -754,6 +769,7 @@ const filteredData = data.filter((item: ExpenseData) => {
                 : recordToEdit.assignment_id
                 ? allAssignments.find(a => a.assignment_id === recordToEdit.assignment_id)
                 : undefined,
+              source: recordToEdit.source,
               payment_method: recordToEdit.payment_method,
               reimbursements: recordToEdit.reimbursements,
             }}

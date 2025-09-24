@@ -77,7 +77,7 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
     const normalizedType = busType.toLowerCase();
     if (normalizedType === 'aircon' || normalizedType === 'airconditioned') {
       return 'Airconditioned';
-    } else if (normalizedType === 'ordinary' || normalizedType === 'non-aircon') {
+    } else if (normalizedType === 'nonaircon' || normalizedType === 'ordinary') {
       return 'Ordinary';
     } else {
       // For any other values, return the first letter capitalized

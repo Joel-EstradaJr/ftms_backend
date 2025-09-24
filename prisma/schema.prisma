@@ -26,7 +26,8 @@ model ExpenseRecord {
   source_id         String?
   payment_method_id String
   payment_method    GlobalPaymentMethod @relation(fields: [payment_method_id], references: [id])
-  payment_status    PaymentStatus
+  payment_status_id String
+  payment_status    GlobalPaymentStatus @relation(fields: [payment_status_id], references: [id])
   category          GlobalCategory      @relation(fields: [category_id], references: [id])
   source            GlobalSource?       @relation(fields: [source_id], references: [id])
   reimbursements    Reimbursement[]
@@ -170,6 +171,17 @@ model GlobalPaymentMethod {
   expenses     ExpenseRecord[]
   reimbursements Reimbursement[]
   module_links ModulePaymentMethod[]
+}
+
+model GlobalPaymentStatus {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  applicable_modules String[]
+  is_active   Boolean        @default(true)
+  is_deleted  Boolean        @default(false)
+  created_at  DateTime       @default(now())
+  updated_at  DateTime?
+  expenses    ExpenseRecord[]
 }
 
 model ModuleCategory {
@@ -317,10 +329,4 @@ enum Frequency {
   WEEKLY
   SEMI_MONTHLY
   MONTHLY
-}
-
-enum PaymentStatus {
-  PAID
-  PENDING
-  DUE
 }

@@ -2,7 +2,7 @@
 'use client';
 
 //---------------------IMPORTS HERE----------------------//
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import '../../styles/expense/addExpense.css';
 import { formatDate } from '../../utility/dateFormatter';
 import { showSuccess, showError, showConfirmation } from '../../utility/Alerts';
@@ -10,6 +10,7 @@ import { validateField, isValidAmount, ValidationRule } from "../../utility/vali
 import { formatDisplayText } from '../../utils/formatting';
 import BusSelector from '../../Components/busSelector';
 import ModalHeader from '../../Components/ModalHeader';
+import ReimbursementBreakdownForm from '../../Components/ReimbursementBreakdownForm';
 import type { Assignment } from '@/lib/operations/assignments';
 // Unified to use server-side `/api/employees` for all cases
 
@@ -36,15 +37,23 @@ type AddExpenseProps = {
   onAddExpense: (formData: {
     category?: string;
     category_id?: string;
+    source?: string;
+    source_id?: string;
+    payment_method?: string;
+    payment_method_id?: string;
+    payment_status?: string;
+    payment_status_id?: string;
     assignment_id?: string;
+    bus_trip_id?: string;
     total_amount: number;
     expense_date: string;
     created_by: string;
-    payment_method: string;
     employee_id?: string;
     employee_name?: string;
     driver_reimbursement?: number;
     conductor_reimbursement?: number;
+    is_linked_to_trip?: boolean;
+    source_context?: 'operations' | 'manual';
   }) => void;
   assignments: Assignment[];
   currentUser: string;
@@ -59,7 +68,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
   currentUser 
 }) => {
   const [showBusSelector, setShowBusSelector] = useState(false);
-  const [source] = useState<'operations'>('operations');
+  const [isLinkedToTrip, setIsLinkedToTrip] = useState<boolean>(true);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [errors, setErrors] = useState<Record<FieldName, string[]>>({
     category: [],
@@ -67,15 +76,28 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     total_amount: [],
     expense_date: [],
   });
+  // Dynamic globals
+  type NamedItem = { id: string; name: string };
+  const [categories, setCategories] = useState<NamedItem[]>([]);
+  const [sources, setSources] = useState<NamedItem[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<NamedItem[]>([]);
+  const [paymentStatuses, setPaymentStatuses] = useState<NamedItem[]>([]);
 
-  const [paymentMethod, setPaymentMethod] = useState<'Company Cash' | 'Reimbursement'>('Company Cash');
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Reimbursement'>('Cash');
 
   const [formData, setFormData] = useState({
     category: 'Fuel',
     category_id: '',
+    source: '',
+    source_id: '',
+    payment_method: '',
+    payment_method_id: '',
+    payment_status: '',
+    payment_status_id: '',
     assignment_id: '',
+    bus_trip_id: '',
     total_amount: 0,
-    expense_date: new Date().toISOString().split('T')[0],
+    expense_date: new Date().toISOString().slice(0, 16),
     created_by: currentUser,
   });
 
@@ -83,6 +105,8 @@ const AddExpense: React.FC<AddExpenseProps> = ({
   const [driverReimb, setDriverReimb] = useState('');
   const [conductorReimb, setConductorReimb] = useState('');
   const [reimbError, setReimbError] = useState('');
+  const [reimbValid, setReimbValid] = useState<boolean>(true);
+  const [reimbSum, setReimbSum] = useState<number>(0);
 
   // --- Reimbursement rows (receipt-sourced UI removed, kept for future use) ---
   type ReimbursementEntry = {
@@ -169,7 +193,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
 
   const validationRules: Record<FieldName, ValidationRule> = {
     category: { required: true, label: "Category"},
-    assignment_id: { required: source === 'operations', label: "Assignment" },
+    assignment_id: { required: isLinkedToTrip, label: "Assignment" },
     total_amount: { 
       required: true, 
       min: 0.01, 
@@ -214,64 +238,114 @@ const AddExpense: React.FC<AddExpenseProps> = ({
 
   // Removed: client-side HR fetch. We consistently use `/api/employees`.
 
-  // Receipt fetching removed
-
+  // Fetch dynamic globals
   useEffect(() => {
-    // Reset form when source changes
+    const fetchGlobals = async () => {
+      try {
+        const [catRes, srcRes, pmRes, psRes] = await Promise.all([
+          fetch('/api/globals/categories?module=expense'),
+          fetch('/api/globals/sources'),
+          fetch('/api/globals/payment-methods'),
+          fetch('/api/globals/payment-statuses'),
+        ]);
+        if (!catRes.ok) throw new Error('Failed loading categories');
+        if (!srcRes.ok) throw new Error('Failed loading sources');
+        if (!pmRes.ok) throw new Error('Failed loading payment methods');
+        if (!psRes.ok) throw new Error('Failed loading payment statuses');
+        const [catData, srcData, pmData, psData] = await Promise.all([
+          catRes.json(), srcRes.json(), pmRes.json(), psRes.json()
+        ]);
+
+        type AnyItem = { id?: string; name: string; category_id?: string };
+        const norm = (arr: AnyItem[], idKey: keyof AnyItem = 'id'): { id: string; name: string }[] =>
+          (Array.isArray(arr) ? arr : []).map((x: AnyItem) => ({ id: (x[idKey] as string) ?? (x.id as string), name: x.name }))
+            .filter((x) => x && x.id && x.name);
+
+        const cats = norm(catData as AnyItem[], 'category_id');
+        const srcs = norm(srcData as AnyItem[], 'id');
+        const pms = norm(pmData as AnyItem[], 'id');
+        const pss = norm(psData as AnyItem[], 'id');
+
+        const byName = (a: { id: string; name: string }, b: { id: string; name: string }) => a.name.localeCompare(b.name);
+        setCategories(cats.sort(byName));
+        setSources(srcs.sort(byName));
+        setPaymentMethods(pms.sort(byName));
+        setPaymentStatuses(pss.sort(byName));
+
+        setFormData(prev => {
+          const next = { ...prev } as any;
+          if (!prev.category_id) {
+            const fuel = cats.find(c => c.name.toLowerCase() === 'fuel');
+            if (fuel) { next.category_id = fuel.id; next.category = fuel.name; }
+            else if (cats[0]) { next.category_id = cats[0].id; next.category = cats[0].name; }
+          }
+          if (!prev.source_id && srcs[0]) { next.source_id = srcs[0].id; next.source = srcs[0].name; }
+          if (!prev.payment_method_id && pms[0]) { next.payment_method_id = pms[0].id; next.payment_method = pms[0].name; }
+          if (!prev.payment_status_id) {
+            const pending = pss.find(s => s.name.toLowerCase() === 'pending');
+            next.payment_status_id = (pending || pss[0])?.id || '';
+            next.payment_status = (pending || pss[0])?.name || '';
+          }
+          return next;
+        });
+      } catch (err) {
+        console.error('Failed fetching globals', err);
+        showError('Error', 'Failed to load dropdown values');
+      }
+    };
+    fetchGlobals();
+  }, []);
+
+  // Selected items
+  const selectedCategory = useMemo(() => categories.find(c => c.id === formData.category_id), [categories, formData.category_id]);
+  const selectedSource = useMemo(() => sources.find(s => s.id === formData.source_id), [sources, formData.source_id]);
+  const selectedPaymentMethod = useMemo(() => paymentMethods.find(p => p.id === formData.payment_method_id), [paymentMethods, formData.payment_method_id]);
+  const selectedPaymentStatus = useMemo(() => paymentStatuses.find(s => s.id === formData.payment_status_id), [paymentStatuses, formData.payment_status_id]);
+
+  // Keep names in sync when IDs change
+  useEffect(() => {
     setFormData(prev => ({
       ...prev,
-      assignment_id: '',
-      total_amount: 0,
-      category: 'Fuel',
-      expense_date: new Date().toISOString().split('T')[0],
+      category: selectedCategory?.name || prev.category,
+      source: selectedSource?.name || prev.source,
+      payment_method: selectedPaymentMethod?.name || prev.payment_method,
+      payment_status: selectedPaymentStatus?.name || prev.payment_status,
     }));
-    setPaymentMethod('Company Cash');
+  }, [selectedCategory, selectedSource, selectedPaymentMethod, selectedPaymentStatus]);
+
+  // Receipt fetching removed
+
+  // Initialize date to now once
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, expense_date: new Date().toISOString().slice(0, 16) }));
   }, []);
 
   useEffect(() => {
-    if (formData.assignment_id) {
+    if (isLinkedToTrip && formData.assignment_id) {
       const selectedAssignment = assignments.find(a => a.assignment_id === formData.assignment_id);
       if (selectedAssignment) {
-        // Set original auto-filled values
-        setOriginalAutoFilledAmount(selectedAssignment.trip_fuel_expense);
-        // Set date to assignment date with current time
-        const assignmentDate = new Date(selectedAssignment.date_assigned);
+        // Set date to now and derive amount: Fuel -> trip_fuel_expense else assignment_value
         const now = new Date();
-        assignmentDate.setHours(now.getHours(), now.getMinutes());
-        const year = assignmentDate.getFullYear();
-        const month = String(assignmentDate.getMonth() + 1).padStart(2, '0');
-        const day = String(assignmentDate.getDate()).padStart(2, '0');
-        const hours = String(assignmentDate.getHours()).padStart(2, '0');
-        const minutes = String(assignmentDate.getMinutes()).padStart(2, '0');
-        const dateTimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+        const dateTimeLocal = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+        const isFuel = (selectedCategory?.name || formData.category || '').toLowerCase() === 'fuel';
+        const autoAmount = isFuel ? Number(selectedAssignment.trip_fuel_expense || 0) : Number(selectedAssignment.assignment_value || 0);
+
+        setOriginalAutoFilledAmount(autoAmount);
         setOriginalAutoFilledDate(dateTimeLocal);
-        
-        // Normalize payment_method from assignment to match form values (case-insensitive)
-        let normalizedPaymentMethod: 'Company Cash' | 'Reimbursement' = 'Company Cash';
-        const rawPayment = (selectedAssignment.payment_method || '').trim().toLowerCase();
-        if (rawPayment.includes('reimb')) {
-          normalizedPaymentMethod = 'Reimbursement';
-        } else {
-          // Treat any other payment method variants as Company Cash for this UI
-          normalizedPaymentMethod = 'Company Cash';
-        }
-        
+
         setFormData(prev => ({
           ...prev,
-          total_amount: selectedAssignment.trip_fuel_expense,
-          expense_date: dateTimeLocal, // Always force update on assignment change
-          payment_method: normalizedPaymentMethod,
+          total_amount: autoAmount,
+          expense_date: dateTimeLocal,
+          bus_trip_id: selectedAssignment.bus_trip_id,
         }));
-        
-        // Update payment method state
-        setPaymentMethod(normalizedPaymentMethod);
       }
     } else {
       setOriginalAutoFilledAmount(null);
       setOriginalAutoFilledDate('');
-      setPaymentMethod('Company Cash');
     }
-  }, [formData.assignment_id, assignments]);
+  }, [isLinkedToTrip, formData.assignment_id, assignments, selectedCategory, formData.category]);
 
   // Receipt autofill removed
 
@@ -342,30 +416,24 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     return null;
   };
 
-  // Filter assignments based on is_expense_recorded
+  // Helper to match assignments by selected source's payment method
+  const matchesSourcePaymentMethod = (assignmentMethod: string | null | undefined, sourceName: string | undefined) => {
+    const am = (assignmentMethod || '').toLowerCase();
+    const sn = (sourceName || '').toLowerCase();
+    if (!sn) return true;
+    if (sn.includes('reimb')) return am.includes('reimb');
+    if (sn.includes('cash')) return am.includes('cash') || am.includes('company');
+    // Default to case-insensitive equality
+    return am === sn;
+  };
+
+  // Filter assignments based on recorded + optionally by source when linked
   const filteredAssignments = assignments
     .filter(a => !a.is_expense_recorded)
+    .filter(a => !isLinkedToTrip || matchesSourcePaymentMethod(a.payment_method, selectedSource?.name))
     .sort((a, b) => new Date(a.date_assigned).getTime() - new Date(b.date_assigned).getTime());
 
-  // Update reimbursement validation logic
-  useEffect(() => {
-    if (paymentMethod === 'Reimbursement') {
-      const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
-      if (assignment) {
-        const total = parseFloat(driverReimb || '0') + parseFloat(conductorReimb || '0');
-        const max = Number(assignment.trip_fuel_expense);
-        if (total < 1) {
-          setReimbError('The total reimbursement must be at least 1.');
-        } else if (total > max) {
-          setReimbError('The total reimbursement must not exceed the trip fuel expense.');
-        } else {
-          setReimbError('');
-        }
-      }
-    } else {
-      setReimbError('');
-    }
-  }, [driverReimb, conductorReimb, paymentMethod, source, formData.assignment_id, assignments]);
+  // Reimbursement validation handled by shared component; track validity and message
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -415,24 +483,26 @@ const AddExpense: React.FC<AddExpenseProps> = ({
       return;
     }
 
-    if (source === 'operations' && !assignment_id) {
+    if (isLinkedToTrip && !assignment_id) {
       await showError('Please select an assignment', 'Error');
       return;
     }
 
-    if (paymentMethod === 'Reimbursement' && source === 'operations') {
+  const isReimbSource = (selectedSource?.name || '').toLowerCase().includes('reimb');
+  if (isReimbSource && isLinkedToTrip) {
       const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
       if (!assignment) {
         await showError('Please select an assignment', 'Error');
         return;
       }
-      // Validate reimbursement amounts
-      if (!driverReimb || isNaN(Number(driverReimb)) || Number(driverReimb) < 1) {
-        await showError('Please enter a valid reimbursement amount for the driver.', 'Error');
+      // Shared component validity must pass and total must be >= sum
+      if (!reimbValid) {
+        await showError(reimbError || 'Please fix reimbursement amounts.', 'Error');
         return;
       }
-      if (!conductorReimb || isNaN(Number(conductorReimb)) || Number(conductorReimb) < 1) {
-        await showError('Please enter a valid reimbursement amount for the conductor.', 'Error');
+      const total = Number(formData.total_amount) || 0;
+      if (reimbSum > total) {
+        await showError('Sum of reimbursements cannot exceed total expense amount.', 'Error');
         return;
       }
     }
@@ -447,24 +517,32 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     if (result.isConfirmed) {
       try {
         // Get assignment details for operations-sourced expenses
-        const assignment = source === 'operations' && formData.assignment_id 
+        const assignment = isLinkedToTrip && formData.assignment_id 
           ? assignments.find(a => a.assignment_id === formData.assignment_id)
           : null;
 
         const payload = {
+          // Prefer IDs; include names as fallback/context
+          category_id: formData.category_id,
           category: category,
+          source_id: formData.source_id || undefined,
+          source: formData.source || undefined,
+          payment_method_id: formData.payment_method_id,
+          payment_method: formData.payment_method || paymentMethod,
+          payment_status_id: formData.payment_status_id,
+          payment_status: formData.payment_status || undefined,
           total_amount,
           expense_date,
           created_by: currentUser,
-          ...(source === 'operations' ? { assignment_id } : {}),
-          payment_method: paymentMethod,
-          ...(paymentMethod === 'Reimbursement' && source === 'operations' ? {
+          ...(isLinkedToTrip ? { assignment_id, bus_trip_id: formData.bus_trip_id } : {}),
+          ...(((selectedSource?.name || '').toLowerCase().includes('reimb')) && isLinkedToTrip ? {
             driver_reimbursement: Number(driverReimb),
             conductor_reimbursement: Number(conductorReimb),
             driver_name: assignment?.driver_name || 'Unknown Driver',
             conductor_name: assignment?.conductor_name || 'Unknown Conductor',
           } : {}),
-          source,
+          is_linked_to_trip: isLinkedToTrip,
+          source_context: (isLinkedToTrip ? 'operations' : 'manual') as 'operations' | 'manual',
         };
         console.log('Submitting expense payload:', payload);
         await onAddExpense(payload);
@@ -499,7 +577,7 @@ const AddExpense: React.FC<AddExpenseProps> = ({
     const busType = formatBusType(assignment.bus_type);
     const driverName = assignment.driver_name || 'N/A';
     const conductorName = assignment.conductor_name || 'N/A';
-    return `${formatDate(assignment.date_assigned)} | ₱ ${assignment.trip_fuel_expense} | ${assignment.bus_plate_number || 'N/A'} (${busType}) - ${assignment.bus_route} | ${driverName} & ${conductorName}`;
+    return `${formatDate(assignment.date_assigned)} | ₱ ${assignment.assignment_value} | ${assignment.bus_plate_number || 'N/A'} (${busType}) - ${assignment.bus_route} | ${driverName} & ${conductorName}`;
   };
 
   // Receipt display removed
@@ -519,50 +597,92 @@ const AddExpense: React.FC<AddExpenseProps> = ({
             <div className="formFieldsHorizontal">
               <div className="formInputs">
 
-                {/* SOURCE TYPE */}
+                {/* LINK TO TRIP + SOURCE + TRIP SELECTOR */}
                 <div className="formRow">
+                  {/* Link toggle (checkbox switch) */}
                   <div className="formField">
-                    <label htmlFor="source">Source Type<span className='requiredTags'> *</span></label>
-                  <select
-                    id="source"
-                    name="source"
-                    value={source}
-                    onChange={handleInputChange}
-                    required
-                    className='formSelect'
-                  >
-                    <option value="operations">{formatDisplayText('Operations')}</option>
-                  </select>
+                    <label htmlFor="is_linked">Is this linked to a Bus Trip?<span className='requiredTags'> *</span></label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        id="is_linked"
+                        type="checkbox"
+                        role="switch"
+                        checked={isLinkedToTrip}
+                        onChange={(e) => {
+                          const linked = e.target.checked;
+                          setIsLinkedToTrip(linked);
+                          if (!linked) {
+                            setFormData(prev => ({ ...prev, assignment_id: '', bus_trip_id: '' }));
+                            setOriginalAutoFilledAmount(null);
+                            setOriginalAutoFilledDate('');
+                          } else {
+                            // When turning ON, default category to Fuel (editable)
+                            const fuel = categories.find(c => c.name.toLowerCase() === 'fuel');
+                            if (fuel) {
+                              setFormData(prev => ({ ...prev, category_id: fuel.id, category: fuel.name }));
+                            }
+                          }
+                        }}
+                      />
+                      <span>{isLinkedToTrip ? 'Yes' : 'No'}</span>
+                    </div>
                   </div>
 
-                  {/* SOURCE */}
+                  {/* Source select */}
                   <div className="formField">
-                    <label htmlFor="sourceDetail">Source<span className='requiredTags'> *</span></label>
-                    <button
-                      type="button"
-                      className="formSelect"
-                      id='busSelector'
-                      style={{ textAlign: 'left', width: '100%' }}
-                      onClick={() => setShowBusSelector(true)}
+                    <label htmlFor="source_id">Source<span className='requiredTags'> *</span></label>
+                    <select
+                      id="source_id"
+                      name="source_id"
+                      value={formData.source_id}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        const src = sources.find(s => s.id === id);
+                        setFormData(prev => ({ ...prev, source_id: id, source: src?.name || '' }));
+                      }}
+                      required
+                      className='formSelect'
                     >
-                      {formData.assignment_id
-                        ? formatAssignment(assignments.find(a => a.assignment_id === formData.assignment_id)!)
-                        : 'Select Assignment'}
-                    </button>
-                    {errors.assignment_id.map((msg, i) => (
-                      <div className="error-message" key={i}>{msg}</div>
-                    ))}
-                    {showBusSelector && (
-                      <BusSelector
-                        assignments={filteredAssignments}
-                        onSelect={assignment => {
-                          setFormData(prev => ({ ...prev, assignment_id: assignment.assignment_id }));
-                          setShowBusSelector(false);
-                        }}
-                        isOpen={showBusSelector}
-                        allEmployees={allEmployees}
-                        onClose={() => setShowBusSelector(false)}
-                      />
+                      {sources.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Trip selector */}
+                  <div className="formField">
+                    <label htmlFor="sourceDetail">Trip Assignment{isLinkedToTrip ? <span className='requiredTags'> *</span> : null}</label>
+                    {isLinkedToTrip ? (
+                      <>
+                        <button
+                          type="button"
+                          className="formSelect"
+                          id='busSelector'
+                          style={{ textAlign: 'left', width: '100%' }}
+                          onClick={() => setShowBusSelector(true)}
+                        >
+                          {formData.assignment_id
+                            ? formatAssignment(assignments.find(a => a.assignment_id === formData.assignment_id)!)
+                            : 'Select Assignment'}
+                        </button>
+                        {errors.assignment_id.map((msg, i) => (
+                          <div className="error-message" key={i}>{msg}</div>
+                        ))}
+                        {showBusSelector && (
+                          <BusSelector
+                            assignments={filteredAssignments}
+                            onSelect={assignment => {
+                              setFormData(prev => ({ ...prev, assignment_id: assignment.assignment_id, bus_trip_id: assignment.bus_trip_id }));
+                              setShowBusSelector(false);
+                            }}
+                            isOpen={showBusSelector}
+                            allEmployees={allEmployees}
+                            onClose={() => setShowBusSelector(false)}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <input type="text" value="Manual entry" readOnly className="formInput" />
                     )}
                   </div>
                 </div>
@@ -571,15 +691,25 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                 <div className="formRow">
                   {/* CATEGORY */}
                   <div className="formField">
-                    <label htmlFor="category">Category<span className='requiredTags'> *</span></label>
-                    <input
-                      type="text"
-                      id="category"
-                      name="category"
-                      value={formatDisplayText(formData.category)}
-                      readOnly
-                      className="formInput"
-                    />
+                    <label htmlFor="category_id">Category<span className='requiredTags'> *</span></label>
+                    <select
+                      id="category_id"
+                      name="category_id"
+                      value={formData.category_id}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        const cat = categories.find(c => c.id === id);
+                        setFormData(prev => ({ ...prev, category_id: id, category: cat?.name || '' }));
+                        // also clear any validation error for category if present
+                        setErrors(prev => ({ ...prev, category: [] }));
+                      }}
+                      required
+                      className='formSelect'
+                    >
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
                   </div>
 
                   
@@ -645,57 +775,63 @@ const AddExpense: React.FC<AddExpenseProps> = ({
                 {/* PAYMENT METHOD */}
                 <div className="formField">
                   <label htmlFor="payment_method">Payment Method<span className='requiredTags'> *</span></label>
-                  {
-                    <input
-                      type="text"
-                      id="payment_method"
-                      name="payment_method"
-                      value={paymentMethod}
-                      readOnly
-                      className="formInput"
-                    />
-                  }
+                  <select
+                    id="payment_method_id"
+                    name="payment_method_id"
+                    value={formData.payment_method_id}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const pm = paymentMethods.find(p => p.id === id);
+                      setFormData(prev => ({ ...prev, payment_method_id: id, payment_method: pm?.name || '' }));
+                      setPaymentMethod((pm?.name || '').toLowerCase().includes('reimb') ? 'Reimbursement' : 'Cash');
+                    }}
+                    required
+                    className='formSelect'
+                  >
+                    {paymentMethods.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* EMPLOYEE FIELDS for Reimbursement (Operations) */}
-                {paymentMethod === 'Reimbursement' && source === 'operations' && formData.assignment_id && (() => {
+                {/* PAYMENT STATUS */}
+                <div className="formField">
+                  <label htmlFor="payment_status_id">Payment Status<span className='requiredTags'> *</span></label>
+                  <select
+                    id="payment_status_id"
+                    name="payment_status_id"
+                    value={formData.payment_status_id}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const ps = paymentStatuses.find(p => p.id === id);
+                      setFormData(prev => ({ ...prev, payment_status_id: id, payment_status: ps?.name || '' }));
+                    }}
+                    required
+                    className='formSelect'
+                  >
+                    {paymentStatuses.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Reimbursement Breakdown (shared component) */}
+                {(() => {
+                  const isReimbSource = (selectedSource?.name || '').toLowerCase().includes('reimb');
+                  if (!(isReimbSource && isLinkedToTrip && formData.assignment_id)) return null;
                   const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
                   if (!assignment) return null;
-                  // Use driver_name and conductor_name directly from assignment
-                  const driverName = assignment.driver_name || 'N/A';
-                  const conductorName = assignment.conductor_name || 'N/A';
                   return (
-                    <div className="reimbBox">
-                      <div className="reimbHeader">Reimbursement Breakdown</div>
-                      <div className="reimbGrid">
-                        <div className="reimbField">
-                          <label>Driver Name</label>
-                          <input type="text" value={driverName} readOnly className="formInput" />
-                        </div>
-                        <div className="reimbField">
-                          <label>Job Title</label>
-                          <input type="text" value="Driver" readOnly className="formInput" />
-                        </div>
-                        <div className="reimbField">
-                          <label>Driver Reimbursement Amount<span className='requiredTags'> *</span></label>
-                          <input type="number" value={driverReimb || ''} onChange={e => setDriverReimb(e.target.value)} min="1" max={assignment.trip_fuel_expense} className="formInput" required />
-                        </div>
-                        <div className="reimbField">
-                          <label>Conductor Name</label>
-                          <input type="text" value={conductorName} readOnly className="formInput" />
-                        </div>
-                        <div className="reimbField">
-                          <label>Job Title</label>
-                          <input type="text" value="Conductor" readOnly className="formInput" />
-                        </div>
-                        <div className="reimbField">
-                          <label>Conductor Reimbursement Amount<span className='requiredTags'> *</span></label>
-                          <input type="number" value={conductorReimb || ''} onChange={e => setConductorReimb(e.target.value)} min="1" max={assignment.trip_fuel_expense} className="formInput" required />
-                        </div>
-                      </div>
-                      <div className="reimbHelper">The total reimbursement must be at least 1 and must not exceed the trip fuel expense (₱{assignment.trip_fuel_expense}).</div>
-                      {reimbError && <div className="error-message">{reimbError}</div>}
-                    </div>
+                    <ReimbursementBreakdownForm
+                      driverName={assignment.driver_name || 'N/A'}
+                      conductorName={assignment.conductor_name || 'N/A'}
+                      driverAmount={driverReimb}
+                      conductorAmount={conductorReimb}
+                      totalAmount={Number(formData.total_amount) || 0}
+                      onDriverAmountChange={(v) => setDriverReimb(v)}
+                      onConductorAmountChange={(v) => setConductorReimb(v)}
+                      onValidityChange={(ok, msg, sum) => { setReimbValid(ok); setReimbError(msg || ''); setReimbSum(sum); }}
+                    />
                   );
                 })()}
 
