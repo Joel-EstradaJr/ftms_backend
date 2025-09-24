@@ -1,5 +1,5 @@
 /* ============================================================
-   expense.css – Expense Management page
+   payroll.css — Payroll Management page
    Uses tokens defined in global.css (:root variables)
    ============================================================ */
 
@@ -16,29 +16,58 @@ button {
   color: var(--primary-text-color) !important;
 }
 
-/* ---------- Settings (filters) ---------- */
+/* ---------- Settings (filters) - Fixed Layout ---------- */
 .settings {
   display: flex !important;
   width: 100% !important;
   flex-wrap: wrap !important;
-  gap: 0 !important;
-  margin-bottom: 0px !important;
-  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-bottom: 20px !important;
+  align-items: center !important;
   background-color: none !important;
 }
 
-/* Search bar */
+/* Generate Payroll Button - Left aligned */
+button.generatePayrollBtn {
+  padding: 0 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: var(--success-color) !important;
+  color: var(--foreground-color) !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: var(--page-button-border-radius) !important;
+  cursor: pointer !important;
+  font-weight: 500 !important;
+  transition: background-color 0.2s !important;
+  height: var(--page-button-height) !important;
+  min-width: 140px !important;
+  font-size: var(--page-button-font-size) !important;
+  gap: var(--page-button-gap) !important;
+  white-space: nowrap !important;
+  order: 1 !important;
+}
+
+button.generatePayrollBtn:hover {
+  background-color: var(--success-hover-color) !important;
+}
+
+/* Search bar - Center area */
 .searchBar {
   display: flex !important;
   align-items: center !important;
-  width: auto !important;
-  padding: var(--search-input-padding-right) !important;
-  height: var(--search-input-height) !important;
+  flex: 1 !important;
+  min-width: 250px !important;
+  max-width: 400px !important;
+  padding: 0 12px !important;
+  height: var(--page-button-height) !important;
   border: 1px solid var(--border-color) !important;
   border-radius: var(--search-input-border-radius) !important;
   background-color: var(--foreground-color) !important;
   box-shadow: var(--box-shadow) !important;
   position: relative !important;
+  order: 2 !important;
 }
 
 .searchBar form {
@@ -77,48 +106,66 @@ button {
   color: var(--primary-text-color) !important;
 }
 
-/* ---------- Filter Inputs ---------- */
+/* ---------- Filter Container - Right aligned ---------- */
 .filters {
   display: flex !important;
   flex-wrap: wrap !important;
   gap: 10px !important;
+  align-items: center !important;
+  order: 3 !important;
+  margin-left: auto !important;
 }
 
+/* Filter Inputs - Consistent styling */
 .filterSelect,
 .dateFilter,
 #statusFilter {
-  padding: 0 8px !important;
-  gap: var(--page-button-gap) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 12px !important;
   font-size: var(--page-button-font-size) !important;
   height: var(--page-button-height) !important;
-  width: var(--page-button-width) !important;
-  border-radius: var(--page-button-border-radius)!important;
+  min-width: 120px !important;
+  max-width: 180px !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--page-button-border-radius) !important;
+  background-color: var(--foreground-color) !important;
+  color: var(--primary-text-color) !important;
   box-shadow: var(--box-shadow) !important;
+  cursor: pointer !important;
+  outline: none !important;
+  text-align: center !important;
+  white-space: nowrap !important;
 }
 
 #statusFilter,
 .filterSelect {
-  max-width: max-content !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
 }
 
-/* ---------- Add Expense button ---------- */
+/* Release All Button - Styled consistently */
 button.releaseAllBtn {
-  padding:0 !important;
-  align-content: center !important;
+  padding: 0 16px !important;
+  display: flex !important;
   align-items: center !important;
+  justify-content: center !important;
   background-color: var(--success-color) !important;
   color: var(--foreground-color) !important;
   border: none !important;
   outline: none !important;
-  border-radius: var(--search-input-border-radius) !important;
+  border-radius: var(--page-button-border-radius) !important;
   cursor: pointer !important;
   font-weight: 500 !important;
   transition: background-color 0.2s !important;
   height: var(--page-button-height) !important;
-  width: var(--page-button-width) !important;
+  min-width: 120px !important;
   font-size: var(--page-button-font-size) !important;
   gap: var(--page-button-gap) !important;
+  white-space: nowrap !important;
 }
+
 button.releaseAllBtn:hover {
   background-color: var(--success-hover-color) !important;
 }
@@ -143,10 +190,14 @@ button.releaseAllBtn:hover {
 
 .categoryInputWrapper input {
   width: 100% !important;
-  padding-right: 30px !important;
+  padding: 8px 30px 8px 12px !important;
+  height: var(--page-button-height) !important;
   border: 1px solid var(--border-color) !important;
-  border-radius: 4px !important;
+  border-radius: var(--page-button-border-radius) !important;
   font-size: 14px !important;
+  background-color: var(--foreground-color) !important;
+  color: var(--primary-text-color) !important;
+  box-sizing: border-box !important;
 }
 
 .categoryInputWrapper input:focus {
@@ -167,8 +218,9 @@ button.releaseAllBtn:hover {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  height: 100% !important;
+  height: calc(100% - 4px) !important;
 }
+
 .clearCategoryBtn:hover {
   color: var(--primary-text-color) !important;
 }
@@ -178,23 +230,26 @@ button.releaseAllBtn:hover {
   display: flex !important;
   gap: 4px !important;
   align-items: center !important;
+  justify-content: center !important;
 }
 
 .viewBtn,
 .exportBtn,
 .releaseBtn,
 .deleteBtn {
-  padding: 4px 8px !important;
+  padding: 6px 8px !important;
   border: none !important;
-  border-radius: 4px !important;
+  border-radius: var(--page-button-border-radius) !important;
   cursor: pointer !important;
-  font-size: 14px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
   transition: background-color 0.2s !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   min-width: 32px !important;
   height: 32px !important;
+  white-space: nowrap !important;
 }
 
 .viewBtn {
@@ -279,6 +334,7 @@ button.releaseAllBtn:hover {
   cursor: pointer !important;
   color: var(--secondary-text-color) !important;
 }
+
 .closeButton:hover {
   color: var(--primary-text-color) !important;
 }
@@ -291,7 +347,7 @@ button.releaseAllBtn:hover {
   margin-bottom: 2rem !important;
   padding: 1rem !important;
   border: 1px solid var(--border-color) !important;
-  border-radius: 4px !important;
+  border-radius: var(--page-button-border-radius) !important;
 }
 
 .mainDetails h3,
@@ -303,17 +359,19 @@ button.releaseAllBtn:hover {
   color: var(--primary-text-color) !important;
 }
 
-detailRow {
+.detailRow {
   display: flex !important;
   margin-bottom: 0.75rem !important;
   align-items: baseline !important;
 }
-detailRow .label {
+
+.detailRow .label {
   min-width: 150px !important;
   font-weight: 500 !important;
   color: var(--secondary-text-color) !important;
 }
-detailRow .value {
+
+.detailRow .value {
   flex: 1 !important;
   color: var(--primary-text-color) !important;
 }
@@ -322,21 +380,25 @@ detailRow .value {
 .itemsSection {
   margin-top: 1.5rem !important;
 }
+
 .itemsSection h4 {
   margin-bottom: 1rem !important;
   color: var(--primary-text-color) !important;
 }
+
 .itemsSection table {
   width: 100% !important;
   border-collapse: collapse !important;
   margin-top: 0.5rem !important;
 }
+
 .itemsSection th,
 .itemsSection td {
   padding: 0.75rem !important;
   text-align: left !important;
   border-bottom: 1px solid var(--border-color) !important;
 }
+
 .itemsSection th {
   background-color: var(--table-header-color) !important;
   font-weight: 500 !important;
@@ -344,18 +406,18 @@ detailRow .value {
 }
 
 .salary {
-    font-weight: var(--font-weight-bold) !important;
-    color: var(--success-color) !important;
+  font-weight: var(--font-weight-bold) !important;
+  color: var(--success-color) !important;
 }
 
 .deduction {
-    font-weight: var(--font-weight-bold) !important;
-    color: var(--error-color) !important;
+  font-weight: var(--font-weight-bold) !important;
+  color: var(--error-color) !important;
 }
 
 .netPay {
-    font-weight: var(--font-weight-bold) !important;
-    color: var(--info-color) !important;
+  font-weight: var(--font-weight-bold) !important;
+  color: var(--info-color) !important;
 }
 
 /* ---------- Modal footer ---------- */
@@ -364,60 +426,96 @@ detailRow .value {
   display: flex !important;
   justify-content: flex-end !important;
 }
+
 .closeBtn {
   padding: 0.5rem 1rem !important;
   background-color: var(--secondary-text-color) !important;
   color: var(--foreground-color) !important;
   border: none !important;
-  border-radius: 4px !important;
+  border-radius: var(--page-button-border-radius) !important;
   cursor: pointer !important;
   font-weight: 500 !important;
   transition: background-color 0.2s !important;
 }
+
 .closeBtn:hover {
   background-color: var(--primary-hover-color) !important;
 }
 
 /* ---------- Import / Export ---------- */
-
- #export{
+#export {
   height: var(--page-button-height) !important;
-  width: var(--page-button-width) !important;
+  min-width: 100px !important;
   font-size: var(--page-button-font-size) !important;
-  border-radius: var(--page-button-border-radius)!important;
+  border-radius: var(--page-button-border-radius) !important;
   cursor: pointer !important;
   border: none !important;
   outline: none !important;
   background-color: var(--secondary-color) !important;
   color: var(--button-font-color) !important;
   transition: background-color 0.3s !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 12px !important;
 }
 
- #export:hover {
-  background-color: var(--secondary-hover-color)!important;
+#export:hover {
+  background-color: var(--secondary-hover-color) !important;
 }
-
 
 /* ---------- Responsive ---------- */
+@media (max-width: 1200px) {
+  .settings {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 15px !important;
+  }
+  
+  .searchBar {
+    order: 1 !important;
+    max-width: none !important;
+  }
+  
+  .filters {
+    order: 2 !important;
+    justify-content: center !important;
+    margin-left: 0 !important;
+  }
+  
+  button.generatePayrollBtn {
+    order: 3 !important;
+  }
+}
+
 @media (max-width: 768px) {
   .expensePage {
     padding: 1rem !important;
   }
 
+  .settings {
+    gap: 10px !important;
+  }
+
   .filters {
     flex-direction: column !important;
     align-items: stretch !important;
-  }
-
-  .filters input[type="date"],
-  .filters select,
-  #addBalance {
     width: 100% !important;
   }
 
-  th,
-  td {
-    padding: 0.75rem !important;
+  .filterSelect,
+  .dateFilter,
+  #statusFilter,
+  button.generatePayrollBtn,
+  button.releaseAllBtn {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .searchBar {
+    min-width: 0 !important;
+    max-width: none !important;
   }
 
   .actionButtons {
@@ -433,8 +531,10 @@ detailRow .value {
     flex-direction: column !important;
     margin-bottom: 1rem !important;
   }
+
   .detailRow .label {
     margin-bottom: 0.25rem !important;
+    min-width: 0 !important;
   }
 
   .itemsSection {
