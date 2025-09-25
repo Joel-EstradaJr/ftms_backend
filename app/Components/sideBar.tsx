@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MICROSERVICES } from '../config/microservices';
+// @ts-ignore
 import "../styles/components/sidebar.css";
 
 const routeToItem: { [key: string]: string } = {
