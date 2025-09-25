@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { NextRequest } from 'next/server';
 import { logAudit } from '@/lib/auditLogger';
-import { fetchEmployeesForReimbursement } from '@/lib/supabase/employees';
+import { fetchEmployeesForReimbursement } from '@/lib/hr/employees';
+import { updateAssignmentIsRecorded } from '@/lib/operations/assignments';
 
 export async function GET(
   request: NextRequest,
@@ -72,7 +73,7 @@ export async function PUT(
 
   // Operations-sourced: assignment_id present
   if (originalRecord.assignment_id) {
-      if (payment_method === 'Reimbursement') {
+    if (payment_method === 'Reimbursement') {
         // Fetch dependencies only for reimbursement flow
         const [reimbMethod, pendingStatus] = await Promise.all([
           prisma.globalPaymentMethod.findFirst({ where: { name: { equals: 'Reimbursement', mode: 'insensitive' }, is_deleted: false } }),
@@ -91,22 +92,33 @@ export async function PUT(
         if (!employee) {
           return NextResponse.json({ error: 'Invalid employee_id' }, { status: 400 });
         }
-        // Remove any existing reimbursements for this expense (enforce only one per expense for operations)
+        // Upsert reimbursement for the given employee without removing others
         try {
-          await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
-          // Create reimbursement record
-          await prisma.reimbursement.create({
-            data: ({
-              expense_id: id,
-              employee_id,
-              employee_name: employee.name,
-              job_title: employee.job_title,
-              amount: reimbursable_amount,
-              status: 'PENDING' as any,
-              created_by: originalRecord.created_by,
-              is_deleted: false,
-            } as any)
-          });
+          const existing = await prisma.reimbursement.findFirst({ where: { expense_id: id, employee_id } });
+          if (existing) {
+            await prisma.reimbursement.updateMany({
+              where: { expense_id: id, employee_id },
+              data: {
+                amount: reimbursable_amount,
+                employee_name: employee.name,
+                job_title: employee.job_title as any,
+                is_deleted: false,
+              }
+            });
+          } else {
+            await prisma.reimbursement.create({
+              data: ({
+                expense_id: id,
+                employee_id,
+                employee_name: employee.name,
+                job_title: employee.job_title,
+                amount: reimbursable_amount,
+                status: 'PENDING' as any,
+                created_by: originalRecord.created_by,
+                is_deleted: false,
+              } as any)
+            });
+          }
         } catch (err) {
           const e = err as unknown;
           if (e && typeof e === 'object' && 'code' in (e as any) && (e as any).code === 'P2002') {
@@ -144,8 +156,8 @@ export async function PUT(
         if (!cashMethod) {
           return NextResponse.json({ error: 'Required payment method (Cash) not found' }, { status: 500 });
         }
-        // Remove reimbursement record(s)
-        await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
+  // Remove reimbursement record(s) when switching to Cash
+  await prisma.reimbursement.updateMany({ where: { expense_id: id }, data: { is_deleted: true } });
         // Update expense record
         const updatedExpense = await prisma.expenseRecord.update({
           where: { expense_id: id },
@@ -279,9 +291,19 @@ export async function PUT(
       if (!updated) return NextResponse.json({ error: 'Expense record not found' }, { status: 404 });
     }
 
-    // If switching to Cash via payment_method_id, remove existing reimbursements now
+    // If switching to Cash via payment_method_id, handle reimbursements safely
     if (setToCash) {
-      await prisma.reimbursement.deleteMany({ where: { expense_id: id } });
+      // If the client is trying to update reimbursements while switching to Cash,
+      // block the operation to prevent accidental data loss.
+      if (normalizedReimbursements && normalizedReimbursements.length > 0) {
+        return NextResponse.json({
+          error: 'Cannot switch payment method to Cash while providing reimbursement updates. Save reimbursements with a non-Cash method or remove reimbursements first.'
+        }, { status: 400 });
+      }
+
+      // Soft-delete reimbursements instead of hard-deleting to preserve history
+      await prisma.reimbursement.updateMany({ where: { expense_id: id }, data: { is_deleted: true } });
+
       updated = await (prisma as any).expenseRecord.findUnique({
         where: { expense_id: id },
         include: { category: true, payment_method: true, payment_status: true, source: true, reimbursements: true }
@@ -291,7 +313,7 @@ export async function PUT(
         table_affected: 'ExpenseRecord',
         record_id: id,
         performed_by: 'ftms_user',
-        details: 'Updated expense fields (general update)' 
+        details: 'Switched to Cash; soft-deleted linked reimbursements.' 
       });
       return NextResponse.json({
         ...updated,
@@ -395,21 +417,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    // Reset is_expense_recorded flags
+    // Reset is_expense_recorded flags in local cache (Operations API doesn't support updates)
     if (expenseToDelete.assignment_id) {
       try {
-        // Update Supabase
-        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/op_bus_assignments?assignment_id=eq.${expenseToDelete.assignment_id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({ is_expense_recorded: false })
-        });
-
-        // Update AssignmentCache - use upsert to handle cases where record might not exist
+        // Inform Operations layer (placeholder; no real update endpoint)
+        await updateAssignmentIsRecorded();
         await prisma.assignmentCache.upsert({
           where: { assignment_id: expenseToDelete.assignment_id },
           update: { 
@@ -418,7 +430,7 @@ export async function DELETE(
           },
           create: {
             assignment_id: expenseToDelete.assignment_id,
-            bus_route: 'Unknown', // Default values for required fields
+            bus_route: 'Unknown',
             bus_type: 'Unknown',
             date_assigned: new Date(),
             trip_fuel_expense: 0,
@@ -435,12 +447,15 @@ export async function DELETE(
           }
         });
       } catch (error) {
-        console.error('Failed to update assignment status:', error);
-        // Continue with deletion even if assignment status update fails
+        console.error('Failed to update assignment status (cache only):', error);
+        // Continue with deletion even if cache update fails
       }
     }
 
     // Receipt linkage removed: no update needed
+
+    // Soft-delete linked reimbursements first
+    await prisma.reimbursement.updateMany({ where: { expense_id: id }, data: { is_deleted: true } });
 
     await prisma.expenseRecord.update({
       where: { expense_id: id },

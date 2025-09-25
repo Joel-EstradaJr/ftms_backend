@@ -9,19 +9,19 @@
   justify-content: center;
   align-items: center;
   z-index: 1050;
-  overflow: auto;
+  /* Prevent the overlay itself from scrolling; inner content will scroll */
+  overflow: hidden;
 }
-.modalOverlay::-webkit-scrollbar {
-  display: none;
-}
+/* Do not hide scrollbars globally; inner content manages its own scrollbars */
 
 /* ---------- Modal Box ---------- */
-.modalContent {
+/* Wrapper container around header + content */
+.addExpenseModal {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 16px rgba(0,0,0,0.12);
   width: 95%;
-  max-width: 600px;
+  max-width: 700px;
   min-width: 320px;
   max-height: 90vh;
   display: flex;
@@ -30,7 +30,30 @@
   padding: 0;
   font-family: var(--font-sans, 'Segoe UI', Arial, sans-serif);
   color: var(--primary-text-color, #222);
-  overflow: hidden;
+  overflow: hidden; /* keep rounded corners; inner scrolls */
+}
+
+/* Inner scrollable content */
+.modalContent {
+  width: 100%;
+  padding: 1.5rem 2rem 1rem 2rem; /* extra bottom room for pagination */
+  background: #fafbfc;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  overflow-y: auto; /* vertical scroll inside */
+  overflow-x: hidden;
+  min-height: 0; /* allow flex children to scroll */
+}
+
+/* Dedicated scrollable region for long tables */
+.tableContainer {
+  flex: 1 1 auto;
+  min-height: 0;        /* required for flexbox scrolling */
+  overflow-y: auto;     /* show vertical scrollbar for rows */
+  overflow-x: auto;     /* enable horizontal scroll if columns overflow */
+  background: #fff;     /* keep table background consistent */
+  border-radius: 8px;
 }
 
 /* ---------- Accessibility ---------- */
@@ -58,7 +81,7 @@
 
 /* ---------- Responsive Design ---------- */
 @media (max-width: 768px) {
-  .modalContent {
+  .addExpenseModal {
     width: 98%;
     max-width: none;
     min-width: 280px;
@@ -82,9 +105,12 @@
 }
 
 @media (max-width: 480px) {
-  .modalContent {
+  .addExpenseModal {
     width: 99%;
     margin: 5px;
+  }
+
+  .modalContent {
     padding: 10px;
   }
 
@@ -235,7 +261,7 @@
 
 /* ---------- Responsive ---------- */
 @media (max-width: 600px) {
-  .modalContent {
+  .addExpenseModal {
     width: 99%;
     min-width: 0;
   }

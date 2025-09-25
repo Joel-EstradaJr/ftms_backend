@@ -38,6 +38,7 @@ export async function createRevenueFromBusTrip(params: {
   bus_trip_id: string;
   created_by: string;
   collection_date?: string | Date;
+  override_amount?: number; // if provided, use this amount instead of Operations trip revenue
 }): Promise<import('@prisma/client').RevenueRecord> {
   const { bus_trip_id, created_by } = params;
   const collection_date = params.collection_date ? new Date(params.collection_date) : new Date();
@@ -55,7 +56,9 @@ export async function createRevenueFromBusTrip(params: {
   const existing = await prisma.revenueRecord.findFirst({ where: { bus_trip_id, category_id, is_deleted: false } });
   if (existing) return existing;
 
-  if (trip.trip_revenue == null) throw new Error('Trip has no revenue (Sales)');
+  if (trip.trip_revenue == null && typeof params.override_amount !== 'number') {
+    throw new Error('Trip has no revenue (Sales)');
+  }
 
   // Determine category and source mapping based on assignment type
   // category_id already resolved above
@@ -65,7 +68,7 @@ export async function createRevenueFromBusTrip(params: {
       revenue_id: await (await import('@/lib/idGenerator')).generateId('REV'),
       assignment_id: trip.assignment_id,
       bus_trip_id: trip.bus_trip_id,
-      total_amount: trip.trip_revenue as unknown as any,
+      total_amount: (typeof params.override_amount === 'number' ? params.override_amount : (trip.trip_revenue as unknown as any)),
       created_by,
       collection_date,
       category_id,
@@ -94,7 +97,7 @@ export async function createRevenueFromBusTrip(params: {
     table_affected: 'RevenueRecord',
     record_id: created.revenue_id,
     performed_by: created_by,
-    details: `Created revenue from bus trip ${bus_trip_id} amount ₱${trip.trip_revenue}`,
+    details: `Created revenue from bus trip ${bus_trip_id} amount ₱${created.total_amount}`,
   });
 
   return created;

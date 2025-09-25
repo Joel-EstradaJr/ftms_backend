@@ -325,6 +325,8 @@ const RevenuePage = () => {
           collection_date: newRevenue.collection_date, // Send as ISO string
           created_by: newRevenue.created_by,
           assignment_id: newRevenue.assignment_id || null,
+          // include bus_trip_id when available so backend uses BusTrip flow with override amount
+          bus_trip_id: selectedAssignment?.bus_trip_id || undefined,
         })
       });
       

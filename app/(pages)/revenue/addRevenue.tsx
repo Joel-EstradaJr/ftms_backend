@@ -12,6 +12,7 @@ import {
 } from '../../utility/Alerts';
 import { isValidAmount } from '../../utility/validation';
 import { formatDate } from '../../utility/dateFormatter';
+import { computeAutoAmount, getBoundaryLossInfo, formatPeso } from '@/app/utils/revenueCalc';
 import { formatDisplayText } from '../../utils/formatting';
 import { Assignment } from '@/lib/operations/assignments';
 import RevenueSourceSelector from '../../Components/revenueBusSelector';
@@ -328,12 +329,9 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
     // Use driver_name and conductor_name directly from assignment
     const driverName = assignment.driver_name || 'N/A';
     const conductorName = assignment.conductor_name || 'N/A';
-    // Calculate display amount based on selected category
+    // Calculate display amount based on selected category (Boundary/Percentage)
     const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
-    let displayAmount = assignment.trip_revenue;
-    if (selectedCategory?.name === 'Percentage' && assignment.assignment_value) {
-      displayAmount = assignment.trip_revenue * (assignment.assignment_value);
-    }
+    const displayAmount = computeAutoAmount(selectedCategory?.name, assignment);
     return `${formatDate(assignment.date_assigned)} | ₱ ${displayAmount.toLocaleString()} | ${assignment.bus_plate_number || 'N/A'} (${busType}) - ${assignment.bus_route} | ${driverName} & ${conductorName}`;
   };
 
@@ -407,8 +405,9 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
                         selectedCategoryId={formData.category_id}
                         onSelect={assignment => {
                           console.log('[MODAL] Assignment selected:', assignment.assignment_id);
-                          // total_amount should reflect Operations.Sales (trip_revenue)
-                          const calculatedAmount = Number(assignment.trip_revenue) || 0;
+                          // Auto-calc based on category: Boundary or Percentage; else trip_revenue
+                          const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
+                          const calculatedAmount = computeAutoAmount(selectedCategory?.name, assignment);
                           console.log('[MODAL] Setting form with amount:', calculatedAmount);
                           
                           // Convert assignment date to datetime-local format with current time
@@ -441,7 +440,7 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
                 <div className="formRow">
                   {/* AMOUNT - Make editable with auto-fill */}
                   <div className="formField">
-                    <label htmlFor="amount">Amount<span className='requiredTags'> *</span></label>
+                    <label htmlFor="amount">Total Amount<span className='requiredTags'> *</span></label>
                     <input
                       type="number"
                       id="total_amount"
@@ -457,6 +456,19 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
                     {formData.assignment_id && (
                       <span className="autofill-note">Auto-calculated from assignment (editable)</span>
                     )}
+                    {(() => {
+                      if (!formData.assignment_id) return null;
+                      const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
+                      const assignment = assignments.find(a => a.assignment_id === formData.assignment_id);
+                      if (!assignment) return null;
+                      const { isLoss, lossAmount } = getBoundaryLossInfo(selectedCategory?.name, assignment);
+                      if (!isLoss) return null;
+                      return (
+                        <div style={{ color: '#b02a37', marginTop: 6, fontSize: 12 }}>
+                          Loss detected: assignment quota was not met. Trip revenue is {formatPeso(lossAmount)} less than assignment value.
+                        </div>
+                      );
+                    })()}
                     {(() => {
                       const amountDeviation = getAmountDeviation();
                       return amountDeviation && (

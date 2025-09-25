@@ -1,6 +1,6 @@
 // ftms_deployed\app\api\employees\route.ts
 import { NextResponse } from 'next/server';
-import { fetchEmployeesForReimbursement } from '@/lib/supabase/employees';
+import { fetchEmployeesForReimbursement } from '@/lib/hr/employees';
 
 // GET - Return all employees from HR API
 export async function GET() {
@@ -17,9 +17,10 @@ export async function GET() {
       
     console.error('Failed to fetch employees:', errorMessage);
     
-    return NextResponse.json(
-      { error: 'Failed to fetch employees', details: errorMessage }, 
-      { status: 500 }
-    );
+    // Graceful fallback: return empty array with diagnostic header so UI can continue
+    const res = NextResponse.json([], { status: 200 });
+    res.headers.set('X-API-Status', 'error-fallback');
+    res.headers.set('X-API-Error', errorMessage);
+    return res;
   }
 } 

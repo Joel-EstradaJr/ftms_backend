@@ -4,7 +4,7 @@ import { getAssignmentById } from '@/lib/operations/assignments'
 import { prisma } from '@/lib/prisma'
 import { generateId } from '@/lib/idGenerator'
 import { logAudit } from '@/lib/auditLogger'
-import { fetchEmployeesForReimbursement } from '@/lib/supabase/employees'
+import { fetchEmployeesForReimbursement } from '@/lib/hr/employees'
 
 export async function POST(req: NextRequest) {
   try {
@@ -254,6 +254,8 @@ export async function GET(req: NextRequest) {
   const dateFilter = searchParams.get('dateFilter');
   const dateFrom = searchParams.get('dateFrom');
   const dateTo = searchParams.get('dateTo');
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const limit = Math.max(1, parseInt(searchParams.get('limit') || '10', 10));
 
   let dateCondition = {};
 
@@ -300,11 +302,14 @@ export async function GET(req: NextRequest) {
     };
   }
 
+  const where = { 
+    is_deleted: false,
+    ...(dateCondition as Record<string, unknown>)
+  } as const;
+
+  const total = await prisma.expenseRecord.count({ where });
   const expenses = await prisma.expenseRecord.findMany({ 
-    where: { 
-      is_deleted: false,
-      ...dateCondition
-    },
+    where,
     include: {
       category: true,
       payment_method: true,
@@ -315,7 +320,9 @@ export async function GET(req: NextRequest) {
         }
       }
     },
-    orderBy: { created_at: 'desc' }
+    orderBy: { created_at: 'desc' },
+    skip: (page - 1) * limit,
+    take: limit,
   });
 
   // Transform the data to match frontend expectations
@@ -332,5 +339,10 @@ export async function GET(req: NextRequest) {
     }))
   }));
 
-  return NextResponse.json(expensesWithDetails);
+  const res = NextResponse.json(expensesWithDetails);
+  res.headers.set('X-Total-Count', String(total));
+  res.headers.set('X-Page', String(page));
+  res.headers.set('X-Limit', String(limit));
+  res.headers.set('X-Total-Pages', String(Math.max(1, Math.ceil(total / limit))));
+  return res;
 }
