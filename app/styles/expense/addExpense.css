@@ -100,6 +100,14 @@
   overflow-y: auto !important;
 }
 
+/* Ensure only one scrollbar by preventing nested scrolling inside Add modal.
+   The form already handles vertical scroll; keep content as a flow container. */
+.addExpenseModal .modalContent {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
 /* ---------- Field Grid ---------- */
 .formRow{
   display: flex;

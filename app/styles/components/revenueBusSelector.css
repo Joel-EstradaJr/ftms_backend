@@ -1,6 +1,9 @@
 
 
-/* ---------- Overlay ---------- */
+/* This file aligns revenue selector visuals with the expense selector (busSelector.css). */
+/* Keep any revenue-specific classes in sync with busSelector scales, spacing, and behavior. */
+
+/* ---------- Overlay (kept, but not used by current component) ---------- */
 .revenue-modalOverlay {
   position: fixed;
   inset: 0;
@@ -11,18 +14,18 @@
   justify-content: center;
   align-items: center;
   z-index: 1050;
-  overflow: auto;
+  /* Expense selector prevents overlay scroll and lets inner content scroll. */
+  overflow: hidden;
 }
-.revenue-modalOverlay::-webkit-scrollbar {
-  display: none;
-}
+.revenue-modalOverlay::-webkit-scrollbar { display: none; }
 
+/* Match .addExpenseModal from busSelector.css: width 95%, max-width 700px */
 .addRevenueModal {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 16px rgba(0,0,0,0.12);
-  width: 100%;
-  max-width: 700px;      /* Set your preferred max width */
+  width: 95%;
+  max-width: 700px;
   min-width: 320px;
   max-height: 90vh;
   display: flex;
@@ -31,7 +34,7 @@
   padding: 0;
   font-family: var(--font-sans, 'Segoe UI', Arial, sans-serif);
   color: var(--primary-text-color, #222);
-  overflow: hidden;
+  overflow: hidden; /* keep rounded corners; inner scrolls */
 }
 
 
@@ -87,12 +90,17 @@
 }
 
 /* ---------- Body ---------- */
+/* Mirror .modalContent from busSelector.css (extra bottom padding for pagination) */
 .revenue-modalBody {
   width: 100%;
-  padding: 1.5rem 2rem;
+  padding: 1.5rem 2rem 1rem 2rem;
   background: #fafbfc;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
 .revenue-modalBody input[type="text"],
@@ -131,9 +139,7 @@
   cursor: pointer;
 }
 
-.revenue-modalBody tr:hover {
-  background: #f0f8ff;
-}
+.revenue-modalBody tr:hover { background: #f0f8ff; }
 
 .revenue-modalBody td {
   color: #333;
@@ -181,27 +187,20 @@
 
 /* ---------- Responsive ---------- */
 
-@media (max-width: 800px) {
+@media (max-width: 768px) {
   .addRevenueModal {
-    max-width: 98vw;
-    width: 98vw;
-    min-width: 0;
+    width: 98%;
+    max-width: none;
+    min-width: 280px;
+    max-height: 95vh;
+    margin: 10px;
   }
 }
 
 
 @media (max-width: 600px) {
-  .revenue-modalContent {
-    width: 99%;
-    min-width: 0;
-  }
-  
-  .revenue-modalHeader, .revenue-modalFooter {
-    padding: 1rem;
-  }
-  .revenue-modalBody {
-    padding: 1rem;
-  }
+  .revenue-modalHeader, .revenue-modalFooter { padding: 1rem; }
+  .revenue-modalBody { padding: 1rem; }
   .revenue-modalBody th, .revenue-modalBody td {
     padding: 6px 4px;
     font-size: 0.95rem;

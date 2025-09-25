@@ -21,7 +21,7 @@ type BusSelectorModalProps = {
   allEmployees: Employee[];
 };
 
-const PAGE_SIZE = 5;
+const DEFAULT_PAGE_SIZE = 10;
 
 const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
   isOpen,
@@ -33,6 +33,7 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
   const [isLoading] = useState(false);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   // Filter and sort assignments (only those not recorded)
   const filteredAssignments = useMemo(() => {
@@ -51,10 +52,10 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
     );
   }, [assignments, search]);
 
-  const totalPages = Math.ceil(filteredAssignments.length / PAGE_SIZE);
+  const totalPages = Math.ceil(filteredAssignments.length / pageSize || 1);
   const paginatedAssignments = filteredAssignments.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   );
 
   // Helper to get employee name
@@ -77,7 +78,7 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
     const normalizedType = busType.toLowerCase();
     if (normalizedType === 'aircon' || normalizedType === 'airconditioned') {
       return 'Airconditioned';
-    } else if (normalizedType === 'ordinary' || normalizedType === 'non-aircon') {
+    } else if (normalizedType === 'nonaircon' || normalizedType === 'ordinary') {
       return 'Ordinary';
     } else {
       // For any other values, return the first letter capitalized
@@ -90,7 +91,7 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
   return (
     <div className="modalOverlay">
       <div className="addExpenseModal">
-        <ModalHeader title="Select Bus Assignment" onClose={onClose} />
+        <ModalHeader title="Select Bus Assignment for Expense" onClose={onClose} />
         <div className="modalContent">
           <input
             type="text"
@@ -103,9 +104,11 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
           {isLoading ? (
             <Loading />
           ) : (
+            <div className="tableContainer">
             <table className="data-table">
             <thead>
               <tr>
+                  <th>No.</th>
                   <th>Date Assigned</th>
                   <th>Trip Fuel Expense</th>
                   <th>Plate Number</th>
@@ -119,17 +122,18 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
               <tbody>
                 {paginatedAssignments.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: "center" }}>
+                    <td colSpan={9} style={{ textAlign: "center" }}>
                       No assignments found.
                     </td>
                   </tr>
                 ) : (
-                  paginatedAssignments.map(assignment => {
+                  paginatedAssignments.map((assignment, idx) => {
                     // Use bus_trip_id if available, else assignment_id + date_assigned for uniqueness
                     const a = assignment as Assignment & { bus_trip_id?: string };
                     const uniqueKey = a.bus_trip_id
                       ? `${a.assignment_id}-${a.bus_trip_id}`
                       : `${a.assignment_id}-${a.date_assigned}`;
+                    const rowNumber = (currentPage - 1) * pageSize + idx + 1;
                     return (
                       <tr key={uniqueKey}
                       onClick={() => {
@@ -137,7 +141,18 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
                         onClose();
                     }}
                   >
-                    <td>{formatDateTime(assignment.date_assigned)}</td>
+                    <td>{rowNumber}</td>
+                    <td>
+                        {formatDateTime(assignment.date_assigned)
+                          .split("(")
+                          .map((part, index) =>
+                            index === 0 ? (
+                              <div key={index}>{part.trim()}</div>
+                            ) : (
+                              <div key={index}>({part}</div>
+                            )
+                          )}
+                    </td>
                     <td>₱ {assignment.trip_fuel_expense}</td>
                       <td>{assignment.bus_plate_number}</td>
                       <td>{formatBusType(assignment.bus_type)}</td>
@@ -150,13 +165,14 @@ const BusSelectorModal: React.FC<BusSelectorModalProps> = ({
               )}
             </tbody>
           </table>
+          </div>
           )}
           <PaginationComponent
             currentPage={currentPage}
             totalPages={totalPages}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             onPageChange={setCurrentPage}
-            onPageSizeChange={() => {}}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
           />
         </div>
       </div>

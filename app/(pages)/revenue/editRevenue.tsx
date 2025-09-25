@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import "../../styles/revenue/editRevenue.css";
 import { getAssignmentById } from '@/lib/operations/assignments';
 import { formatDate } from '../../utility/dateFormatter';
+import { getBoundaryLossInfo, computeAutoAmount } from '@/app/utils/revenueCalc';
 import { validateField, ValidationRule, isValidAmount } from "../../utility/validation";
 import ModalHeader from '@/app/Components/ModalHeader';
 
@@ -98,12 +99,8 @@ const EditRevenueModal: React.FC<EditProps> = ({ record, onClose, onSave }) => {
             const data = await res.json();
             setAssignment(data);
             
-            // Calculate the correct default amount based on category type
+            // total_amount is stored as Operations.Sales; default reference amount is trip_revenue
             let calculatedAmount = data.trip_revenue || 0;
-            const selectedCategory = categories.find(cat => cat.category_id === selectedCategoryId);
-            if (selectedCategory?.name === 'Percentage' && data.assignment_value) {
-              calculatedAmount = (data.trip_revenue || 0) * (data.assignment_value);
-            }
             setOriginalAutoFilledAmount(calculatedAmount);
             
             // Set original date to assignment date with current time (like AddRevenue)
@@ -288,11 +285,8 @@ const EditRevenueModal: React.FC<EditProps> = ({ record, onClose, onSave }) => {
     const conductorName = assignment.conductor_name || 'N/A';
     
     // Calculate display amount based on category type (matching page.tsx logic)
-    let displayAmount = assignment.trip_revenue || 0;
     const selectedCategory = categories.find(cat => cat.category_id === selectedCategoryId);
-    if (selectedCategory?.name === 'Percentage' && assignment.assignment_value) {
-      displayAmount = (assignment.trip_revenue || 0) * (assignment.assignment_value);
-    }
+    const displayAmount = computeAutoAmount(selectedCategory?.name, assignment as any);
     
     return `${assignment.date_assigned ? assignment.date_assigned.split('T')[0] : 'N/A'} | ₱ ${displayAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 'N/A'} | ${assignment.bus_plate_number || 'N/A'} (${busType}) - ${assignment.bus_route || 'N/A'} | ${driverName} & ${conductorName}`;
   };
@@ -431,6 +425,21 @@ const EditRevenueModal: React.FC<EditProps> = ({ record, onClose, onSave }) => {
                     {errors.amount?.map((msg, i) => (
                       <div key={i} className="error-message">{msg}</div>
                     ))}
+                    {assignment ? (
+                      <span className="autofill-note">Auto-calculated from assignment (editable)</span>
+                    ) : null}
+                    {(() => {
+                      if (!assignment) return null;
+                      const selectedCategory = categories.find(cat => cat.category_id === selectedCategoryId);
+                      const { isLoss, lossAmount } = getBoundaryLossInfo(selectedCategory?.name, assignment as any);
+                      if (!isLoss) return null;
+                      return (
+                        <div className="deviation-note" style={{ color: '#b02a37', fontSize: '12px', marginTop: '4px' }}>
+                          <i className="ri-error-warning-line"></i>
+                          Loss detected: assignment quota was not met. Trip revenue is ₱{lossAmount.toLocaleString()} less than assignment value.
+                        </div>
+                      );
+                    })()}
                     {(() => {
                       const amountDeviation = getAmountDeviation();
                       return amountDeviation ? (

@@ -1,10 +1,11 @@
-// app/(pages)/expense/viewRevenue.tsx
+// app/(pages)/revenue/viewRevenue.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import '../../styles/revenue/viewRevenue.css';
 import { formatDateTime } from '../../utility/dateFormatter';
 import { formatDisplayText } from '@/app/utils/formatting';
+import { formatPeso } from '@/app/utils/revenueCalc';
 import type { Assignment } from '@/lib/operations/assignments';
 import ModalHeader from '@/app/Components/ModalHeader';
 
@@ -119,15 +120,14 @@ const ViewRevenue: React.FC<ViewRevenueProps> = ({ record, onClose }) => {
         </div>
         <div className="detailRow">
           <span className="label">Trip Revenue:</span>
-          <span className="value">₱{record.assignment.trip_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="value">{formatPeso(Number(record.assignment.trip_revenue))}</span>
         </div>
         <div className="detailRow">
           <span className="label">Assignment Value:</span>
           <span className="value">
             {record.assignment.assignment_type === 'Percentage' 
-              ? `${(record.assignment.assignment_value * 100).toFixed(2)}%`
-              : `₱${record.assignment.assignment_value.toLocaleString()}`
-            }
+              ? `${(Number(record.assignment.assignment_value) * 100).toFixed(2)}%`
+              : formatPeso(Number(record.assignment.assignment_value))}
           </span>
         </div>
       </div>
@@ -147,12 +147,7 @@ const ViewRevenue: React.FC<ViewRevenueProps> = ({ record, onClose }) => {
           </div>
           <div className="detailRow">
             <span className="label">Remitted Amount:</span>
-            <span className="value">₱{(() => {
-              if (categoryName === 'Percentage' && record.assignment?.assignment_value) {
-                return (record.total_amount * record.assignment.assignment_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-              }
-              return Number(record.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            })()}</span>
+            <span className="value">{formatPeso(Number(record.total_amount))}</span>
           </div>
           <div className="detailRow">
             <span className="label">Collection Date:</span>

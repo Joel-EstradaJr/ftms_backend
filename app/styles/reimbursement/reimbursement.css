@@ -203,7 +203,7 @@
 
 /* ---------- Actions ---------- */
 .action-btn.reimburse-btn {
-  background: var(--success-color, #28a745) !important;
+  background: #17a2b8 !important;
   color: #fff !important;
   border: none !important;
   border-radius: 4px !important;
@@ -214,7 +214,7 @@
   text-align: center;
 }
 .action-btn.reimburse-btn:hover {
-  background: var(--success-hover-color, #218838) !important;
+  background: var(--success-hover-color) !important;
 }
 
 .action-btn.approve-btn {

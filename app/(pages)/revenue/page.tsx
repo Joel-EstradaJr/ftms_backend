@@ -325,6 +325,8 @@ const RevenuePage = () => {
           collection_date: newRevenue.collection_date, // Send as ISO string
           created_by: newRevenue.created_by,
           assignment_id: newRevenue.assignment_id || null,
+          // include bus_trip_id when available so backend uses BusTrip flow with override amount
+          bus_trip_id: selectedAssignment?.bus_trip_id || undefined,
         })
       });
       
@@ -809,14 +811,7 @@ const RevenuePage = () => {
                     <td>{formatDateTime(item.collection_date)}</td>
                     <td>{item.category?.name || 'N/A'}</td>
                     <td>{formatAssignmentForTable(assignment)}</td>
-                    <td>₱{(() => {
-                      if (item.category?.name === 'Percentage' && assignment?.assignment_value) {
-                        return (item.total_amount * assignment.assignment_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                      } else if (item.category?.name === 'Boundary' && assignment?.trip_revenue) {
-                        return assignment.trip_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                      }
-                      return item.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    })()}</td>
+                    <td>₱{item.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="styles.actionButtons">
                       <div className="actionButtonsContainer">
                         {/* view button */}
@@ -880,12 +875,14 @@ const RevenuePage = () => {
               return !isAlreadyRecorded;
             })}
             currentUser={"ftms_user"}
-            existingRevenues={data.map(r => ({
-              assignment_id: r.assignment_id,
-              category_id: r.category.category_id,
-              total_amount: r.total_amount,
-              collection_date: r.collection_date
-            }))}
+            existingRevenues={data
+              .filter(r => r?.category && typeof r.category.category_id === 'string')
+              .map(r => ({
+                assignment_id: r.assignment_id,
+                category_id: r.category.category_id,
+                total_amount: r.total_amount,
+                collection_date: r.collection_date
+              }))}
           />
         )}
 

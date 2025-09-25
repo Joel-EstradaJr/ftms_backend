@@ -38,7 +38,6 @@ type Reimbursement = {
     total_amount: number;
     expense_date: string;
     assignment_id?: string;
-    receipt_id?: string;
     payment_method: {
       id: string;
       name: string;

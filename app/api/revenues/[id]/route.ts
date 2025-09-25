@@ -73,7 +73,10 @@ export async function PUT(
         total_amount,
         collection_date: collectionDateTime, // Store as DateTime
         source_id: null,
-        updated_at: new Date()
+      },
+      include: {
+        category: true,
+        source: true,
       }
     });
 
@@ -127,7 +130,6 @@ export async function DELETE(
       where: { revenue_id },
       data: { 
         is_deleted: true,
-        updated_at: new Date()
       }
     });
 

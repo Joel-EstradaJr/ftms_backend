@@ -13,10 +13,7 @@ import { formatDateTime, formatDate } from '../../utility/dateFormatter';
 import Loading from '../../Components/loading';
 import { showSuccess, showError, showConfirmation } from '../../utility/Alerts';
 import { formatDisplayText } from '@/app/utils/formatting';
-import ViewReceiptModal from '../receipt/viewReceipt';
 import FilterDropdown, { FilterSection } from "../../Components/filter";
-// Import shared types
-import { Receipt } from '@/app/types/receipt';
 import type { Assignment } from '@/lib/operations/assignments';
 
 
@@ -33,7 +30,7 @@ interface NewExpense {
   category?: string;
   category_id?: string;
   assignment_id?: string;
-  receipt_id?: string;
+  bus_trip_id?: string;
   source_id?: string;
   payment_method_id?: string;
   total_amount: number;
@@ -49,7 +46,6 @@ interface ExpenseRecord {
   expense_id: string;
   assignment_id?: string;
   bus_trip_id?: string;
-  receipt_id?: string;
   category_id: string;
   source_id?: string;
   payment_method_id: string;
@@ -71,7 +67,6 @@ interface ExpenseRecord {
   created_at: string;
   updated_at?: string;
   is_deleted: boolean;
-  receipt?: Receipt;
   reimbursements?: Reimbursement[];
   // Legacy fields for backward compatibility
   category_name?: string;
@@ -123,10 +118,8 @@ const ExpensePage = () => {
   const [showModal, setShowModal] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [viewReceiptModalOpen, setViewReceiptModalOpen] = useState(false);
   const [recordToEdit, setRecordToEdit] = useState<ExpenseData | null>(null);
   const [recordToView, setRecordToView] = useState<ExpenseData | null>(null);
-  const [receiptToView, setReceiptToView] = useState<Receipt | null>(null);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
   const [availableCategories, setAvailableCategories] = useState<GlobalCategory[]>([]);
@@ -210,12 +203,6 @@ const ExpensePage = () => {
     return `${busType} | ${assignment.bus_plate_number || 'N/A'} - ${assignment.bus_route} | ${driverName} & ${conductorName}`;
   };
 
-  // Format receipt for display
-  const formatReceipt = (receipt: Receipt): string => {
-    const paymentStatusName = receipt.payment_status?.name || 'Unknown';
-    return `${receipt.supplier} - ${new Date(receipt.transaction_date).toLocaleDateString()} - ₱${receipt.total_amount_due} (${paymentStatusName})`
-  };
-
   // Fetch expenses data
   const fetchExpenses = async () => {
     try {
@@ -289,10 +276,7 @@ const filteredData = data.filter((item: ExpenseData) => {
     // Assignment related fields (if available)
     (item.assignment_id?.toLowerCase() || '').includes(searchLower) ||
     
-    // Receipt related fields (if available)
-    (item.receipt?.supplier?.toLowerCase() || '').includes(searchLower) ||
-    (item.receipt?.payment_status?.name?.toLowerCase() || '').includes(searchLower) ||
-    (item.receipt?.total_amount_due?.toString() || '').includes(searchLower);
+  false; // no receipt-related fields anymore
     
   const matchesCategory = categoryFilter ? 
     categoryFilter.split(',').some(cat => item.category?.name === cat.trim() || item.category_name === cat.trim()) : true;
@@ -381,6 +365,10 @@ const filteredData = data.filter((item: ExpenseData) => {
     expense_id: string;
     expense_date: string;
     total_amount: number;
+    payment_method_id?: string;
+    payment_status_id?: string;
+    driver_reimbursement?: number;
+    conductor_reimbursement?: number;
   }) => {
     try {
       const response = await fetch(`/api/expenses/${updatedRecord.expense_id}`, {
@@ -389,7 +377,16 @@ const filteredData = data.filter((item: ExpenseData) => {
         body: JSON.stringify(updatedRecord)
       });
 
-      if (!response.ok) throw new Error('Update failed');
+      if (!response.ok) {
+        let serverMsg = 'Update failed';
+        try {
+          const errJson = await response.json();
+          serverMsg = errJson?.error || serverMsg;
+          if (errJson?.details) serverMsg += `: ${errJson.details}`;
+          if (errJson?.code === 'P2002') serverMsg = 'Duplicate expense detected (unique constraint)';
+        } catch {}
+        throw new Error(serverMsg);
+      }
 
       const result = await response.json();
       
@@ -413,31 +410,17 @@ const filteredData = data.filter((item: ExpenseData) => {
       showSuccess('Updated Successfully', 'Record updated successfully');
     } catch (error) {
       console.error('Update error:', error);
-      showError('Failed to update record', 'Error');
+      const msg = error instanceof Error ? error.message : 'Error';
+      showError('Failed to update record', msg);
     }
   };
 
   const handleViewExpense = (expense: ExpenseData) => {
     console.log('handleViewExpense called with:', expense);
-    console.log('expense.receipt:', expense.receipt);
-    
-    // If the expense is linked to a receipt, show the receipt view
-    if (expense.receipt) {
-      console.log('Setting receipt to view:', expense.receipt);
-      setReceiptToView(expense.receipt);
-      setViewReceiptModalOpen(true);
-      return;
-    }
-    
-    // For other types of expenses, show the expense modal
+    // Show the expense modal
     console.log('Setting record to view:', expense);
     setRecordToView(expense);
     setViewModalOpen(true);
-  };
-
-  const handleCloseReceiptModal = () => {
-    setReceiptToView(null);
-    setViewReceiptModalOpen(false);
   };
 
   const handleCloseViewModal = () => {
@@ -471,50 +454,12 @@ const filteredData = data.filter((item: ExpenseData) => {
   const getExportColumns = () => {
     const baseColumns = [
       "Expense Date",
+      "Source",
       "Category",
       "Amount",
-      "Source Type"
+      "Payment Method"
     ];
-
-    if (!categoryFilter) {
-      return [
-        ...baseColumns,
-        "Bus Type",
-        "Body Number",
-        "Route",
-        "Driver Name",
-        "Conductor Name",
-        "Assignment Date",
-        "Receipt Supplier",
-        "Receipt Transaction Date",
-        "Receipt VAT TIN",
-        "Receipt Terms",
-        "Receipt Status",
-        "Receipt VAT Amount",
-        "Receipt Total Due",
-        "Payment Method",
-        "Employee"
-      ];
-    }
-
-    return [
-      ...baseColumns,
-      "Bus Type",
-      "Body Number",
-      "Route",
-      "Driver Name",
-      "Conductor Name",
-      "Assignment Date",
-      "Receipt Supplier",
-      "Receipt Transaction Date",
-      "Receipt VAT TIN",
-      "Receipt Terms",
-      "Receipt Status",
-      "Receipt VAT Amount",
-      "Receipt Total Due",
-      "Payment Method",
-      "Employee"
-    ];
+    return baseColumns;
   };
 
   // Generate export details helper function
@@ -647,10 +592,10 @@ const filteredData = data.filter((item: ExpenseData) => {
       return comment;
     };
 
-    const columns = getExportColumns();
-    const headers = columns.join(",") + "\n";
-  
-    const rows = recordsToExport.map(item => {
+  const columns = getExportColumns();
+  const headers = columns.join(",") + "\n";
+
+  const rows = recordsToExport.map(item => {
       let assignment: Assignment | undefined = undefined;
       if (item.assignment_id && item.bus_trip_id) {
         assignment = allAssignments.find(a => a.assignment_id === item.assignment_id && a.bus_trip_id === item.bus_trip_id);
@@ -662,35 +607,15 @@ const filteredData = data.filter((item: ExpenseData) => {
         source = formatAssignment(assignment);
       } else if (item.assignment_id) {
         source = `Assignment ${item.assignment_id} not found`;
-      } else if (item.receipt) {
-        source = formatReceipt(item.receipt);
       }
    
-      return (
-        <tr key={item.expense_id}>
-          <td>{formatDateTime(item.expense_date)}</td>
-          <td>{source}</td>
-          <td>{formatDisplayText(item.category_name || item.category?.name || '')}</td>
-          <td>₱{Number(item.total_amount).toLocaleString()}</td>
-          <td>{item.payment_method_name ? (item.payment_method_name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash')}</td>
-          <td className="actionButtons">
-            <div className="actionButtonsContainer">
-              {/* view button */}
-              <button className="viewBtn" onClick={() => handleViewExpense(item)} title="View Record">
-                <i className="ri-eye-line" />
-              </button>
-              {/* edit button */}
-              <button className="editBtn" onClick={() => {setRecordToEdit(item);setEditModalOpen(true);}} title="Edit Record">
-                <i className="ri-edit-2-line" />
-              </button>
-              {/* delete button */}
-              <button className="deleteBtn" onClick={() => handleDelete(item.expense_id)} title="Delete Record">
-                <i className="ri-delete-bin-line" />
-              </button>
-            </div>
-          </td>
-        </tr>
-      );
+      return [
+        formatDateTime(item.expense_date),
+        source,
+        formatDisplayText(item.category_name || item.category?.name || ''),
+        `₱${Number(item.total_amount).toLocaleString()}`,
+        item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Cash')
+      ].join(",");
     }).join("\n");
   
     const blob = new Blob([generateHeaderComment() + headers + rows], { 
@@ -779,8 +704,8 @@ const filteredData = data.filter((item: ExpenseData) => {
                     source = formatAssignment(assignment);
                   } else if (item.assignment_id) {
                     source = `Assignment ${item.assignment_id} not found`;
-                  } else if (item.receipt) {
-                    source = formatReceipt(item.receipt);
+                  } else if (item.source?.name || item.source_name) {
+                    source = item.source?.name || item.source_name || '';
                   }
                               
                   return (
@@ -789,7 +714,7 @@ const filteredData = data.filter((item: ExpenseData) => {
                       <td>{source}</td>
                       <td>{formatDisplayText(item.category_name || item.category?.name || '')}</td>
                       <td>₱{Number(item.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td>{item.payment_method_name ? (item.payment_method_name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'REIMBURSEMENT' ? 'Reimbursement' : 'Cash')}</td>
+                      <td>{item.payment_method_name ? (item.payment_method_name === 'Reimbursement' ? 'Reimbursement' : 'Cash') : (item.payment_method?.name === 'Reimbursement' ? 'Reimbursement' : 'Cash')}</td>
                       <td className="styles.actionButtons">
                         <div className="actionButtonsContainer">
                           {/* view button */}
@@ -844,14 +769,7 @@ const filteredData = data.filter((item: ExpenseData) => {
                 : recordToEdit.assignment_id
                 ? allAssignments.find(a => a.assignment_id === recordToEdit.assignment_id)
                 : undefined,
-              receipt: recordToEdit.receipt ? {
-                ...recordToEdit.receipt,
-                items: recordToEdit.receipt.items.map(item => ({
-                  ...item,
-                  item_name: item.item?.item_name || '',
-                  unit: item.item?.unit?.name || ''
-                }))
-              } : undefined,
+              source: recordToEdit.source,
               payment_method: recordToEdit.payment_method,
               reimbursements: recordToEdit.reimbursements,
             }}
@@ -875,18 +793,10 @@ const filteredData = data.filter((item: ExpenseData) => {
                 : recordToView.assignment_id
                 ? allAssignments.find(a => a.assignment_id === recordToView.assignment_id)
                 : undefined,
-              receipt: recordToView.receipt,
               payment_method: recordToView.payment_method,
               reimbursements: recordToView.reimbursements,
             }}
             onClose={handleCloseViewModal}
-          />
-        )}
-
-        {viewReceiptModalOpen && receiptToView && (
-          <ViewReceiptModal
-            record={receiptToView}
-            onClose={handleCloseReceiptModal}
           />
         )}
       </div>

@@ -7,21 +7,11 @@ const TABLE_PREFIXES = {
   ASG: 'AssignmentCache',
   LOG: 'AuditLog', 
   EXP: 'ExpenseRecord',
-  ITM: 'Item',
-  ITX: 'ItemTransaction',
-  RCP: 'Receipt',
-  RCI: 'ReceiptItem',
   REV: 'RevenueRecord',
-  RAL: 'ReceiptAuditLog',
-  REX: 'ReceiptExport',
-  RSC: 'ReceiptStorageConfig',
   CAT: 'GlobalCategory',
   SRC: 'GlobalSource',
-  PAY: 'GlobalPaymentStatus',
   TERM: 'GlobalTerms',
-  UNIT: 'GlobalItemUnit',
-  PMT: 'GlobalPaymentMethod',
-  RST: 'GlobalReimbursementStatus'
+  PMT: 'GlobalPaymentMethod'
 } as const
 
 type TablePrefix = keyof typeof TABLE_PREFIXES

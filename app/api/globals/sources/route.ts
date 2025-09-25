@@ -4,7 +4,10 @@ import { generateId } from '@/lib/idGenerator';
 
 // GET: List all sources
 export async function GET() {
-  const sources = await prisma.globalSource.findMany({ where: { is_deleted: false } });
+  const sources = await (prisma as any).globalSource.findMany({
+    where: { is_deleted: false, is_active: true },
+    orderBy: { name: 'asc' }
+  });
   return NextResponse.json(sources);
 }
 
