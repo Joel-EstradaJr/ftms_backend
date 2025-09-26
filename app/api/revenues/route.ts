@@ -8,6 +8,7 @@ import { createRevenueFromBusTrip } from '@/lib/revenues/createFromBusTrip'
 import { upsertBoundaryLoanForRevenue } from '@/lib/loans'
 import { isValidCollectionDateForAdd, validateAmountAgainstTrip } from '@/app/utils/revenueCalc'
 import { uploadToDrive } from '@/lib/google/drive'
+import { requirePaymentMethodWhenRemitted, validateScheduleTypeRequirement, validateARAndDates } from '@/lib/validators/revenue'
 
 export async function POST(req: NextRequest) {
   // Support both JSON and multipart/form-data with attachments
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (!payStatus || !payStatus.applicable_modules.includes('revenue')) {
       return NextResponse.json({ error: 'Invalid payment_status_id for revenue' }, { status: 400 });
     }
-    // Conditional required payment method when Paid
+  // Conditional required payment method when Paid
     let paymentMethodConnect: { connect: { id: string } } | undefined;
     if (/^paid$/i.test(payStatus.name)) {
       if (!payment_method_id) return NextResponse.json({ error: 'payment_method_id is required when status is Paid' }, { status: 400 });
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Remarks must be 5-500 characters' }, { status: 400 });
     }
 
-    // Validate AR fields
+  // Validate AR fields
     const ar = Boolean(is_receivable);
     let dueDateValue: Date | null = null;
     let payerNameValue: string | null = null;
@@ -88,7 +89,11 @@ export async function POST(req: NextRequest) {
       dueDateValue = new Date(due_date);
       payerNameValue = String(payer_name).trim();
       if (Number.isNaN(interestRateValue) || interestRateValue < 0) return NextResponse.json({ error: 'interest_rate must be a non-negative number' }, { status: 400 });
-    }
+  }
+
+  // App-level validation: payment method required when remitted > 0 or status Paid
+  const pmCheck = requirePaymentMethodWhenRemitted({ total_amount: normalizedTotal || 0, is_receivable: ar, payment_method_id, payment_status_name: payStatus.name });
+  if (!pmCheck.ok) return NextResponse.json({ error: pmCheck.message }, { status: 400 });
 
     // If creating from BusTripID, delegate to helper aligned with Operations API
     if (bus_trip_id) {
@@ -206,8 +211,10 @@ export async function POST(req: NextRequest) {
     const finalAmount = normalizedTotal as number;
     let assignmentData = null;
 
-    // Convert collection_date string to Date object for comparison and storage, default to today
-    const collectionDateTime = collection_date ? new Date(collection_date) : new Date();
+  // Convert collection_date string to Date object for comparison and storage, default to today
+  const collectionDateTime = collection_date ? new Date(collection_date) : new Date();
+  const datesCheck = validateARAndDates({ is_receivable: ar, collection_date: collectionDateTime, due_date: dueDateValue });
+  if (!datesCheck.ok) return NextResponse.json({ error: datesCheck.message }, { status: 400 });
     // Validate date range (within 3 months before now and not in future)
     if (!isValidCollectionDateForAdd(collectionDateTime)) {
       return NextResponse.json({ error: 'Collection date must be within 3 months before today and not in the future.' }, { status: 400 });
@@ -264,7 +271,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // resolve schedule_type_id if provided
+  // Validate schedule type when multiple installments
+  const scheduleReq = validateScheduleTypeRequirement({ installments, schedule_type });
+  if (!scheduleReq.ok) return NextResponse.json({ error: scheduleReq.message }, { status: 400 });
+
+  // resolve schedule_type_id if provided
     let scheduleTypeId: string | null = null;
     if (schedule_type) {
       const st = await (prisma as any).globalScheduleType.findFirst({ where: { name: { equals: String(schedule_type), mode: 'insensitive' }, is_deleted: false } });
@@ -277,7 +288,6 @@ export async function POST(req: NextRequest) {
         assignment_id: assignment_id ?? null,
         bus_trip_id: assignmentData?.bus_trip_id ?? null,
         category_id,
-  // no source_ref in schema; omit source and source_id unless linking an existing GlobalSource via nested connect
         total_amount: ar ? 0 : finalAmount,
         collection_date: collectionDateTime,
         created_by,

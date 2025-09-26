@@ -34,7 +34,6 @@ type AddRevenueProps = {
     total_amount: number;
     collection_date: string;
     created_by: string;
-    source_ref?: string; // free-form source for non-ops categories
     payment_status_id: string;
     payment_method_id?: string;
     remarks: string;
@@ -92,7 +91,6 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
     total_amount: 0,
     collection_date: getCurrentDateTimeLocal(), // Changed to include current datetime
     created_by: currentUser,
-    source_ref: '',
     payment_status_id: '',
     payment_method_id: '',
     remarks: '',
@@ -187,16 +185,20 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
 
   const normalizeCategoryName = (name?: string) => (name || '').replace(/_/g, ' ').trim();
   const filteredAssignments = useMemo(() => {
+    // Normalize by removing all non-alphanumeric characters and lowercasing.
+    // Examples: 'Bus Rental' / 'bus_rental' / 'BUSRENTAL' -> 'busrental'
+    const normalizeKey = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
     return assignments
       .filter(a => {
         if (!formData.category_id) return false;
-  const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
+        const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
         if (!selectedCategory) return false;
-        const selectedName = normalizeCategoryName(selectedCategory.name);
-        if (selectedName === 'Boundary') return a.assignment_type === 'Boundary';
-        if (selectedName === 'Percentage') return a.assignment_type === 'Percentage';
+        const selectedKey = normalizeKey(selectedCategory.name);
+        const assignKey = normalizeKey(a.assignment_type);
+        if (selectedKey === 'boundary') return assignKey === 'boundary';
+        if (selectedKey === 'percentage') return assignKey === 'percentage';
         // For Bus Rental, include trips not Boundary/Percentage
-        if (selectedName === 'Bus Rental') return a.assignment_type === 'Bus Rental' || !a.assignment_type;
+        if (selectedKey === 'busrental') return assignKey === 'busrental' || !a.assignment_type;
         // For other categories, allow manual/non-trip entries (no assignment)
         return false;
       })
@@ -415,7 +417,6 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
           total_amount,
           collection_date,
           created_by: currentUser,
-          source_ref: !formData.bus_trip_id ? formData.source_ref || undefined : undefined,
           payment_status_id,
           payment_method_id: payment_method_id || undefined,
           remarks: trimmedRemarks,
@@ -459,8 +460,10 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
     const driverName = assignment.driver_name || 'N/A';
     const conductorName = assignment.conductor_name || 'N/A';
     // Calculate display amount based on selected category (Boundary/Percentage)
-    const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
-    const displayAmount = computeAutoAmount(selectedCategory?.name, assignment);
+  const selectedCategory = categories.find(cat => cat.category_id === formData.category_id);
+  // normalize by removing punctuation/spacing before passing to computeAutoAmount if it expects clean names
+  const normalizedName = selectedCategory?.name ? selectedCategory.name.replace(/[^A-Za-z0-9]+/g, ' ').trim() : undefined;
+    const displayAmount = computeAutoAmount(normalizedName, assignment);
     return `${formatDate(assignment.date_assigned)} | ₱ ${displayAmount.toLocaleString()} | ${assignment.bus_plate_number || 'N/A'} (${busType}) - ${assignment.bus_route} | ${driverName} & ${conductorName}`;
   };
 
@@ -779,7 +782,6 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
                       value={formData.payment_method_id}
                       onChange={(e) => setFormData(prev => ({ ...prev, payment_method_id: e.target.value }))}
                       className="formSelect"
-                      disabled={!paymentStatuses.find(s => s.id === formData.payment_status_id) || !/^paid$/i.test(paymentStatuses.find(s => s.id === formData.payment_status_id)?.name || '')}
                     >
                       <option value="">Select Method</option>
                       {paymentMethods.map(m => (

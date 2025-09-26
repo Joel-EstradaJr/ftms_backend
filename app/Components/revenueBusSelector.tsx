@@ -51,12 +51,14 @@ const RevenueSourceSelector: React.FC<RevenueSourceSelectorProps> = ({
     if (!selectedCategoryId) return [];
     const selectedCategory = categories.find(cat => cat.category_id === selectedCategoryId);
     if (!selectedCategory) return [];
-    const normalize = (s: string) => (s || '').replace(/_/g, ' ').trim();
+    // Normalize by removing all non-alphanumeric characters and lowercasing (e.g., 'Bus_Rental' -> 'busrental')
+    const normalizeKey = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
     filtered = filtered.filter(a => {
-      const name = normalize(selectedCategory.name);
-      if (name === "Boundary") return a.assignment_type === "Boundary";
-      if (name === "Percentage") return a.assignment_type === "Percentage";
-      if (name === "Bus Rental") return a.assignment_type === "Bus Rental" || !a.assignment_type;
+      const nameKey = normalizeKey(selectedCategory.name);
+      const atKey = normalizeKey(a.assignment_type);
+      if (nameKey === "boundary") return atKey === "boundary";
+      if (nameKey === "percentage") return atKey === "percentage";
+      if (nameKey === "busrental") return atKey === "busrental" || !a.assignment_type;
       return false;
     });
     if (search.trim()) {
@@ -79,7 +81,9 @@ const RevenueSourceSelector: React.FC<RevenueSourceSelectorProps> = ({
   const formatAmount = (assignment: Assignment) => {
     const selectedCategory = categories.find(cat => cat.category_id === selectedCategoryId);
     let amount = assignment.trip_revenue;
-    if (selectedCategory?.name === "Percentage" && assignment.assignment_value) {
+    // Use the broadened normalization key for matching
+    const normalizeKey = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    if (normalizeKey(selectedCategory?.name) === "percentage" && assignment.assignment_value) {
       amount = assignment.trip_revenue * (assignment.assignment_value);
     }
     return `₱${amount.toLocaleString()}`;

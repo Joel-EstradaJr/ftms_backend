@@ -420,7 +420,6 @@ const RevenuePage = () => {
     total_amount: number;
     collection_date: string;
     created_by: string;
-    source_ref?: string;
     payment_status_id: string;
     payment_method_id?: string;
     remarks: string;
@@ -453,7 +452,6 @@ const RevenuePage = () => {
           collection_date: newRevenue.collection_date, // ISO string
           created_by: newRevenue.created_by,
           assignment_id: newRevenue.assignment_id || null,
-          source_ref: newRevenue.source_ref || undefined,
           payment_status_id: newRevenue.payment_status_id,
           payment_method_id: newRevenue.payment_method_id || undefined,
           remarks: newRevenue.remarks,
