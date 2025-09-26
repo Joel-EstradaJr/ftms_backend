@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOrSet } from '@/lib/serverCache';
 import { v4 as uuidv4 } from 'uuid';
 
 // GET: List all payment statuses
-export async function GET() {
-  const statuses = await (prisma as any).globalPaymentStatus.findMany({
-    where: { is_deleted: false, is_active: true, applicable_modules: { has: 'expense' } },
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const module = searchParams.get('module');
+
+  const where: any = { is_deleted: false, is_active: true };
+  if (module) {
+    where.applicable_modules = { has: module };
+  }
+
+  const cacheKey = `globals:payment-statuses:${module || 'all'}`;
+  const statuses = await getOrSet(cacheKey, async () => (prisma as any).globalPaymentStatus.findMany({
+    where,
     orderBy: { name: 'asc' }
-  });
+  }));
   return NextResponse.json(statuses);
 }
 

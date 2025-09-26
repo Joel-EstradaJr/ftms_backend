@@ -9,7 +9,8 @@ import AddRevenue from "./addRevenue";
 import Swal from 'sweetalert2';
 import EditRevenueModal from "./editRevenue";
 import ViewRevenueModal from "./viewRevenue";
-import { getUnrecordedRevenueAssignments, getAllAssignmentsWithRecorded } from '@/lib/operations/assignments';
+import AddPaymentModal from "./AddPaymentModal";
+// Assignments are loaded via client-side cache now
 import { formatDate } from '../../utility/dateFormatter';
 import Loading from '../../Components/loading';
 import { showSuccess, showError } from '../../utility/Alerts';
@@ -17,12 +18,13 @@ import { formatDateTime } from "../../utility/dateFormatter";
 import { formatDisplayText } from '@/app/utils/formatting';
 import type { Assignment } from '@/lib/operations/assignments';
 import FilterDropdown, { FilterSection } from "../../Components/filter"
+import { getRevenueGlobalsCached, getAssignmentsCached } from '@/lib/clientStore';
 
 interface GlobalCategory {
   category_id: string;
   name: string;
   applicable_modules: string[];
-  is_deleted: boolean;
+  is_deleted?: boolean;
 }
 
 interface RevenueRecord {
@@ -47,6 +49,9 @@ interface RevenueRecord {
   created_at: string;
   updated_at?: string;
   is_deleted: boolean;
+  is_receivable?: boolean;
+  outstanding_balance?: number;
+  due_date?: string | null;
 }
 
 interface RevenueData {
@@ -67,7 +72,103 @@ interface RevenueData {
   created_at: string;
   assignment_id?: string;
   bus_trip_id?: string | null;
+  is_receivable?: boolean;
+  outstanding_balance?: number;
+  due_date?: string | null;
+  attachment_count?: number;
 }
+
+// Small indicator types for cache health endpoint
+interface CacheHealthResponse {
+  busTripCache: { count: number; last_synced_at: string | null };
+  employeeCache: { count: number; last_synced_at: string | null };
+  payrollCache: { count: number; last_synced_at: string | null };
+  now: string;
+}
+
+// Compact cache health indicator component
+const CacheHealthIndicator: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
+  const [health, setHealth] = useState<CacheHealthResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchHealth = async () => {
+    try {
+      setError(null);
+      const res = await fetch('/api/cache/health', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j: CacheHealthResponse = await res.json();
+      setHealth(j);
+    } catch (e: any) {
+      setError(e?.message || 'failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial + external refresh trigger
+  useEffect(() => {
+    fetchHealth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  // Background refresh every 60s
+  useEffect(() => {
+    const id = setInterval(fetchHealth, 60 * 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const formatSync = (iso: string | null) => {
+    if (!iso) return 'never';
+    try {
+      const d = new Date(iso);
+      // Show local date and time, short style
+      return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } catch {
+      return String(iso);
+    }
+  };
+
+  return (
+    <div
+      title={
+        health
+          ? `BusTrips: ${health.busTripCache.count}, Employees: ${health.employeeCache.count}, Payroll: ${health.payrollCache.count} | Last Sync: ${formatSync(health.busTripCache.last_synced_at || health.employeeCache.last_synced_at || health.payrollCache.last_synced_at)}`
+          : 'Cache health'
+      }
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 8px',
+        border: '1px solid #e0e0e0',
+        borderRadius: 6,
+        fontSize: 12,
+        color: '#333',
+        background: '#fafafa',
+        marginLeft: 8,
+        whiteSpace: 'nowrap',
+      }}
+      aria-live="polite"
+    >
+      <i className="ri-database-2-line" aria-hidden="true" />
+      {loading ? (
+        <span>Cache: loading…</span>
+      ) : error ? (
+        <span>Cache: unavailable</span>
+      ) : health ? (
+        <span>
+          Cache: Trips {health.busTripCache.count} | Emp {health.employeeCache.count} | Payroll {health.payrollCache.count} • Synced {formatSync(
+            health.busTripCache.last_synced_at || health.employeeCache.last_synced_at || health.payrollCache.last_synced_at
+          )}
+        </span>
+      ) : (
+        <span>Cache: n/a</span>
+      )}
+    </div>
+  );
+};
 
 const RevenuePage = () => {
   const [data, setData] = useState<RevenueData[]>([]);
@@ -86,7 +187,13 @@ const RevenuePage = () => {
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [recordToView, setRecordToView] = useState<RevenueData | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentInstallments, setPaymentInstallments] = useState<Array<{ id: string; installment_number: number; amount_due: number; amount_paid: number; }>>([]);
   const [availableCategories, setAvailableCategories] = useState<GlobalCategory[]>([]);
+  const [showOnlyAR, setShowOnlyAR] = useState(false);
+  const [showOnlyWithBalance, setShowOnlyWithBalance] = useState(false);
+  // Key to trigger CacheHealthIndicator refetch
+  const [healthRefreshKey, setHealthRefreshKey] = useState(0);
 
 
   const filterSections: FilterSection[] = [
@@ -105,26 +212,28 @@ const RevenuePage = () => {
         id: cat.name,
         label: cat.name
       }))
-    }
+    },
+    {
+      id: 'receivables',
+      title: 'Receivables',
+      type: 'checkbox',
+      options: [
+        { id: 'is_receivable', label: 'AR Only' },
+        { id: 'with_balance', label: 'Outstanding Balance > 0' },
+      ]
+    },
   ]
 
   // Handle filter application
   const handleFilterApply = (filterValues: Record<string, string | string[] | {from: string; to: string}>) => {
-    //date range filter
-    if (filterValues.dateRange && typeof filterValues.dateRange == 'object') {
-      const dateRange = filterValues.dateRange as { from: string; to: string};
-      setDateFrom(dateRange.from);
-      setDateTo(dateRange.to);
-    }
-    
-    //category filter
-    if (filterValues.category && Array.isArray(filterValues.category)) {
-      setCategoryFilter(filterValues.category.join(','));
-    } else {
-      setCategoryFilter('');
-    }
-
-    //reset pagination page
+    const dateRange = filterValues['dateRange'] as any;
+    if (dateRange?.from !== undefined) setDateFrom(dateRange.from || '');
+    if (dateRange?.to !== undefined) setDateTo(dateRange.to || '');
+    const selectedCats = (filterValues['category'] as string[]) || [];
+    setCategoryFilter(selectedCats.join(','));
+    const receivableChecks = (filterValues['receivables'] as string[]) || [];
+    setShowOnlyAR(receivableChecks.includes('is_receivable'));
+    setShowOnlyWithBalance(receivableChecks.includes('with_balance'));
     setCurrentPage(1);
   }
 
@@ -132,10 +241,8 @@ const RevenuePage = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/globals/categories?module=revenue');
-      if (!response.ok) throw new Error('Failed to fetch categories');
-      const categoriesData = await response.json();
-      // Filter categories that are applicable to revenue module and not deleted
+      const g = await getRevenueGlobalsCached();
+      const categoriesData = g.categories || [];
       const revenueCategories = categoriesData.filter((cat: GlobalCategory) => 
         cat.applicable_modules.includes('revenue') && !cat.is_deleted
       );
@@ -149,13 +256,11 @@ const RevenuePage = () => {
   // Fetch assignments with periodic refresh and error handling
   const fetchAssignments = async () => {
     try {
-      // Get unrecorded revenue assignments for the dropdown
-      const unrecordedAssignments = await getUnrecordedRevenueAssignments();
-      setAssignments(unrecordedAssignments);
-      
-      // Get all assignments for reference (including recorded ones)
-      const allAssignmentsData = await getAllAssignmentsWithRecorded();
+      // Fetch all assignments once and derive unrecorded locally
+      const allAssignmentsData = await getAssignmentsCached();
       setAllAssignments(allAssignmentsData);
+      const unrecorded = allAssignmentsData.filter((a: Assignment) => !a.is_revenue_recorded);
+      setAssignments(unrecorded);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       console.error('Error fetching assignments:', errorMessage);
@@ -169,19 +274,7 @@ const RevenuePage = () => {
     setMaxDate(today.toISOString().split('T')[0]);
   }, []);
 
-  // Set up periodic refresh of assignments with error boundary
-  useEffect(() => {
-    fetchAssignments();
-
-    const refreshInterval = setInterval(() => {
-      fetchAssignments().catch(error => {
-        console.error('Background refresh failed:', error);
-        // Silent fail for background refresh
-      });
-    }, 5 * 60 * 1000);
-
-    return () => clearInterval(refreshInterval);
-  }, []);
+  // Centralized periodic refresh is configured in the fetchAllData effect below
 
   // Single useEffect for initial data fetching
   useEffect(() => {
@@ -193,7 +286,7 @@ const RevenuePage = () => {
         await fetchCategories();
 
         // Fetch all assignments using the new Operations service
-        const assignmentsData = await getAllAssignmentsWithRecorded();
+  const assignmentsData = await getAssignmentsCached();
         console.log('[FETCH] Assignments loaded from Operations API');
 
         // Filter out recorded assignments for the AddRevenue modal
@@ -208,7 +301,7 @@ const RevenuePage = () => {
         console.log('[FETCH] /api/revenues status:', revenuesResponse.status);
         if (!revenuesResponse.ok) throw new Error('Failed to fetch revenues');
 
-        const revenues: RevenueRecord[] = await revenuesResponse.json();
+  const revenues: RevenueRecord[] = await revenuesResponse.json();
 
         const transformedData: RevenueData[] = revenues.map(revenue => ({
           revenue_id: revenue.revenue_id,
@@ -220,6 +313,10 @@ const RevenuePage = () => {
           created_at: revenue.created_at,
           assignment_id: revenue.assignment_id,
           bus_trip_id: revenue.bus_trip_id,
+          is_receivable: (revenue as any).is_receivable,
+          outstanding_balance: Number((revenue as any).outstanding_balance || 0),
+          due_date: (revenue as any).due_date || null,
+          attachment_count: Number((revenue as any).attachment_count || 0),
         }));
 
         setData(transformedData);
@@ -235,19 +332,14 @@ const RevenuePage = () => {
     
     fetchAllData();
 
-    // Set up periodic refresh of assignments using the new service
+    // Set up periodic refresh of assignments (align with cache refresh cadence)
     const refreshInterval = setInterval(async () => {
       try {
-        const assignmentsData = await getAllAssignmentsWithRecorded();
-        // Filter out recorded assignments for the AddRevenue modal
-        const unrecordedAssignments = assignmentsData.filter((a: Assignment) => !a.is_revenue_recorded);
-        setAssignments(unrecordedAssignments);
-        // Store all assignments for table display
-        setAllAssignments(assignmentsData);
+        await fetchAssignments();
       } catch (error) {
         console.error('Background refresh failed:', error);
       }
-    }, 30000); // Refresh every 30 seconds
+    }, 5 * 60 * 1000); // Refresh every 5 minutes
 
     return () => clearInterval(refreshInterval);
   }, []); // Empty dependency array as we only want this to run once on mount
@@ -287,8 +379,10 @@ const RevenuePage = () => {
 
     const itemDate = new Date(item.collection_date).toISOString().split('T')[0]; // Extract date part for comparison
     const matchesDate = (!dateFrom || itemDate >= dateFrom) && 
-            (!dateTo || itemDate <= dateTo);
-    return matchesSearch && matchesCategory && matchesDate;
+      (!dateTo || itemDate <= dateTo);
+    const matchesReceivable = !showOnlyAR || !!item.is_receivable;
+    const matchesBalance = !showOnlyWithBalance || (Number(item.outstanding_balance || 0) > 0);
+    return matchesSearch && matchesCategory && matchesDate && matchesReceivable && matchesBalance;
   });
 
   const indexOfLastRecord = currentPage * pageSize;
@@ -296,12 +390,46 @@ const RevenuePage = () => {
   const currentRecords = filteredData.slice(indexOfFirstRecord, indexOfLastRecord);
   const totalPages = Math.ceil(filteredData.length / pageSize);
 
+  // Manual cache refresh (placeholder auth)
+  const manualCacheRefresh = async () => {
+    try {
+      const res = await fetch('/api/cache/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // TODO: replace with real JWT or server action
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CACHE_REFRESH_TOKEN || ''}`,
+        },
+      });
+      if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
+      showSuccess('Cache refresh started/completed.', 'Cache');
+      // Optionally refetch assignments/categories quickly to reflect new data
+      await Promise.all([fetchAssignments(), fetchCategories()]);
+      // Nudge the health widget to refresh immediately
+      setHealthRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      console.error('Manual refresh error:', e);
+      showError(e?.message || 'Failed to refresh cache', 'Cache Error');
+    }
+  };
+
   const handleAddRevenue = async (newRevenue: {
     category_id: string;
     assignment_id?: string;
+    bus_trip_id?: string;
     total_amount: number;
     collection_date: string;
     created_by: string;
+    source_ref?: string;
+    payment_status_id: string;
+    payment_method_id?: string;
+    remarks: string;
+    is_receivable?: boolean;
+    payer_name?: string;
+    due_date?: string;
+    interest_rate?: number;
+    installments?: { installment_number: number; due_date: string; amount_due: number }[];
+    attachments?: File[];
   }) => {
     try {
       // Get the assignment to extract bus_trip_id
@@ -321,17 +449,45 @@ const RevenuePage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category_id: newRevenue.category_id,
-          total_amount: newRevenue.total_amount,
-          collection_date: newRevenue.collection_date, // Send as ISO string
+          total_amount: Number(newRevenue.total_amount),
+          collection_date: newRevenue.collection_date, // ISO string
           created_by: newRevenue.created_by,
           assignment_id: newRevenue.assignment_id || null,
-          // include bus_trip_id when available so backend uses BusTrip flow with override amount
-          bus_trip_id: selectedAssignment?.bus_trip_id || undefined,
+          source_ref: newRevenue.source_ref || undefined,
+          payment_status_id: newRevenue.payment_status_id,
+          payment_method_id: newRevenue.payment_method_id || undefined,
+          remarks: newRevenue.remarks,
+          // include bus_trip_id when available so backend uses BusTrip flow
+          bus_trip_id: newRevenue.bus_trip_id || selectedAssignment?.bus_trip_id || undefined,
+          // AR support
+          ...(newRevenue.is_receivable ? {
+            is_receivable: true,
+            payer_name: newRevenue.payer_name,
+            due_date: newRevenue.due_date,
+            interest_rate: newRevenue.interest_rate,
+            installments: newRevenue.installments
+          } : {}),
         })
       });
       
       if (!response.ok) throw new Error('Create failed');
       const result: RevenueRecord = await response.json();
+
+      let attachmentCountForNew = 0;
+
+      // If attachments were selected, upload them (optional) using new API
+      if (newRevenue.attachments && newRevenue.attachments.length > 0) {
+        const form = new FormData();
+        newRevenue.attachments.forEach(f => form.append('files', f));
+        const upRes = await fetch(`/api/revenues/${encodeURIComponent(result.revenue_id)}/attachments`, { method: 'POST', body: form });
+        if (!upRes.ok) {
+          console.warn('Attachment upload failed');
+        } else {
+          const upJson = await upRes.json().catch(() => null);
+          const created = upJson?.attachments || [];
+          attachmentCountForNew = Array.isArray(created) ? created.length : 0;
+        }
+      }
       
       // Refresh assignments data to get updated flags from Operations API BEFORE updating state
       await fetchAssignments();
@@ -347,6 +503,10 @@ const RevenuePage = () => {
         created_at: result.created_at,
         assignment_id: result.assignment_id,
         bus_trip_id: result.bus_trip_id,
+        is_receivable: (result as any).is_receivable ?? undefined,
+        outstanding_balance: Number((result as any).outstanding_balance ?? 0),
+        due_date: (result as any).due_date ?? null,
+        attachment_count: attachmentCountForNew,
       }, ...prev]);
       
       showSuccess('Revenue added successfully', 'Success');
@@ -391,6 +551,15 @@ const RevenuePage = () => {
     revenue_id: string;
     collection_date: string;
     total_amount: number;
+    category_id?: string;
+    source?: string;
+    payment_status_id?: string;
+    payment_method_id?: string;
+    remarks?: string;
+    is_receivable?: boolean;
+    payer_name?: string;
+    due_date?: string;
+    interest_rate?: number;
   }) => {
     try {
       const response = await fetch(`/api/revenues/${updatedRecord.revenue_id}`, {
@@ -407,17 +576,19 @@ const RevenuePage = () => {
       setData(prev => {
         // Remove the old version of the record
         const filtered = prev.filter(rec => rec.revenue_id !== updatedRecord.revenue_id);
-        // Create the updated record with all required fields
         const updated: RevenueData = {
           revenue_id: result.revenue_id,
           category: result.category,
           source: result.source,
           total_amount: Number(result.total_amount),
-          collection_date: new Date(result.collection_date).toISOString().split('T')[0],
+          collection_date: result.collection_date,
           created_by: result.created_by,
           created_at: result.created_at,
           assignment_id: result.assignment_id,
           bus_trip_id: result.bus_trip_id,
+          is_receivable: (result as any).is_receivable ?? undefined,
+          outstanding_balance: Number((result as any).outstanding_balance ?? 0),
+          due_date: (result as any).due_date ?? null,
         };
         // Add the updated record at the beginning of the array
         return [updated, ...filtered];
@@ -743,7 +914,11 @@ const RevenuePage = () => {
             onApply={handleFilterApply}
             initialValues={{
               dateRange: { from: dateFrom, to: dateTo },
-              category: categoryFilter ? categoryFilter.split(',') : []
+              category: categoryFilter ? categoryFilter.split(',') : [],
+              receivables: [
+                ...(showOnlyAR ? ['is_receivable'] : []),
+                ...(showOnlyWithBalance ? ['with_balance'] : []),
+              ]
             }}
           />
 
@@ -752,6 +927,12 @@ const RevenuePage = () => {
             <button id="export" onClick={handleExport}><i className="ri-receipt-line" /> Export CSV</button>
             {/* Add Revenue */}
             <button onClick={() => setShowModal(true)} id='addRevenue'><i className="ri-add-line" /> Add Revenue</button>
+            {/* Manual Cache Refresh (placeholder auth until JWT) */}
+            <button onClick={manualCacheRefresh} id='refreshCache' style={{ marginLeft: 8 }}>
+              <i className="ri-refresh-line" /> Refresh Cache
+            </button>
+            {/* Cache Health Indicator */}
+            <CacheHealthIndicator refreshKey={healthRefreshKey} />
           </div>
         </div>
 
@@ -764,6 +945,8 @@ const RevenuePage = () => {
                   <th>Category</th>
                   <th>Source</th>
                   <th>Remitted Amount</th>
+                  <th>Flags</th>
+                  <th>Files</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -812,8 +995,52 @@ const RevenuePage = () => {
                     <td>{item.category?.name || 'N/A'}</td>
                     <td>{formatAssignmentForTable(assignment)}</td>
                     <td>₱{item.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>
+                      <div className="flagsCell">
+                        {item.is_receivable ? <span className="flag badge-ar">AR</span> : null}
+                        {item.is_receivable && (item.outstanding_balance || 0) > 0 && item.due_date && new Date(item.due_date) < new Date() ? (
+                          <span className="flag badge-overdue">Overdue</span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td>
+                      {Number((item as any).attachment_count || 0) > 0 ? (
+                        <span title={`${(item as any).attachment_count} attachment(s)`} aria-label="Has attachments">
+                          <i className="ri-attachment-2" /> {(item as any).attachment_count}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="styles.actionButtons">
                       <div className="actionButtonsContainer">
+                        {/* add payment button */}
+                        <button 
+                          className="viewBtn" 
+                          disabled={!item.is_receivable || Number(item.outstanding_balance || 0) <= 0}
+                          onClick={async () => {
+                            setRecordToEdit(item);
+                            try {
+                              const res = await fetch(`/api/revenues/${item.revenue_id}`);
+                              if (res.ok) {
+                                const rev = await res.json();
+                                const inst = Array.isArray(rev.installments) ? rev.installments.map((i: any) => ({
+                                  id: i.id,
+                                  installment_number: Number(i.installment_number),
+                                  amount_due: Number(i.amount_due || 0),
+                                  amount_paid: Number(i.amount_paid || 0),
+                                })) : [];
+                                setPaymentInstallments(inst);
+                              } else {
+                                setPaymentInstallments([]);
+                              }
+                            } catch {
+                              setPaymentInstallments([]);
+                            }
+                            setShowPaymentModal(true);
+                          }} 
+                          title={!item.is_receivable ? "Not receivable" : (Number(item.outstanding_balance || 0) <= 0 ? "No outstanding balance" : "Add Payments")}
+                        >
+                          <i className="ri-bank-card-line" />
+                        </button>
                         {/* view button */}
                         <button 
                           className="viewBtn" 
@@ -879,6 +1106,7 @@ const RevenuePage = () => {
               .filter(r => r?.category && typeof r.category.category_id === 'string')
               .map(r => ({
                 assignment_id: r.assignment_id,
+                bus_trip_id: r.bus_trip_id ? r.bus_trip_id : undefined,
                 category_id: r.category.category_id,
                 total_amount: r.total_amount,
                 collection_date: r.collection_date
@@ -902,6 +1130,36 @@ const RevenuePage = () => {
               setRecordToEdit(null);
             }}
             onSave={handleSaveEdit}
+            onAttachmentsChanged={(delta) => {
+              if (!recordToEdit) return;
+              setData(prev => prev.map(r => r.revenue_id === recordToEdit.revenue_id ? {
+                ...r,
+                attachment_count: Math.max(0, Number((r as any).attachment_count || 0) + (delta || 0)),
+              } : r));
+            }}
+          />
+        )}
+
+        {showPaymentModal && recordToEdit && (
+          <AddPaymentModal
+            revenue_id={recordToEdit.revenue_id}
+            outstanding_balance={Number(recordToEdit.outstanding_balance || 0)}
+            installments={paymentInstallments}
+            onClose={() => { setShowPaymentModal(false); setRecordToEdit(null); setPaymentInstallments([]); }}
+            onSubmitted={async () => {
+              // refresh the row via GET /api/revenues/{id}
+              try {
+                const res = await fetch(`/api/revenues/${recordToEdit.revenue_id}`);
+                if (res.ok) {
+                  const rev = await res.json();
+                  setData(prev => prev.map(r => r.revenue_id === recordToEdit.revenue_id ? {
+                    ...r,
+                    outstanding_balance: Number(rev.outstanding_balance || 0),
+                    is_receivable: rev.is_receivable,
+                  } : r));
+                }
+              } catch {}
+            }}
           />
         )}
 

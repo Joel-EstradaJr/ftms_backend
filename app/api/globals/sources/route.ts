@@ -13,30 +13,33 @@ export async function GET() {
 
 // POST: Create a new source
 export async function POST(req: NextRequest) {
-  const { name, applicable_modules } = await req.json();
+  const body = await req.json();
+  const { name } = body ?? {};
   if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
-  const source_id = await generateId('SRC');
+  const id = await generateId('SRC');
   const source = await prisma.globalSource.create({
-    data: { source_id, name, applicable_modules, is_deleted: false }
+    data: { id, name, is_deleted: false, is_active: true },
   });
   return NextResponse.json(source);
 }
 
 // PUT: Update a source
 export async function PUT(req: NextRequest) {
-  const { source_id, name, applicable_modules } = await req.json();
-  if (!source_id) return NextResponse.json({ error: 'source_id is required' }, { status: 400 });
+  const { source_id, id: idFromBody, name } = await req.json();
+  const id = idFromBody ?? source_id;
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
   const updated = await prisma.globalSource.update({
-    where: { source_id },
-    data: { name, applicable_modules }
+    where: { id },
+    data: { name },
   });
   return NextResponse.json(updated);
 }
 
 // DELETE: Soft delete a source
 export async function DELETE(req: NextRequest) {
-  const { source_id } = await req.json();
-  if (!source_id) return NextResponse.json({ error: 'source_id is required' }, { status: 400 });
-  await prisma.globalSource.update({ where: { source_id }, data: { is_deleted: true } });
+  const { source_id, id: idFromBody } = await req.json();
+  const id = idFromBody ?? source_id;
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  await prisma.globalSource.update({ where: { id }, data: { is_deleted: true } });
   return NextResponse.json({ success: true });
-} 
+}

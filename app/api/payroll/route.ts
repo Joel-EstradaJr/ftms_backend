@@ -19,16 +19,26 @@ export async function GET(request: NextRequest) {
     }
 
     const totalCount = await prisma.payrollRecord.count({ where });
-    const records = await prisma.payrollRecord.findMany({
+    const records = await (prisma as any).payrollRecord.findMany({
       where,
+      include: {
+        payrollPeriod: true,
+        payrollStatus: true,
+      },
       orderBy: { payroll_start_date: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
+    // map friendly names while preserving existing fields
+    const enriched = (records as any[]).map((r: any) => ({
+      ...r,
+      payroll_period_name: r?.payrollPeriod?.name ?? r?.payroll_period ?? null,
+      payroll_status_name: r?.payrollStatus?.name ?? r?.status ?? null,
+    }));
 
     return NextResponse.json({
       success: true,
-      data: records,
+      data: enriched,
       pagination: {
         total: totalCount,
         totalPages: Math.ceil(totalCount / pageSize),

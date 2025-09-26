@@ -15,6 +15,7 @@ import { formatDate } from '../../utility/dateFormatter';
 import { computeAutoAmount, getBoundaryLossInfo, formatPeso } from '@/app/utils/revenueCalc';
 import { formatDisplayText } from '../../utils/formatting';
 import { Assignment } from '@/lib/operations/assignments';
+import { getRevenueGlobalsCached } from '@/lib/clientStore';
 import RevenueSourceSelector from '../../Components/revenueBusSelector';
 import ModalHeader from '@/app/Components/ModalHeader';
 
@@ -34,6 +35,17 @@ type AddRevenueProps = {
     collection_date: string;
     created_by: string;
     source_ref?: string; // free-form source for non-ops categories
+    payment_status_id: string;
+    payment_method_id?: string;
+    remarks: string;
+    // Optional AR fields
+    is_receivable?: boolean;
+    payer_name?: string;
+    due_date?: string;
+    interest_rate?: number;
+    installments?: { installment_number: number; due_date: string; amount_due: number }[];
+    // Optional attachments
+    attachments?: File[];
   }) => void;
   assignments: Assignment[];
   currentUser: string;
@@ -56,6 +68,8 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
 }) => {
   const [showSourceSelector, setShowSourceSelector] = useState(false);
   const [categories, setCategories] = useState<GlobalCategory[]>([]);
+  const [paymentStatuses, setPaymentStatuses] = useState<{ id: string; name: string }[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<{ id: string; name: string }[]>([]);
   
   // Track original auto-filled values for deviation calculation
   const [originalAutoFilledAmount, setOriginalAutoFilledAmount] = useState<number | null>(null);
@@ -79,44 +93,99 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
     collection_date: getCurrentDateTimeLocal(), // Changed to include current datetime
     created_by: currentUser,
     source_ref: '',
+    payment_status_id: '',
+    payment_method_id: '',
+    remarks: '',
+    // AR fields
+    is_receivable: false,
+    payer_name: '',
+    due_date: '', // yyyy-MM-dd
+    interest_rate: 0,
   });
 
-  // Fetch categories on component mount
-  useEffect(() => {
-    console.log('[EFFECT] Fetching categories');
-    const fetchGlobals = async () => {
-      try {
-        const categoriesResponse = await fetch('/api/globals/categories?module=revenue');
+  // Simple installments list for AR
+  type InstallmentRow = { id: string; installment_number: number; due_date: string; amount_due: number };
+  const [installments, setInstallments] = useState<InstallmentRow[]>([]);
+  // Attachments state
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.jfif', '.pdf', '.docx', '.csv', '.xlsx'];
+  const ALLOWED_MIME = new Set([
+    'image/png','image/jpeg','image/jpg','image/pjpeg',
+    'application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ]);
+  const MAX_TOTAL = 50 * 1024 * 1024; // 50MB
+  const onSelectFiles = (fileList: FileList | null) => {
+    if (!fileList) { setAttachments([]); return; }
+    const files = Array.from(fileList);
+    // Client-side validation
+    let total = 0;
+    for (const f of files) {
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      const dotExt = `.${ext}`;
+      if (!ALLOWED_EXT.includes(dotExt) || !ALLOWED_MIME.has(f.type)) {
+        showError(`Unsupported file: ${f.name}`, 'Attachment Error');
+        return;
+      }
+      total += f.size;
+    }
+    if (total > MAX_TOTAL) {
+      showError('Total attachments exceed 50MB limit.', 'Attachment Error');
+      return;
+    }
+    setAttachments(files);
+  };
+  const addInstallment = () => {
+    const nextNum = (installments[installments.length - 1]?.installment_number || 0) + 1;
+    const newId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `${Date.now()}_${Math.random()}`;
+    setInstallments(prev => [...prev, { id: newId, installment_number: nextNum, due_date: '', amount_due: 0 }]);
+  };
+  const updateInstallment = (id: string, patch: Partial<InstallmentRow>) => {
+    setInstallments(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  };
+  const removeInstallment = (id: string) => setInstallments(prev => prev.filter(r => r.id !== id));
 
-        if (categoriesResponse.ok) {
-          const categoriesData = await categoriesResponse.json();
-          setCategories(categoriesData);
-          // Prefer Boundary, then Percentage, then Bus Rental, else first
-          if (categoriesData.length > 0) {
-            const normalize = (s: string) => s.replace(/_/g, ' ').trim();
-            const pick =
-              categoriesData.find((c: GlobalCategory) => normalize(c.name).toLowerCase() === 'boundary') ||
-              categoriesData.find((c: GlobalCategory) => normalize(c.name).toLowerCase() === 'percentage') ||
-              categoriesData.find((c: GlobalCategory) => normalize(c.name).toLowerCase() === 'bus rental') ||
-              categoriesData[0];
-            if (pick) {
-              setFormData(prev => ({ ...prev, category_id: pick.category_id }));
-            }
+  // Fetch categories and payment options on mount (client-side cached)
+  useEffect(() => {
+    console.log('[EFFECT] Loading globals (cached)');
+    const load = async () => {
+      try {
+        const batch = await getRevenueGlobalsCached();
+        const categoriesData = batch.categories || [];
+        const statusesData = batch.payment_statuses || [];
+        const methodsData = batch.payment_methods || [];
+
+        setCategories(categoriesData);
+        // Prefer Boundary, then Percentage, then Bus Rental, else first
+        if (categoriesData.length > 0) {
+          const normalize = (s: string) => s.replace(/_/g, ' ').trim();
+          const pick =
+            categoriesData.find((c: GlobalCategory) => normalize(c.name).toLowerCase() === 'boundary') ||
+            categoriesData.find((c: GlobalCategory) => normalize(c.name).toLowerCase() === 'percentage') ||
+            categoriesData.find((c: GlobalCategory) => normalize(c.name).toLowerCase() === 'bus rental') ||
+            categoriesData[0];
+          if (pick) {
+            setFormData(prev => ({ ...prev, category_id: pick.category_id }));
           }
-          console.log('[DATA] Categories loaded:', categoriesData.length);
         }
+        console.log('[DATA] Categories loaded:', categoriesData.length);
+
+        setPaymentStatuses(statusesData);
+        const pending = statusesData.find((s: any) => /^pending$/i.test(s.name)) || statusesData[0];
+        if (pending) {
+          setFormData(prev => ({ ...prev, payment_status_id: pending.id }));
+        }
+
+        setPaymentMethods(methodsData);
       } catch (error) {
-        console.error('Error fetching categories:', error);
-        showError('Error', 'Failed to load categories');
+        console.error('Error loading globals:', error);
+        showError('Error', 'Failed to load dropdown values');
       }
     };
-
-    fetchGlobals();
+    load();
   }, []);
 
   const normalizeCategoryName = (name?: string) => (name || '').replace(/_/g, ' ').trim();
-
-  // Filter assignments based on selected category
   const filteredAssignments = useMemo(() => {
     return assignments
       .filter(a => {
@@ -265,15 +334,58 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
     e.preventDefault();
     console.log('[EVENT] Form submit:', formData);
 
-    const { category_id, assignment_id, total_amount, collection_date } = formData;
+    const { category_id, assignment_id, total_amount, collection_date, payment_status_id, payment_method_id, remarks, is_receivable, payer_name, due_date, interest_rate } = formData;
 
     if (!category_id || !collection_date || !currentUser) {
       await showEmptyFieldWarning();
       return;
     }
 
-    if (!isValidAmount(total_amount)) {
-      await showInvalidAmountAlert();
+    if (!is_receivable) {
+      if (!isValidAmount(total_amount)) {
+        await showInvalidAmountAlert();
+        return;
+      }
+    }
+
+    // Remarks validation (5-500 characters)
+    const trimmedRemarks = (remarks || '').trim();
+    if (trimmedRemarks.length < 5 || trimmedRemarks.length > 500) {
+      showError('Remarks must be between 5 and 500 characters.', 'Invalid Remarks');
+      return;
+    }
+
+    // Payment status required; if Paid, then method required
+    if (!payment_status_id) {
+      showError('Payment status is required.', 'Missing Field');
+      return;
+    }
+    // AR validations
+    if (is_receivable) {
+      if (!payer_name || payer_name.trim().length === 0) {
+        showError('Payer name is required for receivables.', 'Missing Field');
+        return;
+      }
+      if (!due_date) {
+        showError('Due date is required for receivables.', 'Missing Field');
+        return;
+      }
+      if (interest_rate < 0) {
+        showError('Interest rate must be a non-negative number.', 'Invalid Field');
+        return;
+      }
+      // Validate installments (optional but if provided they must be valid)
+      for (const row of installments) {
+        if (!row.due_date || Number(row.amount_due) <= 0) {
+          showError('Each installment must have a due date and positive amount.', 'Invalid Installment');
+          return;
+        }
+      }
+    }
+    const selStatus = paymentStatuses.find(s => s.id === payment_status_id);
+    const isPaid = selStatus ? /^paid$/i.test(selStatus.name) : false;
+    if (isPaid && !payment_method_id) {
+      showError('Payment method is required when status is Paid.', 'Missing Field');
       return;
     }
 
@@ -304,6 +416,23 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
           collection_date,
           created_by: currentUser,
           source_ref: !formData.bus_trip_id ? formData.source_ref || undefined : undefined,
+          payment_status_id,
+          payment_method_id: payment_method_id || undefined,
+          remarks: trimmedRemarks,
+          // AR
+          ...(is_receivable ? {
+            is_receivable: true,
+            payer_name: payer_name.trim(),
+            due_date,
+            interest_rate,
+            installments: installments.map((r, idx) => ({
+              installment_number: r.installment_number || (idx + 1),
+              due_date: r.due_date,
+              amount_due: Number(r.amount_due)
+            }))
+          } : {}),
+          // Attachments (optional)
+          attachments: attachments.length > 0 ? attachments : undefined,
         });
 
         await showAddSuccess();
@@ -450,6 +579,7 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
                       min="0"
                       step="0.01"
                       required
+                      disabled={formData.is_receivable}
                       className="formInput"
                       placeholder="Enter amount"
                     />
@@ -507,6 +637,190 @@ const AddRevenue: React.FC<AddRevenueProps & { existingRevenues: ExistingRevenue
                         </div>
                       );
                     })()}
+                  </div>
+                </div>
+
+                {/* PAYMENT AND REMARKS */}
+                <div className="formRow">
+                  {/* PAYMENT STATUS */}
+                  <div className="formField">
+                    <label htmlFor="payment_status_id">Payment Status<span className='requiredTags'> *</span></label>
+                    <select
+                      id="payment_status_id"
+                      name="payment_status_id"
+                      value={formData.payment_status_id}
+                      onChange={(e) => setFormData(prev => ({ ...prev, payment_status_id: e.target.value }))}
+                      required
+                      className="formSelect"
+                    >
+                      <option value="">Select Status</option>
+                      {paymentStatuses.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    {/* ACCOUNTS RECEIVABLE SECTION (moved out of select to avoid invalid DOM nesting) */}
+                    <div className="formRow" style={{ marginTop: 8 }}>
+                      <div className="formField">
+                        <label htmlFor="is_receivable">Is Receivable?</label>
+                        <input
+                          type="checkbox"
+                          id="is_receivable"
+                          name="is_receivable"
+                          checked={formData.is_receivable}
+                          onChange={(e) => setFormData(prev => ({ ...prev, is_receivable: e.target.checked }))}
+                        />
+                      </div>
+                    </div>
+
+                    {formData.is_receivable && (
+                      <>
+                        <div className="formRow">
+                          <div className="formField">
+                            <label htmlFor="payer_name">Payer Name<span className='requiredTags'> *</span></label>
+                            <input
+                              type="text"
+                              id="payer_name"
+                              name="payer_name"
+                              value={formData.payer_name}
+                              onChange={(e) => setFormData(prev => ({ ...prev, payer_name: e.target.value }))}
+                              className="formInput"
+                              placeholder="Enter payer name"
+                            />
+                          </div>
+                          <div className="formField">
+                            <label htmlFor="due_date">Due Date<span className='requiredTags'> *</span></label>
+                            <input
+                              type="date"
+                              id="due_date"
+                              name="due_date"
+                              value={formData.due_date}
+                              onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                              className="formInput"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="formRow">
+                          <div className="formField">
+                            <label htmlFor="interest_rate">Interest Rate (%)</label>
+                            <input
+                              type="number"
+                              id="interest_rate"
+                              name="interest_rate"
+                              min={0}
+                              step={0.01}
+                              value={formData.interest_rate}
+                              onChange={(e) => setFormData(prev => ({ ...prev, interest_rate: parseFloat(e.target.value) || 0 }))}
+                              className="formInput"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="formField">
+                            <label>Installments</label>
+                            <div>
+                              <button type="button" className="addButton" onClick={addInstallment}><i className="ri-add-line" /> Add Installment</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {installments.length > 0 && (
+                          <div className="formRow">
+                            <div className="formField" style={{ width: '100%' }}>
+                              <table className="data-table">
+                                <thead>
+                                  <tr>
+                                    <th>#</th>
+                                    <th>Due Date</th>
+                                    <th>Amount Due</th>
+                                    <th>Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {installments.map((row, idx) => (
+                                    <tr key={row.id}>
+                                      <td>
+                                        <input type="number" min={1} step={1} value={row.installment_number}
+                                          onChange={(e) => updateInstallment(row.id, { installment_number: parseInt(e.target.value) || idx + 1 })}
+                                          className="formInput" style={{ maxWidth: 90 }} />
+                                      </td>
+                                      <td>
+                                        <input type="date" value={row.due_date}
+                                          onChange={(e) => updateInstallment(row.id, { due_date: e.target.value })}
+                                          className="formInput" />
+                                      </td>
+                                      <td>
+                                        <input type="number" min={0.01} step={0.01} value={row.amount_due || ''}
+                                          onChange={(e) => updateInstallment(row.id, { amount_due: parseFloat(e.target.value) || 0 })}
+                                          className="formInput" />
+                                      </td>
+                                      <td>
+                                        <button type="button" className="deleteBtn" onClick={() => removeInstallment(row.id)} title="Remove"><i className="ri-delete-bin-line" /></button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* PAYMENT METHOD (required when Paid) */}
+                  <div className="formField">
+                    <label htmlFor="payment_method_id">Payment Method{(() => {
+                      const sel = paymentStatuses.find(s => s.id === formData.payment_status_id);
+                      return sel && /^paid$/i.test(sel.name) ? <span className='requiredTags'> *</span> : null;
+                    })()}</label>
+                    <select
+                      id="payment_method_id"
+                      name="payment_method_id"
+                      value={formData.payment_method_id}
+                      onChange={(e) => setFormData(prev => ({ ...prev, payment_method_id: e.target.value }))}
+                      className="formSelect"
+                      disabled={!paymentStatuses.find(s => s.id === formData.payment_status_id) || !/^paid$/i.test(paymentStatuses.find(s => s.id === formData.payment_status_id)?.name || '')}
+                    >
+                      <option value="">Select Method</option>
+                      {paymentMethods.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Attachments (optional) */}
+                <div className="formRow">
+                  <div className="formField" style={{ width: '100%' }}>
+                    <label>Attachments (optional)</label>
+                    <input type="file" multiple onChange={(e) => onSelectFiles(e.target.files)} />
+                    {attachments.length > 0 && (
+                      <div style={{ fontSize: 12, color: '#6c757d', marginTop: 6 }}>
+                        {attachments.length} file(s) selected, total {attachments.reduce((s, f) => s + f.size, 0).toLocaleString()} bytes
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: '#6c757d', marginTop: 4 }}>
+                      Allowed: PNG, JPG, JPEG, JFIF, PDF, DOCX, CSV, XLSX. Max total 50MB.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="formRow">
+                  {/* REMARKS */}
+                  <div className="formField" style={{ width: '100%' }}>
+                    <label htmlFor="remarks">Remarks<span className='requiredTags'> *</span></label>
+                    <textarea
+                      id="remarks"
+                      name="remarks"
+                      value={formData.remarks}
+                      onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
+                      className="formInput"
+                      placeholder="Enter remarks (5-500 characters)"
+                      rows={3}
+                    />
+                    <div style={{ fontSize: 12, color: formData.remarks.trim().length < 5 || formData.remarks.trim().length > 500 ? '#b02a37' : '#6c757d' }}>
+                      {formData.remarks.trim().length}/500
+                    </div>
                   </div>
                 </div>
               </div>

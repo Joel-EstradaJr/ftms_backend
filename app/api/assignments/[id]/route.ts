@@ -44,35 +44,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Assignment or bus_trip_id not found' }, { status: 404 })
   }
 
-  try {
-    const patchPayload = [
-      {
-        bus_trip_id: assignment.bus_trip_id,
-        IsRevenueRecorded: true
-      }
-    ];
-    const opApiUrl = process.env.OP_API_BUSTRIP_URL;
-    if (!opApiUrl) {
-      throw new Error('OP_API_BUSTRIP_URL environment variable is not set');
-    }
-    const patchResponse = await fetch(opApiUrl, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patchPayload)
-    });
-    if (!patchResponse.ok) {
-      const errorText = await patchResponse.text();
-      return NextResponse.json({ error: `Failed to PATCH Operations API: ${patchResponse.status} - ${errorText}` }, { status: 500 });
-    }
-    const result = await patchResponse.json();
-    return NextResponse.json({ success: true, result });
-  } catch (error: unknown) {
-    console.error('Failed to update assignment:', error)
-
-    const errorMessage = error instanceof Error
-      ? error.message
-      : 'Internal Server Error'
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
-  }
+  // Direct upstream PATCH disabled by design; rely on webhooks/refresh to sync state
+  return NextResponse.json({ success: true, message: 'Upstream update deferred to scheduler/webhooks' })
 }

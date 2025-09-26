@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOrSet } from '@/lib/serverCache';
 import { v4 as uuidv4 } from 'uuid';
 
 // Define proper types for the where clause
@@ -23,7 +24,8 @@ export async function GET(request: NextRequest) {
       whereClause.module_links = { some: { module_name: moduleParam } };
     }
 
-    const categories = await prisma.$queryRaw<Array<{
+    const cacheKey = `globals:categories:${moduleParam || 'all'}`;
+    const categories = await getOrSet(cacheKey, async () => prisma.$queryRaw<Array<{
       category_id: string;
       name: string;
       is_deleted: boolean;
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
         ))
       GROUP BY c.id, c.name, c.is_deleted, c.created_at, c.updated_at
       ORDER BY c.name ASC;
-    `;
+    `);
 
     return NextResponse.json(categories);
   } catch (error) {
