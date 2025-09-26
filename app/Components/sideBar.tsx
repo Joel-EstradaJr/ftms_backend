@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MICROSERVICES } from '../config/microservices';
+// @ts-ignore
 import "../styles/components/sidebar.css";
 
 const routeToItem: { [key: string]: string } = {
@@ -154,7 +155,7 @@ const Sidebar: React.FC = () => {
           {/* Budget Management and Submenu */}
           <div
             className={`nav-item module ${
-              ["budgetRequest", "budgetAllocation","budgetApproval"].includes(activeItem!) ? "active" : ""
+              ["budget-request", "budgetAllocation","budgetApproval"].includes(activeItem!) ? "active" : ""
             }`}
             onClick={() => toggleSubMenu("budget-management")}
           >
@@ -170,10 +171,11 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "budget-management" && (
             <div className="sub-menu active">
               <Link
-                href="/budget-management/budgetRequest"
-                className={`sub-item ${activeItem === "budgetRequest" ? "active" : ""}`}
+                href="/microservice/budget-request-management/budget-management/adminBudgetRequest"
+                className={`sub-item ${activeItem === "budget-request" ? "active" : ""}`}
+                onClick={() => setActiveItem("budget-request")}
               >
-                Budget Request
+                <span>Budget Request 'microservice'</span>
               </Link>
               <Link
                 href="/budget-management/budgetAllocation"
@@ -189,27 +191,16 @@ const Sidebar: React.FC = () => {
               </Link>
             </div>
           )}
-
-
-          {/* Budget Request - Microservice Link */}
-          <Link
-            href="/microservice/budget-request-management/budget-management/budgetRequest"
-            className={`nav-item ${activeItem === "budget-request" ? "active" : ""}`}
-            onClick={() => setActiveItem("budget-request")}
-          >
-            <i className="ri-wallet-3-line" />
-            <span>Budget Request</span>
-          </Link>
-
+ 
 
           {/* Purchase Request and Submenu */}
           <div
             className={`nav-item module ${
-              ["purchaseRequest", "purchaseApproval"].includes(activeItem!) ? "active" : ""
+              ["purchase-request", "purchaseApproval"].includes(activeItem!) ? "active" : ""
             }`}
             onClick={() => toggleSubMenu("purchase-management")}
           >
-            <i className="ri-wallet-3-line"></i>
+            < i className="ri-store-2-line" />
             <span>Purchase Management</span>
             <i
               className={`dropdown-arrow ri-arrow-down-s-line ${
@@ -221,10 +212,11 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "purchase-management" && (
             <div className="sub-menu active">
               <Link
-                href="/purchase-management/purchaseRequest"
-                className={`sub-item ${activeItem === "purchaseRequest" ? "active" : ""}`}
+                href="/microservice/purchase-request/purchase-request"
+                className={`sub-item ${activeItem === "purchase-request" ? "active" : ""}`}
+                onClick={() => setActiveItem("purchase-request")}
               >
-                Purchase Request
+                <span>Purchase Request 'microservice'</span>
               </Link>
     
               <Link

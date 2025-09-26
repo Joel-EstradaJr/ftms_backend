@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MicroserviceConfig } from '../../../types/microservices';
 import { MICROSERVICES } from '../../../config/microservices';
+// @ts-ignore
 import '../../../styles/general/microservices.css';
 
 export default function MicroservicePage() {

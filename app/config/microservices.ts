@@ -14,16 +14,23 @@ export const MICROSERVICES: MicroserviceConfig[] = [
         path: '/budget-management/budgetRequest',
         name: 'Budget Request',
         description: 'Manage budget requests'
-      },
+      }
+    ]
+  },
+
+  {
+    id: 'purchase-request',
+    name: 'Budget Request',
+    url: 'http://localhost:3002',
+    port: 3002,
+    icon: 'ri-store-3-line',
+    category: 'Financial',
+    healthCheck: '/api/health',
+    routes: [
       {
-        path: '/budget-management/budgetAllocation',
-        name: 'Budget Allocation',
-        description: 'Allocate budgets to departments'
-      },
-      {
-        path: '/budget-management/budgetApproval',
-        name: 'Budget Approval',
-        description: 'Approve budget requests'
+        path: '/purchase-request/purchaseRequest',
+        name: 'Purchase Request',
+        description: 'Manage purchase requests'
       }
     ]
   }
