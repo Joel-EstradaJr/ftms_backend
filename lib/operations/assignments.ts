@@ -47,10 +47,6 @@ type RawAssignment = {
 // Use NEXT_PUBLIC_ prefix for client-side access, fallback to server-side variable
 const OP_API_BUSTRIP_URL = process.env.NEXT_PUBLIC_OP_API_BUSTRIP_URL || process.env.OP_API_BUSTRIP_URL;
 
-if (!OP_API_BUSTRIP_URL) {
-  throw new Error('OP_API_BUSTRIP_URL or NEXT_PUBLIC_OP_API_BUSTRIP_URL environment variable is required');
-}
-
 // Fetch all assignments from Operations API (client-side uses API route)
 export async function getAllAssignments(): Promise<Assignment[]> {
   try {
@@ -191,17 +187,38 @@ export async function fetchAssignmentsFromOperationsAPI(): Promise<Assignment[]>
 // Get assignment by ID
 export async function getAssignmentById(id: string): Promise<Assignment | null> {
   try {
-    const isServerSide = typeof window === 'undefined' && process.env.OP_API_BUSTRIP_URL;
+    const isServerSide = typeof window === 'undefined';
     if (isServerSide) {
-      const assignments = await fetchAssignmentsFromOperationsAPI();
-      const assignment = assignments.find(assignment => assignment.assignment_id === id);
-      return assignment || null;
-    } else {
-      // Client-side: use local API route
-      const assignments = await getAllAssignments();
-      const assignment = assignments.find(assignment => assignment.assignment_id === id);
-      return assignment || null;
+      // Prefer cache on server
+      const prismaAny = (await import('@/lib/prisma')).prisma as any;
+      const row = await prismaAny.busTripCache.findUnique({ where: { assignment_id: id } });
+      if (row) {
+        return {
+          assignment_id: row.assignment_id,
+          bus_trip_id: row.bus_trip_id,
+          bus_route: row.bus_route,
+          is_revenue_recorded: Boolean((row as any).is_revenue_recorded),
+          is_expense_recorded: Boolean((row as any).is_expense_recorded),
+          date_assigned: (row as any).date_assigned?.toISOString?.() ?? (row as any).date_assigned,
+          trip_fuel_expense: Number((row as any).trip_fuel_expense) || 0,
+          trip_revenue: Number((row as any).trip_revenue) || 0,
+          assignment_type: (row as any).assignment_type,
+          assignment_value: Number((row as any).assignment_value) || 0,
+          payment_method: (row as any).payment_method || '',
+          driver_name: (row as any).driver_name || null,
+          conductor_name: (row as any).conductor_name || null,
+          bus_plate_number: (row as any).bus_plate_number || null,
+          bus_type: (row as any).bus_type || null,
+          body_number: (row as any).body_number || null,
+        };
+      }
+      // Do not call external Operations API here; enforce cache-only on server
+      return null;
     }
+    // Client-side: use local API route (served from cache)
+    const assignments = await getAllAssignments();
+    const assignment = assignments.find(assignment => assignment.assignment_id === id);
+    return assignment || null;
   } catch (error) {
     console.error('Error fetching assignment by ID:', error);
     return null;

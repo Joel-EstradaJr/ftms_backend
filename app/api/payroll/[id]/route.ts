@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const payroll_id = params.id;
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: payroll_id } = await params;
   if (!payroll_id) {
     return NextResponse.json({ success: false, error: 'Missing payroll_id' }, { status: 400 });
   }

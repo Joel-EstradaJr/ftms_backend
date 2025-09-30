@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 
-const HR_API_PAYROLL_URL = process.env.HR_API_PAYROLL_URL;
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -14,16 +12,49 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required params' }, { status: 400 });
     }
 
-    // Fetch all HR payroll data for the date range
-    const hrRes = await fetch(`${HR_API_PAYROLL_URL}?start=${start}&end=${end}`);
-    if (!hrRes.ok) {
-      return NextResponse.json({ success: false, error: 'Failed to fetch HR data' }, { status: 500 });
-    }
-    const hrEmployees: unknown[] = await hrRes.json();
+    // Read employees from local cache (PayrollCache) instead of calling external HR API
+    // Note: start/end are accepted for interface compatibility but not used to filter cache rows here
+    const cached = await (prisma as any).payrollCache.findMany({
+      select: {
+        employee_number: true,
+        first_name: true,
+        middle_name: true,
+        last_name: true,
+        suffix: true,
+        employee_status: true,
+        hire_date: true,
+        termination_date: true,
+        basic_rate: true,
+        position_name: true,
+        department_name: true,
+        attendances: true,
+        benefits: true,
+        deductions: true,
+      },
+    });
+    const hrEmployees: any[] = cached.map((row: any) => ({
+      employeeNumber: row.employee_number,
+      firstName: row.first_name,
+      middleName: row.middle_name,
+      lastName: row.last_name,
+      suffix: row.suffix,
+      employeeStatus: row.employee_status,
+      hiredate: row.hire_date,
+      terminationDate: row.termination_date,
+      basicRate: Number(row.basic_rate) || 0,
+      position: { positionName: row.position_name, department: { departmentName: row.department_name } },
+      attendances: row.attendances,
+      benefits: row.benefits,
+      deductions: row.deductions,
+    }));
 
     // Get payroll frequency config for all employees
-    const configs: Array<{employee_number: string; payroll_period: string}> = await prisma.payrollFrequencyConfig.findMany();
-    const configMap = new Map(configs.map(cfg => [cfg.employee_number, cfg.payroll_period.toLowerCase()]));
+    const configs = await prisma.payrollFrequencyConfig.findMany({
+      select: { employee_number: true, payroll_frequency: true },
+    });
+    const configMap = new Map(
+      configs.map((cfg) => [cfg.employee_number, String(cfg.payroll_frequency).toLowerCase()])
+    );
 
     // Filter employees by payroll period
     const eligible = hrEmployees.filter((emp) => {

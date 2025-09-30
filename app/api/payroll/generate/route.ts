@@ -18,12 +18,19 @@ interface Benefit {
   benefitType: BenefitType;
   value: string | number;
   frequency: string;
+  effectiveDate?: string;
+  endDate?: string | null;
+  isActive?: boolean;
 }
 
 interface Deduction {
   deductionType: DeductionType;
   value: string | number;
   frequency: string;
+  type?: string;
+  effectiveDate?: string;
+  endDate?: string | null;
+  isActive?: boolean;
 }
 
 interface Position {
@@ -41,7 +48,7 @@ interface HREmployee {
   suffix?: string;
   employeeStatus: string;
   hiredate: string;
-  terminationDate?: string;
+  terminationDate?: string | null;
   position?: Position;
   basicRate: string;
   attendances?: Attendance[];
@@ -115,6 +122,13 @@ function getProratedAmount(item: ProrationItem, payrollPeriod: string, daysWorke
   }
   // Add more rules as needed
   return value; // Default to full value if no proration rule matches
+}
+
+function toFrequencyEnum(val: string): 'WEEKLY' | 'SEMI_MONTHLY' | 'MONTHLY' {
+  const v = val.toLowerCase();
+  if (v === 'weekly') return 'WEEKLY';
+  if (v === 'semi-monthly' || v === 'semi_monthly' || v === 'semimonthly') return 'SEMI_MONTHLY';
+  return 'MONTHLY';
 }
 
 type OverlapRecord = {
@@ -372,9 +386,9 @@ export async function POST(req: NextRequest) {
     // Get HR data directly from mock function
     const hrData: HREmployee[] = getMockHREmployees();
 
-    // Get payroll frequency config for all employees
-    const configs: Array<{employee_number: string; payroll_period: string}> = await prisma.payrollFrequencyConfig.findMany();
-    const configMap = new Map(configs.map(cfg => [cfg.employee_number, cfg.payroll_period.toLowerCase()]));
+  // Get payroll frequency config for all employees
+  const configs = await prisma.payrollFrequencyConfig.findMany({ select: { employee_number: true, payroll_frequency: true } });
+  const configMap = new Map(configs.map(cfg => [cfg.employee_number, String(cfg.payroll_frequency).toLowerCase()]));
 
     // Filter employees by payroll period and active status
     const eligibleEmployees = hrData.filter((emp) => {
@@ -481,6 +495,10 @@ export async function POST(req: NextRequest) {
       const netPay = grossTotalEarnings - totalDeductions;
       // Calculation notes
       const calculationNotes = `Payroll period: ${payrollPeriod}. Days worked: ${daysWorked}. Daily rate: ${dailyRate.toFixed(2)}. Proration applied for benefits/deductions as needed.`;
+      // Resolve global FKs for period and status
+      const gf = await (prisma as any).globalFrequency.findFirst({ where: { name: { equals: payrollPeriod, mode: 'insensitive' }, is_deleted: false } });
+      const gs = await (prisma as any).globalPayrollStatus.findFirst({ where: { name: { equals: 'Pending', mode: 'insensitive' }, is_deleted: false } });
+
       // Insert PayrollRecord
       const payrollRecord = await prisma.payrollRecord.create({
         data: {
@@ -493,10 +511,12 @@ export async function POST(req: NextRequest) {
           suffix: emp.suffix || null,
           employee_status: emp.employeeStatus,
           hire_date: new Date(emp.hiredate),
-          termination_date: emp.terminationDate ? new Date(emp.terminationDate) : null,
+          termination_date: emp.terminationDate ? new Date(emp.terminationDate) : undefined,
           job_title: emp.position?.positionName || '-',
           department: emp.position?.department?.departmentName || '-',
-          payroll_period: payrollPeriod,
+          payroll_period: toFrequencyEnum(payrollPeriod),
+          // Connect to global frequency if available
+          ...(gf?.id ? { payrollPeriod: { connect: { id: gf.id } } } : {}),
           payroll_start_date: startDate,
           payroll_end_date: endDate,
           basic_rate: basicRate,
@@ -519,7 +539,9 @@ export async function POST(req: NextRequest) {
           gross_total_earnings: grossTotalEarnings,
           total_deductions: totalDeductions,
           net_pay: netPay,
-          status: 'Pending',
+          status: 'PENDING',
+          // Connect to global payroll status if available
+          ...(gs?.id ? { payrollStatus: { connect: { id: gs.id } } } : {}),
           date_released: null,
           created_by: 'system', // TODO: Use actual user if available
           hr_data_snapshot: emp as any,

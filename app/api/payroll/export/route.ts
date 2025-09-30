@@ -77,13 +77,13 @@ export async function POST(req: NextRequest) {
     });
 
     // Auto width
-    worksheet.columns.forEach(col => {
+    (worksheet.columns ?? []).forEach((col) => {
       let maxLength = 10;
-      col.eachCell({ includeEmpty: true }, cell => {
+      col?.eachCell?.({ includeEmpty: true }, (cell) => {
         const val = cell.value ? cell.value.toString() : '';
         if (val.length > maxLength) maxLength = val.length;
       });
-      col.width = maxLength + 2;
+      if (col) col.width = maxLength + 2;
     });
 
     // Prepare buffer

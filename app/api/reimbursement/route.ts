@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status');
     const where: Record<string, unknown> = { is_deleted: false };
   if (status) where.status = status as any;
-    const reimbursements = await prisma.reimbursement.findMany({
+    const reimbursements = await (prisma as any).reimbursement.findMany({
       where,
       include: {
         expense: {
@@ -19,15 +19,17 @@ export async function GET(req: NextRequest) {
             payment_method: true,
             source: true,
           }
-        }
+        },
+        // include FK relation for friendly name if present (migration phase)
+        reimbursement_status: true,
       },
       orderBy: { requested_date: 'asc' }
     });
   const mapped = (reimbursements as any[]).map((r: any) => ({
     ...r,
-    // Map enum status to legacy shape for frontend compatibility
-    status: { id: r.status, name: r.status },
-    status_name: r.status,
+    // Prefer FK-based friendly name; fall back to enum string during transition
+    status: { id: r.status, name: r.reimbursement_status?.name ?? r.status },
+    status_name: r.reimbursement_status?.name ?? r.status,
     // Map date fields to match frontend expectations
     submitted_date: r.requested_date,
     // Convert Decimal to number for frontend
@@ -83,6 +85,11 @@ export async function PATCH(req: NextRequest) {
 
   const currentStatus = (reimbursement as any).status as string;
     const updateData: Record<string, unknown> = { updated_at: new Date(), updated_by: performed_by };
+    // Helper to map enum status to global FK id
+    const getReimbStatusId = async (name: string) => {
+      const row = await (prisma as any).globalReimbursementStatus.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, is_deleted: false } });
+      return row?.id ?? null;
+    };
     let auditAction = '';
     let auditDetails = '';
 
@@ -96,6 +103,8 @@ export async function PATCH(req: NextRequest) {
   updateData.status = 'APPROVED';
       updateData.approved_by = performed_by;
       updateData.approved_date = new Date();
+      // maintain FK
+      updateData.reimbursement_status_id = await getReimbStatusId('Approved');
       auditAction = 'APPROVE';
       auditDetails = 'Reimbursement approved.';
     } else if (action === 'PAY') {
@@ -106,9 +115,11 @@ export async function PATCH(req: NextRequest) {
         }, { status: 400 });
       }
   updateData.status = 'PAID';
-      updateData.paid_by = performed_by;
+  updateData.paid_by = performed_by;
       updateData.paid_date = new Date();
       updateData.payment_reference = payment_reference;
+  // maintain FK
+  updateData.reimbursement_status_id = await getReimbStatusId('Paid');
       // Map payment method name to id if provided
       if (payment_method) {
         const pmName = (payment_method as string).trim();
@@ -141,6 +152,8 @@ export async function PATCH(req: NextRequest) {
       updateData.rejection_reason = rejection_reason;
       updateData.approved_by = performed_by;
       updateData.approved_date = new Date();
+      // maintain FK
+      updateData.reimbursement_status_id = await getReimbStatusId('Rejected');
       auditAction = 'REJECT';
       auditDetails = `Reimbursement rejected. Reason: ${rejection_reason}`;
     } else if (action === 'CANCEL') {
@@ -151,8 +164,10 @@ export async function PATCH(req: NextRequest) {
         }, { status: 400 });
       }
   updateData.status = 'CANCELLED';
-      updateData.cancelled_by = performed_by;
+  updateData.cancelled_by = performed_by;
       updateData.cancelled_date = new Date();
+  // maintain FK
+  updateData.reimbursement_status_id = await getReimbStatusId('Cancelled');
       auditAction = 'CANCEL';
       auditDetails = 'Reimbursement cancelled.';
     } else {
