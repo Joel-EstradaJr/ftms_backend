@@ -1,4 +1,5 @@
-import "../styles/components/loading.css"
+//@ts-ignore
+import "../styles/components/loading.css";
 
 export default function Loading() {
     return (

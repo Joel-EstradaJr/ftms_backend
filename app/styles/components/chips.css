@@ -103,3 +103,46 @@
     background-color: #F5F5F5;
     color: #616161;
 }
+
+/* Purchase Request Status Chips */
+.chip.completed {
+    background-color: var(--success-chip-bg-color);
+    color: var(--success-chip-text-color);
+}
+
+.chip.partially-completed {
+    background-color: var(--warning-chip-bg-color);
+    color: var(--warning-chip-text-color);
+}
+
+.chip.cancelled {
+    background-color: var(--error-chip-bg-color);
+    color: var(--error-chip-text-color);
+}
+
+.chip.refund-processing {
+    background-color: #e91e63;
+    color: white;
+}
+
+/* Purchase Request Status Chips - Missing ones */
+.chip.approved {
+    background-color: var(--success-chip-bg-color);
+    color: var(--success-chip-text-color);
+}
+
+.chip.rejected {
+    background-color: var(--error-chip-bg-color);
+    color: var(--error-chip-text-color);
+}
+
+/* Request Type Chips */
+.chip.normal {
+    background-color: var(--info-chip-bg-color);
+    color: var(--info-chip-text-color);
+}
+
+.chip.urgent {
+    background-color: #ff5722;
+    color: white;
+}

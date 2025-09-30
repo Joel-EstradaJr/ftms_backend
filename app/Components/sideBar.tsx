@@ -1,4 +1,3 @@
-// app\Components\sideBar.tsx
 "use client";
 
 import Link from "next/link";
@@ -9,51 +8,53 @@ import { MICROSERVICES } from '../config/microservices';
 // @ts-ignore
 import "../styles/components/sidebar.css";
 
-const routeToItem: { [key: string]: string } = {
-  "/dashboard": "dashboard",
-  "/revenue": "revenue",
-  "/expense": "expense",
-  "/audit": "audit",
-  "/report": "report",
-  "/reimbursement": "reimbursement",
-  "/JEV": "JEV",
-  "/financial-management/payroll": "payroll",
-  "/microservice/budget-request-management": "budget-request",
-};
-
-const expenseSubItems = [
-  "/expense",
-  "/reimbursement",
-];
-
 const Sidebar: React.FC = () => {
   const pathname = usePathname();
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
 
-      const staticRoutes: { [key: string]: string } = {
-      "/dashboard": "dashboard",
-      "/revenue": "revenue",
-      "/expense": "expense",
-      "/budget-management": "budget-management",
-      "/audit": "audit",
-      "/report": "report",
-      "/reimbursement": "reimbursement",
-      "/JEV": "JEV",
-      "/financial-management/payroll": "payroll",
-    };
+  const staticRoutes: { [key: string]: string } = {
+    "/dashboard": "dashboard",
+    "/revenue": "revenue",
+    "/expense": "expense",
+    "/reimbursement": "reimbursement",
+    "/financial-management/payroll": "payroll",
+    "/purchase-request-approval": "purchaseApproval", // Added missing route
+    "/report": "report",
+    "/JEV": "JEV",
+    "/audit": "audit",
+    // Budget Management routes
+    "/budget-management/budgetAllocation": "budgetAllocation",
+    "/budget-management/budgetApproval": "budgetApproval",
+  };
 
-   useEffect(() => {
+  useEffect(() => {
     // Check static routes first
     const staticMatch = staticRoutes[pathname];
     if (staticMatch) {
       setActiveItem(staticMatch);
+      
+      // Auto-open relevant submenus based on active item
+      if (["expense", "reimbursement"].includes(staticMatch)) {
+        setOpenSubMenu("expense-management");
+      } else if (["budget-request", "budgetAllocation", "budgetApproval"].includes(staticMatch)) {
+        setOpenSubMenu("budget-management");
+      } else if (["purchase-request", "purchaseApproval"].includes(staticMatch)) {
+        setOpenSubMenu("purchase-management");
+      }
       return;
     }
 
     // Check microservice routes
     if (pathname.startsWith('/microservice/budget-request-management')) {
       setActiveItem('budget-request');
+      setOpenSubMenu("budget-management");
+      return;
+    }
+
+    if (pathname.startsWith('/microservice/purchase-request')) {
+      setActiveItem('purchase-request');
+      setOpenSubMenu("purchase-management");
       return;
     }
 
@@ -61,28 +62,23 @@ const Sidebar: React.FC = () => {
     for (const service of MICROSERVICES) {
       if (pathname.startsWith(`/microservice/${service.id}`)) {
         setActiveItem(service.id);
+        // Auto-open relevant submenu based on service category
+        if (service.category === 'Financial') {
+          setOpenSubMenu("budget-management");
+        } else if (service.category === 'Purchase') {
+          setOpenSubMenu("purchase-management");
+        }
         return;
       }
     }
+
+    // Reset if no match found
+    setActiveItem(null);
   }, [pathname]);
 
   const toggleSubMenu = (id: string) => {
     setOpenSubMenu((prev) => (prev === id ? null : id));
   };
-
-  // Group microservices by category
-  const servicesByCategory = MICROSERVICES.reduce((acc, service) => {
-    const categoryKey = service.category.toLowerCase().replace(' ', '-');
-    if (!acc[categoryKey]) {
-      acc[categoryKey] = {
-        name: service.category,
-        services: []
-      };
-    }
-    acc[categoryKey].services.push(service);
-    return acc;
-  }, {} as Record<string, { name: string; services: typeof MICROSERVICES }>);
-
 
   return (
     <div className="sidebar shadow-lg" id="sidebar">
@@ -131,31 +127,33 @@ const Sidebar: React.FC = () => {
               <Link
                 href="/expense"
                 className={`sub-item ${activeItem === "expense" ? "active" : ""}`}
+                onClick={() => setActiveItem("expense")}
               >
                 Expenses
               </Link>
               <Link
                 href="/reimbursement"
                 className={`sub-item ${activeItem === "reimbursement" ? "active" : ""}`}
+                onClick={() => setActiveItem("reimbursement")}
               >
                 Reimbursements
               </Link>
             </div>
           )}
 
-          { <Link
+          <Link
             href="/financial-management/payroll"
             className={`nav-item ${activeItem === "payroll" ? "active" : ""}`}
             onClick={() => setActiveItem("payroll")}
           >
             <i className="ri-group-line" />
             <span>Payroll</span>
-          </Link> }
+          </Link>
 
-          {/* Budget Management and Submenu */}
+          {/* Budget Management Submenu */}
           <div
             className={`nav-item module ${
-              ["budget-request", "budgetAllocation","budgetApproval"].includes(activeItem!) ? "active" : ""
+              ["budget-request", "budgetAllocation", "budgetApproval"].includes(activeItem!) ? "active" : ""
             }`}
             onClick={() => toggleSubMenu("budget-management")}
           >
@@ -180,27 +178,28 @@ const Sidebar: React.FC = () => {
               <Link
                 href="/budget-management/budgetAllocation"
                 className={`sub-item ${activeItem === "budgetAllocation" ? "active" : ""}`}
+                onClick={() => setActiveItem("budgetAllocation")}
               >
                 Budget Allocation
               </Link>
               <Link
                 href="/budget-management/budgetApproval"
                 className={`sub-item ${activeItem === "budgetApproval" ? "active" : ""}`}
+                onClick={() => setActiveItem("budgetApproval")}
               >
                 Budget Approval
               </Link>
             </div>
           )}
- 
 
-          {/* Purchase Request and Submenu */}
+          {/* Purchase Management Submenu */}
           <div
             className={`nav-item module ${
               ["purchase-request", "purchaseApproval"].includes(activeItem!) ? "active" : ""
             }`}
             onClick={() => toggleSubMenu("purchase-management")}
           >
-            < i className="ri-store-2-line" />
+            <i className="ri-store-2-line" />
             <span>Purchase Management</span>
             <i
               className={`dropdown-arrow ri-arrow-down-s-line ${
@@ -218,18 +217,16 @@ const Sidebar: React.FC = () => {
               >
                 <span>Purchase Request 'microservice'</span>
               </Link>
-    
               <Link
-                href="/budget-management/budgetApproval"
+                href="/purchase-request-approval"
                 className={`sub-item ${activeItem === "purchaseApproval" ? "active" : ""}`}
+                onClick={() => setActiveItem("purchaseApproval")}
               >
                 Purchase Approval
               </Link>
             </div>
           )}
 
-
-          { 
           <Link
             href="/report"
             className={`nav-item ${activeItem === "report" ? "active" : ""}`}
@@ -238,7 +235,6 @@ const Sidebar: React.FC = () => {
             <i className="ri-file-chart-line" />
             <span>Financial Reports</span>
           </Link>
-          }
 
           <Link
             href="/JEV"

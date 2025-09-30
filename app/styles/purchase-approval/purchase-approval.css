@@ -1,0 +1,224 @@
+/* ============================================================
+   purchase-approval.css – Main Purchase Request Approval Page Styling
+   ============================================================ */
+
+/* ---------- Page Layout ---------- */
+.purchase-approval-container {
+  padding: 1rem;
+  background: var(--background-color);
+  min-height: 100vh;
+}
+
+.purchase-approval-header {
+  background: var(--foreground-color);
+  padding: 2rem;
+  border-radius: var(--border-radius);
+  margin-bottom: 1rem;
+  box-shadow: var(--box-shadow);
+}
+
+.purchase-approval-content {
+  background: var(--foreground-color);
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+}
+
+/* ---------- Status Badges ---------- */
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.status-approved {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.status-refund-requested {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #6366f1;
+}
+
+.status-completed {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #9ca3af;
+}
+
+/* ---------- Action Buttons ---------- */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action-buttons button {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 80px;
+  justify-content: center;
+}
+
+.viewBtn {
+  background: var(--info-color);
+  color: white;
+}
+
+.viewBtn:hover {
+  background: var(--info-hover-color);
+  transform: translateY(-1px);
+}
+
+.editBtn {
+  background: var(--primary-color);
+  color: var(--button-font-color);
+}
+
+.editBtn:hover {
+  background: var(--primary-hover-color);
+  transform: translateY(-1px);
+}
+
+.deleteBtn {
+  background: var(--error-color);
+  color: white;
+}
+
+.deleteBtn:hover {
+  background: var(--error-hover-color);
+  transform: translateY(-1px);
+}
+
+/* ---------- Filters and Search ---------- */
+.filters-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 250px;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--input-background-color);
+  color: var(--primary-text-color);
+}
+
+.filter-select {
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--input-background-color);
+  color: var(--primary-text-color);
+  min-width: 150px;
+}
+
+/* ---------- Export Button ---------- */
+.export-button {
+  background: var(--success-color);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.export-button:hover {
+  background: var(--success-hover-color);
+  transform: translateY(-1px);
+}
+
+/* ---------- Table Styling ---------- */
+.approval-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.approval-table th,
+.approval-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.approval-table th {
+  background: var(--table-header-background);
+  font-weight: 600;
+  color: var(--table-header-text-color);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.approval-table tbody tr:hover {
+  background: var(--table-hover-background);
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 768px) {
+  .filters-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .search-input,
+  .filter-select {
+    min-width: unset;
+  }
+  
+  .action-buttons {
+    justify-content: center;
+  }
+  
+  .approval-table {
+    font-size: 0.875rem;
+  }
+  
+  .approval-table th,
+  .approval-table td {
+    padding: 0.5rem;
+  }
+}

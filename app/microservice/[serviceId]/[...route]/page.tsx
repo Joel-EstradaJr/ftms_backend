@@ -4,8 +4,11 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MicroserviceConfig } from '../../../types/microservices';
 import { MICROSERVICES } from '../../../config/microservices';
+import Loading from '../../../Components/loading'
 // @ts-ignore
 import '../../../styles/general/microservices.css';
+// @ts-ignore
+import '../../../styles/general/index.css';
 
 export default function MicroservicePage() {
   const params = useParams();
@@ -50,45 +53,50 @@ export default function MicroservicePage() {
 
   if (!microservice) {
     return (
-      <div className="microservice-error">
-        <div className="error-icon">❌</div>
-        <h3>Microservice Not Found</h3>
-        <p>The microservice "{serviceId}" is not configured in the system.</p>
+      <div className='card'>
+        <div className="microservice-error">
+          <div className="error-icon">❌</div>
+          <h3>Microservice Not Found</h3>
+          <p>The microservice "{serviceId}" is not configured in the system.</p>
+        </div>
       </div>
+      
     );
   }
 
   if (isLoading) {
     return (
-      <div className="microservice-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading {microservice.name}...</p>
+      <div className="card">
+        <h1 className="title">{microservice.name}</h1>
+        <Loading />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="microservice-error">
-        <div className="error-icon">⚠️</div>
-        <h3>Service Unavailable</h3>
-        <p>{error}</p>
-        <div className="error-instructions">
-          <p><strong>To start the {microservice.name} microservice:</strong></p>
-          <ol>
-            <li>Open a new terminal</li>
-            <li>Navigate to the {microservice.name} folder</li>
-            <li>Run: <code>npm run dev</code></li>
-            <li>Wait for it to start on port {microservice.port}</li>
-            <li>Then click the retry button below</li>
-          </ol>
+      <div className='card'>
+        <div className="microservice-error">
+          <div className="error-icon">⚠️</div>
+          <h3>Service Unavailable</h3>
+          <p>{error}</p>
+          <div className="error-instructions">
+            <p><strong>To start the {microservice.name} microservice:</strong></p>
+            <ol>
+              <li>Open a new terminal</li>
+              <li>Navigate to the {microservice.name} folder</li>
+              <li>Run: <code>npm run dev</code></li>
+              <li>Wait for it to start on port {microservice.port}</li>
+              <li>Then click the retry button below</li>
+            </ol>
+          </div>
+          <button 
+            onClick={() => checkMicroserviceHealth(microservice)}
+            className="retry-button"
+          >
+            Retry Connection
+          </button>
         </div>
-        <button 
-          onClick={() => checkMicroserviceHealth(microservice)}
-          className="retry-button"
-        >
-          Retry Connection
-        </button>
       </div>
     );
   }
@@ -97,6 +105,7 @@ export default function MicroservicePage() {
   const iframeUrl = `${microservice.url}/${route}`;
 
   return (
+    
     <div className="microservice-container">
       <iframe
         src={iframeUrl}

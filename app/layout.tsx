@@ -1,6 +1,7 @@
 'use client';
-
+//@ts-ignore
 import "./globals.css";
+//@ts-ignore
 import './styles/general/index.css';
 import SideBar from "./Components/sideBar";
 import TopBar from './Components/topBar';
@@ -39,11 +40,8 @@ export default function RootLayout({children,}: Readonly<{children: React.ReactN
                   {children}
               </div>
           </div>
-
         </div>
       </body>
-
-
     </html>
   );
 }

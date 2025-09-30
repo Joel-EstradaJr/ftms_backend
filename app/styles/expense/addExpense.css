@@ -397,3 +397,26 @@
   color: #dc2626;
   font-size: 0.875rem;
 }
+
+/* ---------- Additional Form Classes ---------- */
+.formInput {
+  width: 100% !important;
+  padding: 0.5rem 0.75rem !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 4px !important;
+  font-family: var(--font-sans) !important;
+  background-color: var(--modal-input-select-background-color);
+  box-shadow: var(--box-shadow) !important;
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.input-error {
+  border: 1px solid #dc2626 !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1) !important;
+}

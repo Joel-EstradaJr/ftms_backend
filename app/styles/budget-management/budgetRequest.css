@@ -233,6 +233,53 @@ button {
   font-size: 16px !important;
 }
 
+/* ---------- Action Buttons ---------- */
+.action-buttons {
+  display: flex !important;
+  gap: 5px !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.action-buttons button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 4px !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.viewBtn {
+  background-color: var(--info-color, #17a2b8) !important;
+  color: white !important;
+}
+
+.viewBtn:hover {
+  background-color: var(--info-hover-color, #138496) !important;
+}
+
+.editBtn {
+  background-color: var(--warning-color, #ffc107) !important;
+  color: white !important;
+}
+
+.editBtn:hover {
+  background-color: var(--warning-hover-color, #e0a800) !important;
+}
+
+.deleteBtn {
+  background-color: var(--danger-color, #dc3545) !important;
+  color: white !important;
+}
+
+.deleteBtn:hover {
+  background-color: var(--danger-hover-color, #c82333) !important;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .budgetRequestPage {
@@ -262,5 +309,9 @@ button {
   
   .amount-cell {
     text-align: center !important;
+  }
+  
+  .action-buttons {
+    flex-wrap: wrap !important;
   }
 }

@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+//@ts-ignore
 import "../../styles/expense/expense.css";
+
+//@ts-ignore
 import "../../styles/components/table.css";
 import PaginationComponent from "../../Components/pagination";
 import AddExpense from "./addExpense"; 

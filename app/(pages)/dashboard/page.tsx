@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import PieChart from "../../Components/pieChart";
 import ExportConfirmationModal from "../../Components/ExportConfirmationModal";
+//@ts-ignore
 import "../../styles/dashboard/dashboard.css";
 import { logAuditToServer } from "../../lib/clientAuditLogger";
 import Loading from '../../Components/loading';
