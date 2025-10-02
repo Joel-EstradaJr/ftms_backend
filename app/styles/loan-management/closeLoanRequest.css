@@ -1,0 +1,693 @@
+/* ============================================================
+   closeLoanRequest.css – Close Loan Request Modal Styling
+   ============================================================ */
+
+@import '../components/modal.css';
+
+/* ---------- Close Loan Specific Styling ---------- */
+.closeLoanModal {
+  max-width: 1200px !important;
+}
+
+.closeLoanContent {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.5rem !important;
+}
+
+/* ---------- Loan Summary Header ---------- */
+.loan-summary-header {
+  background: linear-gradient(135deg, #991b1b, #dc2626) !important;
+  color: white !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  gap: 2rem !important;
+}
+
+.summary-left h3 {
+  margin: 0 0 0.5rem 0 !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+}
+
+.summary-left p {
+  margin: 0 0 0.75rem 0 !important;
+  opacity: 0.9 !important;
+  font-size: 1rem !important;
+}
+
+.loan-type {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  padding: 0.25rem 0.75rem !important;
+  border-radius: 12px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.amount-summary {
+  text-align: right !important;
+  min-width: 300px !important;
+}
+
+.amount-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.5rem 0 !important;
+  gap: 2rem !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.amount-row:last-child {
+  border-bottom: none !important;
+}
+
+.amount-row.balance {
+  border-top: 2px solid rgba(255, 255, 255, 0.3) !important;
+  padding-top: 0.75rem !important;
+  margin-top: 0.5rem !important;
+}
+
+.amount-label {
+  font-size: 0.9rem !important;
+  opacity: 0.9 !important;
+}
+
+.amount-value {
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+}
+
+.amount-value.paid {
+  color: #10b981 !important;
+  font-weight: 700 !important;
+}
+
+.amount-row.balance .amount-value {
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+  color: #fbbf24 !important;
+}
+
+/* ---------- Loan Details Section ---------- */
+.loan-details-section {
+  background-color: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+}
+
+.loan-details-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.details-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+  gap: 1rem !important;
+}
+
+.detail-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.75rem !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.detail-label {
+  font-weight: 500 !important;
+  color: var(--secondary-text-color) !important;
+  font-size: 0.9rem !important;
+}
+
+.detail-value {
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+}
+
+/* ---------- Payment History Section ---------- */
+.payment-history-section {
+  background-color: white !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+}
+
+.payment-history-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.payment-table {
+  border: 1px solid #e9ecef !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+}
+
+.table-header {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr !important;
+  background-color: #f8f9fa !important;
+  border-bottom: 1px solid #e9ecef !important;
+}
+
+.header-cell {
+  padding: 0.75rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+  font-size: 0.9rem !important;
+  border-right: 1px solid #e9ecef !important;
+}
+
+.header-cell:last-child {
+  border-right: none !important;
+}
+
+.table-body {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.table-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr !important;
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+
+.table-row:last-child {
+  border-bottom: none !important;
+}
+
+.table-cell {
+  padding: 0.75rem !important;
+  font-size: 0.9rem !important;
+  color: var(--primary-text-color) !important;
+  border-right: 1px solid #f3f4f6 !important;
+}
+
+.table-cell:last-child {
+  border-right: none !important;
+}
+
+.table-footer {
+  padding: 0.75rem !important;
+  background-color: #f8f9fa !important;
+  text-align: center !important;
+  color: var(--secondary-text-color) !important;
+  font-size: 0.85rem !important;
+  font-style: italic !important;
+  border-top: 1px solid #e9ecef !important;
+}
+
+/* ---------- Closure Form Section ---------- */
+.closure-form-section {
+  background-color: #fef2f2 !important;
+  border: 1px solid #f87171 !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+}
+
+.closure-form-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: #dc2626 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.form-row {
+  display: flex !important;
+  gap: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.form-field {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.form-field label {
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--primary-text-color) !important;
+}
+
+.required {
+  color: #dc3545 !important;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  padding: 0.5rem 0.75rem !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px !important;
+  font-size: 0.9rem !important;
+  background-color: white !important;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: none !important;
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px rgba(150, 28, 30, 0.1) !important;
+}
+
+.input-error {
+  border-color: #dc3545 !important;
+}
+
+.error-message {
+  color: #dc3545 !important;
+  font-size: 0.8rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.field-help {
+  color: var(--secondary-text-color) !important;
+  font-size: 0.8rem !important;
+  margin-top: 0.25rem !important;
+  font-style: italic !important;
+}
+
+/* ---------- Adjustments Section ---------- */
+.adjustments-section {
+  background-color: #fffbeb !important;
+  border: 1px solid #fbbf24 !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.adjustments-section h5 {
+  margin: 0 0 0.75rem 0 !important;
+  color: #92400e !important;
+  font-size: 1rem !important;
+}
+
+/* ---------- Closure Summary ---------- */
+.closure-summary {
+  background-color: #f0fdf4 !important;
+  border: 1px solid #22c55e !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.closure-summary h4 {
+  margin: 0 0 1rem 0 !important;
+  color: #166534 !important;
+  text-align: center !important;
+}
+
+.summary-calculations {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.calc-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.5rem 0 !important;
+  border-bottom: 1px solid #d1fae5 !important;
+}
+
+.calc-row:last-child {
+  border-bottom: none !important;
+}
+
+.calc-row.total {
+  border-top: 2px solid #22c55e !important;
+  padding-top: 0.75rem !important;
+  margin-top: 0.5rem !important;
+  font-weight: 700 !important;
+  font-size: 1.1rem !important;
+}
+
+.calc-row.penalty .calc-label,
+.calc-row.penalty .calc-value {
+  color: #dc2626 !important;
+}
+
+.calc-row.waiver .calc-label,
+.calc-row.waiver .calc-value {
+  color: #16a34a !important;
+}
+
+.calc-row.payment .calc-label,
+.calc-row.payment .calc-value {
+  color: #3b82f6 !important;
+  font-weight: 600 !important;
+}
+
+.calc-label {
+  font-weight: 500 !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.calc-value {
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+}
+
+.closure-type-badge {
+  text-align: center !important;
+  padding: 0.75rem !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.closure-type-badge.success {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  border: 1px solid #22c55e !important;
+}
+
+.closure-type-badge.info {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+  border: 1px solid #3b82f6 !important;
+}
+
+.closure-type-badge.warning {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border: 1px solid #fbbf24 !important;
+}
+
+.closure-type-badge.secondary {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  border: 1px solid #6b7280 !important;
+}
+
+/* ---------- Closure Info Section (Read-only) ---------- */
+.closure-info-section {
+  background-color: #f0fdf4 !important;
+  border: 1px solid #22c55e !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+}
+
+.closure-info-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: #166534 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.closure-info-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+  gap: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.info-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.75rem !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  border: 1px solid #d1fae5 !important;
+}
+
+.info-label {
+  font-weight: 500 !important;
+  color: var(--secondary-text-color) !important;
+  font-size: 0.9rem !important;
+}
+
+.info-value {
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+}
+
+.closure-notes {
+  margin-top: 1rem !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid #d1fae5 !important;
+}
+
+.closure-notes h5 {
+  margin: 0 0 0.5rem 0 !important;
+  color: #166534 !important;
+}
+
+.closure-notes p {
+  margin: 0 !important;
+  padding: 1rem !important;
+  background-color: white !important;
+  border-left: 4px solid #22c55e !important;
+  border-radius: 4px !important;
+  line-height: 1.5 !important;
+  color: var(--primary-text-color) !important;
+}
+
+/* ---------- Close Loan Button ---------- */
+.closeLoanButton {
+  background-color: #dc2626 !important;
+  color: white !important;
+  padding: 0.75rem 1.5rem !important;
+  border: none !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  font-size: 1rem !important;
+}
+
+.closeLoanButton:hover {
+  background-color: #b91c1c !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3) !important;
+}
+
+.closeLoanButton:disabled {
+  background-color: #6b7280 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ---------- Confirmation Modal ---------- */
+.confirmation-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 1100 !important;
+}
+
+.confirmation-modal {
+  background-color: white !important;
+  border-radius: 8px !important;
+  padding: 2rem !important;
+  max-width: 500px !important;
+  width: 90% !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+.confirmation-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.confirmation-header h3 {
+  margin: 0 !important;
+  color: #dc2626 !important;
+  font-size: 1.25rem !important;
+}
+
+.confirmation-icon {
+  font-size: 1.5rem !important;
+  color: #fbbf24 !important;
+}
+
+.confirmation-content p {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-text-color) !important;
+  line-height: 1.5 !important;
+}
+
+.confirmation-content ul {
+  margin: 0 0 1.5rem 0 !important;
+  padding-left: 1.5rem !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.confirmation-content li {
+  margin-bottom: 0.25rem !important;
+}
+
+.confirmation-buttons {
+  display: flex !important;
+  gap: 1rem !important;
+  justify-content: flex-end !important;
+}
+
+.cancelConfirmButton,
+.confirmCloseButton {
+  padding: 0.75rem 1.5rem !important;
+  border: none !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.cancelConfirmButton {
+  background-color: #6b7280 !important;
+  color: white !important;
+}
+
+.cancelConfirmButton:hover {
+  background-color: #4b5563 !important;
+}
+
+.confirmCloseButton {
+  background-color: #dc2626 !important;
+  color: white !important;
+}
+
+.confirmCloseButton:hover {
+  background-color: #b91c1c !important;
+}
+
+.confirmCloseButton:disabled {
+  background-color: #9ca3af !important;
+  cursor: not-allowed !important;
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 1024px) {
+  .closeLoanModal {
+    width: 95% !important;
+    max-width: none !important;
+  }
+
+  .loan-summary-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1.5rem !important;
+  }
+
+  .amount-summary {
+    min-width: auto !important;
+    text-align: left !important;
+  }
+
+  .details-grid,
+  .closure-info-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column !important;
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+
+  .header-cell,
+  .table-cell {
+    border-right: none !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+    text-align: left !important;
+  }
+
+  .header-cell:before,
+  .table-cell:before {
+    content: attr(data-label) !important;
+    font-weight: 600 !important;
+    color: var(--secondary-text-color) !important;
+    display: block !important;
+    margin-bottom: 0.25rem !important;
+  }
+
+  .amount-row {
+    gap: 1rem !important;
+  }
+
+  .confirmation-modal {
+    margin: 1rem !important;
+    width: calc(100% - 2rem) !important;
+  }
+
+  .confirmation-buttons {
+    flex-direction: column !important;
+  }
+
+  .cancelConfirmButton,
+  .confirmCloseButton {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ---------- Print Styles ---------- */
+@media print {
+  .modalButtons,
+  .confirmation-overlay {
+    display: none !important;
+  }
+
+  .closeLoanModal {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .loan-summary-header {
+    background: #f5f5f5 !important;
+    color: #000 !important;
+    border: 2px solid #000 !important;
+  }
+
+  .closure-form-section,
+  .closure-summary,
+  .closure-info-section {
+    border-color: #000 !important;
+    background-color: #f9f9f9 !important;
+  }
+}

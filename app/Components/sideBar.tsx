@@ -20,6 +20,8 @@ const Sidebar: React.FC = () => {
     "/reimbursement": "reimbursement",
     "/financial-management/payroll": "payroll",
     "/purchase-request-approval": "purchaseApproval", // Added missing route
+    "/loan-management/loanRequest": "loan-request",
+    "/loan-management/loanPayment": "loan-payment",
     "/report": "report",
     "/JEV": "JEV",
     "/audit": "audit",
@@ -41,9 +43,11 @@ const Sidebar: React.FC = () => {
         setOpenSubMenu("budget-management");
       } else if (["purchase-request", "purchaseApproval"].includes(staticMatch)) {
         setOpenSubMenu("purchase-management");
+      } else if (["loan-request", "loan-payment"].includes(staticMatch)) {
+        setOpenSubMenu("loan-management");
       }
-      return;
-    }
+        return;
+      }
 
     // Check microservice routes
     if (pathname.startsWith('/microservice/budget-request-management')) {
@@ -137,6 +141,41 @@ const Sidebar: React.FC = () => {
                 onClick={() => setActiveItem("reimbursement")}
               >
                 Reimbursements
+              </Link>
+            </div>
+          )}
+
+          {/* Loan Submenu */}
+          <div
+            className={`nav-item module ${
+              ["loan-request", "loan-approval"].includes(activeItem!) ? "active" : ""
+            }`}
+            onClick={() => toggleSubMenu("loan-management")}
+          >
+            <i className="ri-wallet-3-line"></i>
+            <span>Loans</span>
+            <i
+              className={`dropdown-arrow ri-arrow-down-s-line ${
+                openSubMenu === "loan-management" ? "rotate" : ""
+              }`}
+            />
+          </div>
+
+          {openSubMenu === "loan-management" && (
+            <div className="sub-menu active">
+              <Link
+                href="/loan-management/loanRequest"
+                className={`sub-item ${activeItem === "loan-request" ? "active" : ""}`}
+                onClick={() => setActiveItem("loan-request")}
+              >
+                Loan Requests
+              </Link>
+              <Link
+                href="/loan-management/loanPayment"
+                className={`sub-item ${activeItem === "loan-payment" ? "active" : ""}`}
+                onClick={() => setActiveItem("loan-payment")}
+              >
+                Loan Payment
               </Link>
             </div>
           )}

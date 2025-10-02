@@ -1,0 +1,318 @@
+/* ============================================================
+   approveLoanRequest.css – Approve Loan Request Modal Styling
+   ============================================================ */
+
+@import '../components/modal.css';
+
+/* ---------- Approve Loan Specific Styling ---------- */
+.approveLoanModal {
+  max-width: 1200px !important;
+}
+
+/* ---------- Loan Details Section ---------- */
+.loan-details-section {
+  background-color: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.loan-details-section h3 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.2rem !important;
+}
+
+.details-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+  gap: 0.75rem !important;
+}
+
+.detail-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.5rem 0 !important;
+  border-bottom: 1px solid #e9ecef !important;
+}
+
+.detail-row:last-child {
+  border-bottom: none !important;
+}
+
+.detail-label {
+  font-weight: 500 !important;
+  color: var(--secondary-text-color) !important;
+  flex: 0 0 40% !important;
+}
+
+.detail-value {
+  color: var(--primary-text-color) !important;
+  text-align: right !important;
+  font-weight: 500 !important;
+}
+
+.detail-value.requested-amount {
+  color: var(--primary-color) !important;
+  font-weight: 600 !important;
+  font-size: 1.1rem !important;
+}
+
+/* ---------- Purpose Section ---------- */
+.purpose-section {
+  background-color: #fff !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.purpose-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-text-color) !important;
+}
+
+.purpose-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.purpose-item strong {
+  display: block !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.purpose-item p {
+  margin: 0 !important;
+  line-height: 1.5 !important;
+  color: var(--primary-text-color) !important;
+  background-color: #f8f9fa !important;
+  padding: 0.75rem !important;
+  border-radius: 4px !important;
+  border-left: 4px solid var(--primary-color) !important;
+}
+
+/* ---------- Action Selection ---------- */
+.action-selection {
+  text-align: center !important;
+  margin: 2rem 0 !important;
+}
+
+.action-selection h4 {
+  margin-bottom: 1.5rem !important;
+  color: var(--primary-text-color) !important;
+}
+
+.action-buttons {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 2rem !important;
+}
+
+.approve-action-btn,
+.reject-action-btn {
+  padding: 1rem 2rem !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  min-width: 200px !important;
+  justify-content: center !important;
+}
+
+.approve-action-btn {
+  background-color: var(--success-color, #22c55e) !important;
+  color: white !important;
+}
+
+.approve-action-btn:hover {
+  background-color: var(--success-hover-color, #16a34a) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3) !important;
+}
+
+.reject-action-btn {
+  background-color: var(--error-color, #ef4444) !important;
+  color: white !important;
+}
+
+.reject-action-btn:hover {
+  background-color: var(--error-hover-color, #dc2626) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* ---------- Approval Form Section ---------- */
+.approval-form-section {
+  background-color: #f0fdf4 !important;
+  border: 1px solid #22c55e !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-top: 1.5rem !important;
+}
+
+.approval-form-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: #166534 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.approval-form-section h4::before {
+  content: '✅' !important;
+  font-size: 1.2rem !important;
+}
+
+/* ---------- Rejection Form Section ---------- */
+.rejection-form-section {
+  background-color: #fef2f2 !important;
+  border: 1px solid #ef4444 !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-top: 1.5rem !important;
+}
+
+.rejection-form-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: #dc2626 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.rejection-form-section h4::before {
+  content: '❌' !important;
+  font-size: 1.2rem !important;
+}
+
+/* ---------- Calculation Summary ---------- */
+.calculation-summary {
+  background-color: #e8f5e8 !important;
+  border: 1px solid #22c55e !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+}
+
+.calculation-summary h5 {
+  margin: 0 0 0.75rem 0 !important;
+  color: #166534 !important;
+  font-size: 1rem !important;
+}
+
+.summary-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  gap: 0.75rem !important;
+}
+
+.summary-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.5rem !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  border: 1px solid #d1fae5 !important;
+}
+
+.summary-label {
+  font-weight: 500 !important;
+  color: #374151 !important;
+}
+
+.summary-value {
+  font-weight: 600 !important;
+  color: #166534 !important;
+}
+
+/* ---------- Interest Rate and Fee Inputs ---------- */
+.formField input[name="interest_rate"],
+.formField input[name="processing_fee"] {
+  background-color: #fefce8 !important;
+  border-color: #fbbf24 !important;
+}
+
+.formField input[name="approved_amount"] {
+  background-color: #f0fdf4 !important;
+  border-color: #22c55e !important;
+  font-weight: 600 !important;
+  font-size: 1.1rem !important;
+  color: #166534 !important;
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 1024px) {
+  .details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .action-buttons {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  .approve-action-btn,
+  .reject-action-btn {
+    width: 100% !important;
+    max-width: 300px !important;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .approveLoanModal {
+    width: 95% !important;
+    max-width: none !important;
+  }
+
+  .detail-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.25rem !important;
+  }
+
+  .detail-label {
+    flex: none !important;
+  }
+
+  .detail-value {
+    text-align: left !important;
+  }
+
+  .purpose-content {
+    gap: 0.5rem !important;
+  }
+}
+
+/* ---------- Print Styles ---------- */
+@media print {
+  .modalButtons,
+  .action-selection {
+    display: none !important;
+  }
+
+  .approval-form-section,
+  .rejection-form-section {
+    border-color: #000 !important;
+    background-color: #f5f5f5 !important;
+  }
+
+  .calculation-summary {
+    border-color: #000 !important;
+    background-color: #f0f0f0 !important;
+  }
+}

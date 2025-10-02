@@ -1,0 +1,372 @@
+/* ============================================================
+   modal.css – Unified Modal Styling for all modals
+   Base styling extracted from addExpense.css
+   ============================================================ */
+
+/* ---------- Overlay ---------- */
+.modalOverlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 1050 !important;
+  overflow: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.modalOverlay::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* ---------- Modal Box ---------- */
+.modalContainer {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  background: var(--foreground-color) !important;
+  padding: var(--modal-padding) !important;
+  border-radius: var(--modal-border-radius) !important;
+  width: 80% !important;
+  max-width: 1000px !important;
+  max-height: 80vh !important;
+  overflow: hidden !important;
+  box-shadow: var(--box-shadow) !important;
+  position: relative !important;
+  font-family: var(--font-sans) !important;
+  color: var(--primary-text-color) !important;
+}
+
+.modalContainer form {
+  width: 100% !important;
+  overflow-y: auto !important;
+  max-height: calc(80vh - 100px) !important;
+  scrollbar-width: thin !important;
+}
+.modalContainer form::-webkit-scrollbar {
+  width: 6px !important;
+}
+.modalContainer form::-webkit-scrollbar-thumb {
+  background: var(--border-color) !important;
+  border-radius: 6px !important;
+}
+
+/* ---------- Header ---------- */
+.modalHeader {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin-bottom: var(--modal-header-margin-bottom) !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.modalHeader h1 {
+  font-size: var(--title-font-size) !important;
+  font-weight: var(--title-font-weight) !important;
+  color: var(--primary-text-color) !important;
+  margin: 0 !important;
+}
+
+.header-left,
+.header-right {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.header-right {
+  gap: 1rem !important;
+}
+
+.closeButton {
+  background: none !important;
+  border: none !important;
+  font-size: 1.5rem !important;
+  cursor: pointer !important;
+  color: var(--secondary-text-color) !important;
+  padding: 0.5rem !important;
+  border-radius: 4px !important;
+  transition: color 0.2s ease !important;
+}
+
+.closeButton:hover {
+  color: var(--primary-text-color) !important;
+  background-color: var(--hover-background-color, rgba(0,0,0,0.1)) !important;
+}
+
+/* Date / Time stamp */
+.timeDate {
+  display: flex !important;
+  gap: 1rem !important;
+  font-size: var(--modal-timedate-font-size) !important;
+  font-style: italic !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.currTime,
+.currDate {
+  margin: 0 !important;
+  align-self: flex-end !important;
+}
+
+/* ---------- Content ---------- */
+.modalContent {
+  width: var(--modal-content-width) !important;
+  max-width: 100% !important;
+  height: auto !important;
+  background-color: var(--modal-content-background-color) !important;
+  padding: var(--modal-content-padding) !important;
+  border-radius: var(--modal-content-border-radius) !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+/* ---------- Form Structure ---------- */
+.formFieldsHorizontal {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.formInputs {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  gap: var(--modal-content-row-gap) !important;
+}
+
+.formRow {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  gap: 1rem !important;
+}
+
+.formField {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-width: 250px !important;
+  margin: 0 !important;
+}
+
+.formField.full-width {
+  flex: 1 1 100% !important;
+  min-width: 100% !important;
+}
+
+.formField label {
+  font-size: var(--input-label-font-size) !important;
+  font-weight: var(--input-label-font-weight) !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--primary-text-color) !important;
+}
+
+.formField input,
+.formField select,
+.formField textarea {
+  width: 100% !important;
+  padding: 0.5rem 0.75rem !important;
+  border: 1px solid var(--border-color) !important;
+  outline: none !important;
+  border-radius: 4px !important;
+  font-family: var(--font-sans) !important;
+  background-color: var(--modal-input-select-background-color, #ffffff) !important;
+  box-shadow: var(--box-shadow) !important;
+  color: var(--primary-text-color) !important;
+  font-size: 14px !important;
+}
+
+.formField input:focus,
+.formField select:focus,
+.formField textarea:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px rgba(150, 28, 30, 0.1) !important;
+}
+
+.formField textarea {
+  resize: vertical !important;
+  min-height: 80px !important;
+}
+
+/* ---------- Button Area ---------- */
+.modalButtons {
+  width: 100% !important;
+  margin-top: 1.5rem !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: var(--modal-button-gap) !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid var(--border-color) !important;
+}
+
+.modalButtons button {
+  min-width: var(--modal-button-width) !important;
+  height: var(--modal-button-height) !important;
+  font-size: var(--modal-button-font-size) !important;
+  border-radius: var(--modal-button-border-radius) !important;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  color: var(--button-font-color) !important;
+  box-shadow: var(--box-shadow) !important;
+  transition: transform 0.15s ease, background 0.15s ease !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0 1rem !important;
+  font-weight: 500 !important;
+}
+
+.addButton,
+.saveButton,
+.submitButton {
+  background: var(--primary-color) !important;
+}
+
+.addButton:hover,
+.saveButton:hover,
+.submitButton:hover {
+  background: var(--primary-hover-color) !important;
+}
+
+.approveButton {
+  background: var(--success-color, #22c55e) !important;
+}
+
+.approveButton:hover {
+  background: var(--success-hover-color, #16a34a) !important;
+}
+
+.rejectButton,
+.deleteButton {
+  background: var(--error-color, #ef4444) !important;
+}
+
+.rejectButton:hover,
+.deleteButton:hover {
+  background: var(--error-hover-color, #dc2626) !important;
+}
+
+.cancelButton {
+  background: var(--secondary-text-color) !important;
+}
+
+.cancelButton:hover {
+  background: var(--primary-text-color) !important;
+}
+
+/* ---------- Utility Classes ---------- */
+.requiredTags {
+  color: var(--error-color, #ef4444) !important;
+  font-weight: bold !important;
+}
+
+.error-message {
+  color: var(--error-color, #dc2626) !important;
+  font-size: 0.875rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.input-error {
+  border-color: var(--error-color, #dc2626) !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1) !important;
+}
+
+.success-message {
+  color: var(--success-color, #22c55e) !important;
+  font-size: 0.875rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.info-box {
+  background-color: #f0f9ff !important;
+  border: 1px solid #0ea5e9 !important;
+  border-radius: 4px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+  color: #0c4a6e !important;
+}
+
+.warning-box {
+  background-color: #fefce8 !important;
+  border: 1px solid #eab308 !important;
+  border-radius: 4px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+  color: #713f12 !important;
+}
+
+.error-box {
+  background-color: #fef2f2 !important;
+  border: 1px solid #ef4444 !important;
+  border-radius: 4px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+  color: #7f1d1d !important;
+}
+
+.success-box {
+  background-color: #f0fdf4 !important;
+  border: 1px solid #22c55e !important;
+  border-radius: 4px !important;
+  padding: 1rem !important;
+  margin: 1rem 0 !important;
+  color: #14532d !important;
+}
+
+/* ---------- Loading States ---------- */
+.loading-spinner {
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid transparent !important;
+  border-top: 2px solid currentColor !important;
+  border-radius: 50% !important;
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 768px) {
+  .modalContainer {
+    width: 95% !important;
+    max-height: 90vh !important;
+    padding: 1rem !important;
+  }
+
+  .formRow {
+    flex-direction: column !important;
+  }
+
+  .formField {
+    min-width: 100% !important;
+  }
+
+  .modalButtons {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .modalButtons button {
+    width: 100% !important;
+  }
+
+  .timeDate {
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+    text-align: right !important;
+  }
+}

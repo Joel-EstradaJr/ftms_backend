@@ -3,6 +3,7 @@
 
 //---------------------IMPORTS HERE----------------------//
 import React, { useState, useEffect, useMemo } from 'react';
+//@ts-ignore
 import '../../styles/expense/addExpense.css';
 import { formatDate } from '../../utility/dateFormatter';
 import { showSuccess, showError, showConfirmation } from '../../utility/Alerts';

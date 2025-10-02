@@ -1,0 +1,651 @@
+/* ============================================================
+   auditLoanRequest.css – Audit Loan Request Modal Styling
+   ============================================================ */
+
+@import '../components/modal.css';
+
+/* ---------- Audit Loan Specific Styling ---------- */
+.auditLoanModal {
+  max-width: 1300px !important;
+  max-height: 90vh !important;
+}
+
+.auditContent {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.5rem !important;
+}
+
+/* ---------- Loan Summary Section ---------- */
+.loan-summary-section {
+  background: linear-gradient(135deg, #1f2937, #374151) !important;
+  color: white !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.summary-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  gap: 1rem !important;
+}
+
+.summary-info h3 {
+  margin: 0 0 0.5rem 0 !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+}
+
+.summary-info p {
+  margin: 0 !important;
+  opacity: 0.9 !important;
+  font-size: 1rem !important;
+}
+
+.summary-amounts {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+  text-align: right !important;
+}
+
+.amount-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  min-width: 200px !important;
+}
+
+.amount-label {
+  font-size: 0.9rem !important;
+  opacity: 0.8 !important;
+}
+
+.amount-value {
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+}
+
+.amount-value.approved {
+  color: #10b981 !important;
+  font-weight: 700 !important;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem !important;
+  border-radius: 12px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+/* ---------- Audit Controls ---------- */
+.audit-controls {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  padding: 1rem !important;
+  background-color: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+}
+
+.controls-left {
+  display: flex !important;
+  gap: 1rem !important;
+  align-items: center !important;
+}
+
+.controls-right {
+  display: flex !important;
+  gap: 0.75rem !important;
+}
+
+.filter-select,
+.search-input {
+  padding: 0.5rem 0.75rem !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px !important;
+  font-size: 0.9rem !important;
+  background-color: white !important;
+}
+
+.search-group {
+  position: relative !important;
+}
+
+.search-input {
+  padding-right: 2.5rem !important;
+  min-width: 250px !important;
+}
+
+.search-icon {
+  position: absolute !important;
+  right: 0.75rem !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.exportBtn,
+.addAuditBtn {
+  padding: 0.5rem 1rem !important;
+  border: none !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  font-size: 0.9rem !important;
+}
+
+.exportBtn {
+  background-color: #6366f1 !important;
+  color: white !important;
+}
+
+.exportBtn:hover {
+  background-color: #5b21b6 !important;
+}
+
+.addAuditBtn {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+}
+
+.addAuditBtn:hover {
+  background-color: var(--primary-hover-color) !important;
+}
+
+/* ---------- Add Audit Form ---------- */
+.add-audit-form {
+  background-color: #fff3cd !important;
+  border: 1px solid #ffc107 !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.add-audit-form h4 {
+  margin: 0 0 1rem 0 !important;
+  color: #856404 !important;
+}
+
+.form-row {
+  display: flex !important;
+  gap: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.form-field {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.form-field label {
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--primary-text-color) !important;
+}
+
+.required {
+  color: #dc3545 !important;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  padding: 0.5rem 0.75rem !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px !important;
+  font-size: 0.9rem !important;
+  background-color: white !important;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: none !important;
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px rgba(150, 28, 30, 0.1) !important;
+}
+
+.input-error {
+  border-color: #dc3545 !important;
+}
+
+.error-message {
+  color: #dc3545 !important;
+  font-size: 0.8rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.form-buttons {
+  display: flex !important;
+  gap: 0.75rem !important;
+  justify-content: flex-end !important;
+  margin-top: 1rem !important;
+}
+
+.cancelBtn,
+.saveBtn {
+  padding: 0.5rem 1rem !important;
+  border: none !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.cancelBtn {
+  background-color: #6c757d !important;
+  color: white !important;
+}
+
+.cancelBtn:hover {
+  background-color: #5a6268 !important;
+}
+
+.saveBtn {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+}
+
+.saveBtn:hover {
+  background-color: var(--primary-hover-color) !important;
+}
+
+/* ---------- Audit Trail Section ---------- */
+.audit-trail-section {
+  background-color: white !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+}
+
+.trail-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 1.5rem !important;
+  padding-bottom: 1rem !important;
+  border-bottom: 2px solid var(--border-color) !important;
+}
+
+.trail-header h4 {
+  margin: 0 !important;
+  color: var(--primary-color) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.filter-indicator {
+  font-size: 0.85rem !important;
+  color: var(--secondary-text-color) !important;
+  font-style: italic !important;
+}
+
+.no-entries {
+  text-align: center !important;
+  padding: 2rem !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.no-entries i {
+  font-size: 2rem !important;
+  margin-bottom: 0.5rem !important;
+  display: block !important;
+}
+
+/* ---------- Audit Timeline ---------- */
+.audit-timeline {
+  position: relative !important;
+}
+
+.audit-entry {
+  position: relative !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  margin-bottom: 1.5rem !important;
+  padding: 1rem !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--border-color) !important;
+  background-color: #fafafa !important;
+}
+
+.entry-icon {
+  flex: 0 0 auto !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 1rem !important;
+  font-size: 1.2rem !important;
+  color: white !important;
+}
+
+.entry-content {
+  flex: 1 !important;
+}
+
+.entry-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.entry-info h5 {
+  margin: 0 0 0.25rem 0 !important;
+  color: var(--primary-text-color) !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+.entry-meta {
+  font-size: 0.85rem !important;
+  color: var(--secondary-text-color) !important;
+}
+
+.type-badge {
+  padding: 0.25rem 0.75rem !important;
+  border-radius: 12px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+}
+
+.entry-comments {
+  margin-bottom: 0.75rem !important;
+}
+
+.entry-comments p {
+  margin: 0 !important;
+  padding: 0.75rem !important;
+  background-color: white !important;
+  border-left: 4px solid var(--primary-color) !important;
+  border-radius: 4px !important;
+  line-height: 1.4 !important;
+  font-style: italic !important;
+}
+
+/* ---------- Field Changes ---------- */
+.field-changes {
+  margin-bottom: 0.75rem !important;
+}
+
+.field-changes h6 {
+  margin: 0 0 0.5rem 0 !important;
+  font-size: 0.9rem !important;
+  color: var(--secondary-text-color) !important;
+  font-weight: 600 !important;
+}
+
+.changes-list {
+  background-color: white !important;
+  border-radius: 4px !important;
+  padding: 0.75rem !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.change-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.25rem 0 !important;
+  font-size: 0.9rem !important;
+  color: var(--primary-text-color) !important;
+}
+
+.change-item i {
+  color: var(--primary-color) !important;
+  font-size: 0.8rem !important;
+}
+
+/* ---------- Technical Details ---------- */
+.technical-details {
+  margin-top: 0.75rem !important;
+}
+
+.technical-details details {
+  background-color: #f8f9fa !important;
+  border-radius: 4px !important;
+  padding: 0.5rem !important;
+}
+
+.technical-details summary {
+  cursor: pointer !important;
+  font-size: 0.85rem !important;
+  color: var(--secondary-text-color) !important;
+  font-weight: 500 !important;
+}
+
+.tech-item {
+  font-size: 0.8rem !important;
+  margin: 0.25rem 0 !important;
+  color: var(--secondary-text-color) !important;
+}
+
+/* ---------- Action Type Colors ---------- */
+.action-created .entry-icon {
+  background-color: #22c55e !important;
+}
+
+.action-updated .entry-icon {
+  background-color: #3b82f6 !important;
+}
+
+.action-approved .entry-icon {
+  background-color: #10b981 !important;
+}
+
+.action-rejected .entry-icon {
+  background-color: #ef4444 !important;
+}
+
+.action-disbursed .entry-icon {
+  background-color: #8b5cf6 !important;
+}
+
+.action-closed .entry-icon {
+  background-color: #6b7280 !important;
+}
+
+.action-cancelled .entry-icon {
+  background-color: #f59e0b !important;
+}
+
+.type-badge.created {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.type-badge.updated {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+.type-badge.approved {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.type-badge.rejected {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.type-badge.disbursed {
+  background-color: #e0e7ff !important;
+  color: #5b21b6 !important;
+}
+
+.type-badge.closed {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+}
+
+.type-badge.cancelled {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+/* ---------- Timeline Connector ---------- */
+.timeline-connector {
+  position: absolute !important;
+  left: 20px !important;
+  top: 100% !important;
+  width: 2px !important;
+  height: 1.5rem !important;
+  background-color: #e5e7eb !important;
+}
+
+/* ---------- Audit Summary Stats ---------- */
+.audit-summary-stats {
+  background-color: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-top: 1rem !important;
+}
+
+.audit-summary-stats h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+}
+
+.stats-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  gap: 1rem !important;
+}
+
+.stat-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.75rem !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.stat-label {
+  font-weight: 500 !important;
+  color: var(--secondary-text-color) !important;
+  font-size: 0.9rem !important;
+}
+
+.stat-value {
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+  font-size: 1rem !important;
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 1200px) {
+  .auditLoanModal {
+    width: 95% !important;
+    max-width: none !important;
+  }
+
+  .audit-controls {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  .controls-left,
+  .controls-right {
+    justify-content: space-between !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .summary-header {
+    flex-direction: column !important;
+    gap: 1rem !important;
+  }
+
+  .summary-amounts {
+    align-self: stretch !important;
+  }
+
+  .amount-item {
+    min-width: auto !important;
+  }
+
+  .form-row {
+    flex-direction: column !important;
+  }
+
+  .entry-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.5rem !important;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .search-input {
+    min-width: auto !important;
+  }
+
+  .controls-left {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .controls-right {
+    justify-content: stretch !important;
+  }
+
+  .exportBtn,
+  .addAuditBtn {
+    flex: 1 !important;
+    justify-content: center !important;
+  }
+}
+
+/* ---------- Print Styles ---------- */
+@media print {
+  .modalButtons,
+  .audit-controls,
+  .add-audit-form {
+    display: none !important;
+  }
+
+  .auditLoanModal {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .audit-entry {
+    break-inside: avoid !important;
+    border-color: #000 !important;
+  }
+
+  .loan-summary-section {
+    background: #f5f5f5 !important;
+    color: #000 !important;
+    border: 2px solid #000 !important;
+  }
+}
