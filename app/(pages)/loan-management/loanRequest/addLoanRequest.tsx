@@ -6,6 +6,8 @@ import { showSuccess, showError } from '../../../utility/Alerts';
 
 //@ts-ignore
 import '../../../styles/loan-management/addLoanRequest.css';
+//@ts-ignore
+import '../../../styles/components/modal.css';
 
 export enum LoanType {
   EMERGENCY = 'emergency',
@@ -219,8 +221,8 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
           showDateTime={true} 
         />
 
-        <form onSubmit={handleSubmit}>
-          <div className="modalContent">
+        <div className="modalContent">
+          <form onSubmit={handleSubmit}>
             <div className="formFieldsHorizontal">
               <div className="formInputs">
                 
@@ -449,36 +451,36 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
 
               </div>
             </div>
-          </div>
 
-          <div className="modalButtons">
-            <button 
-              type="button" 
-              className="cancelButton"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              className="addButton"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="loading-spinner"></span>
-                  {isEditMode ? 'Updating...' : 'Creating...'}
-                </>
-              ) : (
-                <>
-                  <i className={isEditMode ? "ri-save-line" : "ri-add-line"}></i>
-                  {isEditMode ? 'Update Request' : 'Create Loan Request'}
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+            <div className="modalButtons">
+              <button 
+                type="button" 
+                className="cancelButton"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="addButton"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="loading-spinner"></span>
+                    {isEditMode ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  <>
+                    <i className={isEditMode ? "ri-save-line" : "ri-add-line"}></i>
+                    {isEditMode ? 'Update Request' : 'Create Loan Request'}
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

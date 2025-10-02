@@ -255,7 +255,7 @@ const EditRevenueModal: React.FC<EditProps> = ({ record, onClose, onSave, onAtta
             setAssignment(data);
             
             // total_amount is stored as Operations.Sales; default reference amount is trip_revenue
-            let calculatedAmount = data.trip_revenue || 0;
+            const calculatedAmount = data.trip_revenue || 0;
             setOriginalAutoFilledAmount(calculatedAmount);
             
             // Set original date to assignment date with current time (like AddRevenue)

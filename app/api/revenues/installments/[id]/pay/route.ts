@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const revenue_id: string = inst.revenue_id;
 
     // Resolve payment method (required for RevenuePayment)
-    let methodId: string | undefined = payment_method_id || inst.payment_method_id || undefined;
+    const methodId: string | undefined = payment_method_id || inst.payment_method_id || undefined;
     if (!methodId) return NextResponse.json({ error: 'payment_method_id is required' }, { status: 400 });
     const method = await prisma.globalPaymentMethod.findUnique({ where: { id: methodId } });
     if (!method) return NextResponse.json({ error: 'Invalid payment_method_id' }, { status: 400 });

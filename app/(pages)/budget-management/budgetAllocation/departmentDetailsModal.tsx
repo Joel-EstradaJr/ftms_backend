@@ -174,7 +174,7 @@ const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
 
   // Filter and sort logic
   const getFilteredAndSortedHistory = () => {
-    let filtered = allocationHistory.filter(item => {
+    const filtered = allocationHistory.filter(item => {
       // Search filter
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();

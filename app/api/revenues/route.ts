@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   // Support both JSON and multipart/form-data with attachments
   const contentType = req.headers.get('content-type') || '';
   let data: any;
-  let files: File[] = [];
+  const files: File[] = [];
   if (contentType.includes('multipart/form-data')) {
     const form = await req.formData();
     // Extract known fields from form
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const ar = Boolean(is_receivable);
     let dueDateValue: Date | null = null;
     let payerNameValue: string | null = null;
-    let interestRateValue: number = Number(interest_rate ?? 0) || 0;
+    const interestRateValue: number = Number(interest_rate ?? 0) || 0;
     if (ar) {
       if (!due_date) return NextResponse.json({ error: 'due_date is required when is_receivable is true' }, { status: 400 });
       if (!payer_name || String(payer_name).trim().length === 0) return NextResponse.json({ error: 'payer_name is required when is_receivable is true' }, { status: 400 });
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
           const ALLOWED_MIME = new Set(['image/png','image/jpeg','image/jpg','image/pjpeg','application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
           const MAX_TOTAL = 50 * 1024 * 1024;
           const existing = await (prisma as any).attachment.findMany({ where: { module_name: 'revenue', record_id: updated.revenue_id, is_deleted: false } });
-          let totalExisting = existing.reduce((s: number, a: any) => s + (a.size_bytes || 0), 0);
+          const totalExisting = existing.reduce((s: number, a: any) => s + (a.size_bytes || 0), 0);
           let batchSize = 0;
           for (const f of files) {
             const ext = (f.name.split('.').pop() || '').toLowerCase();
@@ -358,7 +358,7 @@ export async function POST(req: NextRequest) {
         const ALLOWED_MIME = new Set(['image/png','image/jpeg','image/jpg','image/pjpeg','application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
         const MAX_TOTAL = 50 * 1024 * 1024;
         const existing = await (prisma as any).attachment.findMany({ where: { module_name: 'revenue', record_id: (newRevenue as any).revenue_id, is_deleted: false } });
-        let totalExisting = existing.reduce((s: number, a: any) => s + (a.size_bytes || 0), 0);
+        const totalExisting = existing.reduce((s: number, a: any) => s + (a.size_bytes || 0), 0);
         let batchSize = 0;
         for (const f of files) {
           const ext = (f.name.split('.').pop() || '').toLowerCase();

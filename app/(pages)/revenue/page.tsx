@@ -109,14 +109,14 @@ const CacheHealthIndicator: React.FC<{ refreshKey: number }> = ({ refreshKey }) 
   // Initial + external refresh trigger
   useEffect(() => {
     fetchHealth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [refreshKey]);
 
   // Background refresh every 60s
   useEffect(() => {
     const id = setInterval(fetchHealth, 60 * 1000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const formatSync = (iso: string | null) => {

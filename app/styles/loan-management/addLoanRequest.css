@@ -1,15 +1,13 @@
-/* ============================================================
-   addLoanRequest.css – Add Loan Request Modal Styling
-   ============================================================ */
-
-@import '../components/modal.css';
-
-/* ---------- Add Loan Specific Styling ---------- */
+/* ---------- Add Loan Modal ---------- */
 .addLoanModal {
   max-width: 1100px !important;
 }
 
-/* ---------- Employee Details Box ---------- */
+.addLoanModal .modalContent {
+  background-color: var(--modal-content-background-color) !important;
+}
+
+/* ---------- Employee Details ---------- */
 .employee-details-box {
   background-color: #f8f9fa !important;
   border: 1px solid var(--border-color) !important;
@@ -51,6 +49,18 @@
   font-size: 1rem !important;
 }
 
+.calculation-box strong {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+}
+
+.calculation-box strong::before {
+  content: '💰' !important;
+  font-size: 1.1rem !important;
+}
+
 /* ---------- Emergency Contact Section ---------- */
 .emergency-contact-section {
   background-color: #fef3f2 !important;
@@ -74,7 +84,7 @@
   font-size: 1.2rem !important;
 }
 
-/* ---------- Loan Type Specific Styling ---------- */
+/* ---------- Loan Type Options ---------- */
 .formField select[name="loan_type"] option[value="emergency"] {
   background-color: #fef2f2 !important;
   color: #dc2626 !important;
@@ -90,7 +100,7 @@
   color: #16a34a !important;
 }
 
-/* ---------- Amount Input Styling ---------- */
+/* ---------- Amount Input ---------- */
 .formField input[name="requested_amount"] {
   font-size: 1.1rem !important;
   font-weight: 600 !important;
@@ -101,7 +111,7 @@
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
 }
 
-/* ---------- Terms Section ---------- */
+/* ---------- Terms & Notes ---------- */
 .info-box h4 {
   margin-top: 0 !important;
   margin-bottom: 0.75rem !important;
@@ -118,7 +128,7 @@
   line-height: 1.4 !important;
 }
 
-/* ---------- Form Validation ---------- */
+/* ---------- Validation Messages ---------- */
 .input-error {
   border-color: #dc2626 !important;
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1) !important;
@@ -138,20 +148,7 @@
   font-size: 0.9rem !important;
 }
 
-/* ---------- Success States ---------- */
-.calculation-box strong {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 0.5rem !important;
-}
-
-.calculation-box strong::before {
-  content: '💰' !important;
-  font-size: 1.1rem !important;
-}
-
-/* ---------- Responsive Design ---------- */
+/* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .addLoanModal {
     width: 95% !important;
@@ -171,7 +168,7 @@
   }
 }
 
-/* ---------- Print Styles ---------- */
+/* ---------- Print ---------- */
 @media print {
   .modalButtons {
     display: none !important;

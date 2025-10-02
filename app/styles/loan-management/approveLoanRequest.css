@@ -9,6 +9,10 @@
   max-width: 1200px !important;
 }
 
+.approveLoanModal .modalContent {
+  background-color: var(--modal-content-background-color) !important;
+}
+
 /* ---------- Loan Details Section ---------- */
 .loan-details-section {
   background-color: #f8f9fa !important;

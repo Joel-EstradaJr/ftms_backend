@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Enforce types and total size (including existing attachments)
   const existing = await (prisma as any).attachment.findMany({ where: { module_name: 'revenue', record_id: id, is_deleted: false } });
-  let totalExisting = existing.reduce((s: number, a: any) => s + (a.size_bytes || 0), 0);
+  const totalExisting = existing.reduce((s: number, a: any) => s + (a.size_bytes || 0), 0);
   let batchSize = 0;
   for (const f of files) {
     const ext = (f.name.split('.').pop() || '').toLowerCase();

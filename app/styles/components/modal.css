@@ -14,7 +14,7 @@
   justify-content: center !important;
   align-items: center !important;
   z-index: 1050 !important;
-  overflow: auto !important;
+  overflow: hidden !important;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
@@ -43,16 +43,7 @@
 
 .modalContainer form {
   width: 100% !important;
-  overflow-y: auto !important;
-  max-height: calc(80vh - 100px) !important;
-  scrollbar-width: thin !important;
-}
-.modalContainer form::-webkit-scrollbar {
-  width: 6px !important;
-}
-.modalContainer form::-webkit-scrollbar-thumb {
-  background: var(--border-color) !important;
-  border-radius: 6px !important;
+  overflow: visible !important;
 }
 
 /* ---------- Header ---------- */
@@ -123,7 +114,9 @@
   padding: var(--modal-content-padding) !important;
   border-radius: var(--modal-content-border-radius) !important;
   box-shadow: none !important;
-  overflow: visible !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  max-height: calc(80vh - 150px) !important;
 }
 
 /* ---------- Form Structure ---------- */

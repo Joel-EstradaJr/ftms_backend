@@ -23,7 +23,7 @@ import "../../../styles/components/table.css";
 import "../../../styles/components/chips.css";
 
 // Loan Request Interfaces
-export enum LoanStatus {
+enum LoanStatus {
   DRAFT = 'draft',
   PENDING_APPROVAL = 'pending_approval',
   APPROVED = 'approved',
@@ -33,7 +33,7 @@ export enum LoanStatus {
   CANCELLED = 'cancelled'
 }
 
-export enum Department {
+enum Department {
   OPERATIONS = 'operations',
   MAINTENANCE = 'maintenance',
   ADMINISTRATION = 'administration',
@@ -41,7 +41,7 @@ export enum Department {
   HR = 'hr'
 }
 
-export enum LoanType {
+enum LoanType {
   EMERGENCY = 'emergency',
   EDUCATIONAL = 'educational',
   MEDICAL = 'medical',
@@ -50,7 +50,7 @@ export enum LoanType {
   SALARY_ADVANCE = 'salary_advance'
 }
 
-export interface AuditTrailEntry {
+interface AuditTrailEntry {
   id: string;
   action: string;
   action_type: 'created' | 'updated' | 'approved' | 'rejected' | 'disbursed' | 'closed' | 'cancelled';
@@ -63,7 +63,7 @@ export interface AuditTrailEntry {
   user_agent?: string;
 }
 
-export interface Employee {
+interface Employee {
   employee_id?: string; // Made optional for compatibility
   name: string;
   job_title: string;
@@ -73,7 +73,7 @@ export interface Employee {
   hire_date: string;
 }
 
-export interface LoanRequest {
+interface LoanRequest {
   id: string;
   loan_request_id: string;
   employee_id?: string; // Made optional for modal compatibility
@@ -141,7 +141,7 @@ export interface LoanRequest {
   is_deleted?: boolean; // Made optional for modal compatibility
 }
 
-export interface LoanFilters {
+interface LoanFilters {
   employee?: string[];
   department?: Department[];
   status?: LoanStatus[];
