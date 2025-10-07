@@ -388,6 +388,227 @@
   background-color: var(--primary-text-color) !important;
 }
 
+/* ---------- Payment Configuration Section ---------- */
+.payment-config-section {
+  border-left: 4px solid var(--primary-color) !important;
+}
+
+.payment-mode-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  padding: 0.4rem 0.9rem !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  font-size: 0.9rem !important;
+  white-space: nowrap !important;
+}
+
+.payment-mode-badge.mode-peso {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  border: 1px solid #86efac !important;
+}
+
+.payment-mode-badge.mode-percentage {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+  border: 1px solid #93c5fd !important;
+}
+
+.payment-summary-box {
+  margin-top: 1.5rem !important;
+  padding: 1.25rem !important;
+  background-color: #fef2f2 !important;
+  border: 2px solid var(--primary-color) !important;
+  border-radius: 8px !important;
+}
+
+.payment-summary-box h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.summary-stats {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 1.5rem !important;
+}
+
+.summary-stat {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+}
+
+.summary-stat .stat-label {
+  font-size: 0.9rem !important;
+  color: var(--secondary-text-color) !important;
+  margin-bottom: 0.5rem !important;
+  font-weight: 500 !important;
+}
+
+.summary-stat .stat-value {
+  font-size: 1.4rem !important;
+  font-weight: 700 !important;
+  color: var(--primary-color) !important;
+}
+
+/* ---------- Payment Schedule Section ---------- */
+.payment-schedule-section {
+  border-left: 4px solid var(--primary-color) !important;
+}
+
+.payment-schedule-table-wrapper {
+  overflow-x: auto !important;
+  margin-top: 1rem !important;
+}
+
+.payment-schedule-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  background-color: white !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.payment-schedule-table thead {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+}
+
+.payment-schedule-table th {
+  padding: 1rem !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+  font-size: 0.95rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.payment-schedule-table tbody tr {
+  border-bottom: 1px solid var(--border-color) !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.payment-schedule-table tbody tr:hover {
+  background-color: #fef2f2 !important;
+}
+
+.payment-schedule-table tbody tr:last-child {
+  border-bottom: none !important;
+}
+
+.payment-schedule-table td {
+  padding: 1rem !important;
+  font-size: 0.95rem !important;
+}
+
+.payment-schedule-table td.payment-number {
+  font-weight: 600 !important;
+  color: var(--secondary-text-color) !important;
+  width: 60px !important;
+  text-align: center !important;
+}
+
+.payment-schedule-table td.payment-date {
+  color: var(--text-color) !important;
+}
+
+.payment-schedule-table td.payment-amount {
+  font-weight: 600 !important;
+  color: var(--primary-color) !important;
+}
+
+.payment-schedule-table td.payment-status {
+  text-align: center !important;
+}
+
+.payment-status-badge {
+  display: inline-block !important;
+  padding: 0.4rem 0.8rem !important;
+  border-radius: 12px !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  text-transform: capitalize !important;
+  white-space: nowrap !important;
+}
+
+.payment-status-badge.payment-status-pending {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border: 1px solid #fde68a !important;
+}
+
+.payment-status-badge.payment-status-paid {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  border: 1px solid #86efac !important;
+}
+
+.payment-status-badge.payment-status-overdue {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+  border: 1px solid #fecaca !important;
+}
+
+.payment-status-badge.payment-status-partial {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+  border: 1px solid #93c5fd !important;
+}
+
+.payment-schedule-table tfoot {
+  background-color: #fef2f2 !important;
+  border-top: 2px solid var(--primary-color) !important;
+}
+
+.payment-schedule-table tfoot tr.total-row td {
+  padding: 1rem !important;
+  font-size: 1rem !important;
+  color: var(--primary-color) !important;
+}
+
+.payment-schedule-table tfoot .percentage-total {
+  color: var(--secondary-text-color) !important;
+  font-weight: 500 !important;
+  font-size: 0.9rem !important;
+}
+
+.balance-indicator {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  padding: 1rem 1.25rem !important;
+  margin-top: 1rem !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.95rem !important;
+}
+
+.balance-indicator i {
+  font-size: 1.5rem !important;
+}
+
+.balance-indicator.remaining-balance {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border: 2px solid #fde68a !important;
+}
+
+.balance-indicator.zero-balance {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  border: 2px solid #86efac !important;
+}
+
 /* ---------- Responsive Design ---------- */
 @media (max-width: 1024px) {
   .info-grid {
@@ -420,6 +641,11 @@
     grid-template-columns: 1fr !important;
   }
 
+  .summary-stats {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
   .actionButtons {
     flex-direction: column !important;
     width: 100% !important;
@@ -436,6 +662,24 @@
 
   .amount-value {
     font-size: 1.5rem !important;
+  }
+
+  .payment-schedule-table {
+    font-size: 0.85rem !important;
+  }
+
+  .payment-schedule-table th,
+  .payment-schedule-table td {
+    padding: 0.75rem 0.5rem !important;
+  }
+
+  .payment-schedule-table td.payment-number {
+    width: 40px !important;
+  }
+
+  .balance-indicator {
+    font-size: 0.85rem !important;
+    padding: 0.75rem 1rem !important;
   }
 }
 

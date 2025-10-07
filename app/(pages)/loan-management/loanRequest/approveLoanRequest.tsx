@@ -317,9 +317,6 @@ const ApproveLoanRequestModal: React.FC<ApproveLoanRequestProps> = ({
                     </div>
                   </div>
                 )}
-
-
-
               </div>
             </div>
           </div>

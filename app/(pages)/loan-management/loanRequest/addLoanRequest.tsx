@@ -183,7 +183,6 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
   ];
 
   const selectedEmployee = sampleEmployees.find(emp => emp.employee_id === formData.employee_id);
-  const maxLoanAmount = selectedEmployee ? ((selectedEmployee.monthly_salary ?? 0) * 6) : 0; // 6 months salary max
 
   /**
    * Calculate duration from amount (when amount is locked)
@@ -519,9 +518,7 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
 
     if (!formData.requested_amount || parseFloat(formData.requested_amount) <= 0) {
       newErrors.requested_amount = 'Please enter a valid amount';
-    } else if (selectedEmployee && parseFloat(formData.requested_amount) > maxLoanAmount) {
-      newErrors.requested_amount = `Amount cannot exceed ₱${maxLoanAmount.toLocaleString()} (6 months salary)`;
-    }
+    } 
 
     if (!formData.purpose.trim()) {
       newErrors.purpose = 'Purpose is required';
@@ -592,10 +589,16 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
         total_percentage: totalPercentage
       };
       
+      // Calculate monthly deduction (average payment per month)
+      const monthlyDeduction = repaymentTermsMonths > 0 
+        ? totalAmount / repaymentTermsMonths 
+        : 0;
+
       const loanData: any = {
         ...formData,
         requested_amount: parseFloat(formData.requested_amount),
         repayment_terms: repaymentTermsMonths, // Derived from payment schedule
+        monthly_deduction: parseFloat(monthlyDeduction.toFixed(2)),
         employee: selectedEmployee,
         application_date: new Date().toISOString().split('T')[0],
         status: 'draft',
@@ -603,6 +606,10 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
         paymentSchedule: currentPayments
       };
 
+      console.log('📋 Submitting Loan Data:', loanData);
+      console.log('💰 Payment Configuration:', loanData.paymentConfiguration);
+      console.log('📅 Payment Schedule:', loanData.paymentSchedule);
+      
       await onSubmit(loanData);
       showSuccess('Loan request has been created successfully', 'Success');
       onClose();
@@ -683,9 +690,6 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
                         <strong>Monthly Salary:</strong> ₱{(selectedEmployee.monthly_salary ?? 0).toLocaleString()}
                       </div>
                       <div className="detail-item">
-                        <strong>Maximum Loan Amount:</strong> ₱{maxLoanAmount.toLocaleString()} (6 months salary)
-                      </div>
-                      <div className="detail-item">
                         <strong>Hire Date:</strong> {new Date(selectedEmployee.hire_date).toLocaleDateString()}
                       </div>
                     </div>
@@ -706,8 +710,6 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
                       onChange={handleInputChange}
                       placeholder="Enter amount"
                       min="1"
-                      max={maxLoanAmount}
-                      step="0.01"
                       className={errors.requested_amount ? 'input-error' : ''}
                     />
                     {errors.requested_amount && <div className="error-message">{errors.requested_amount}</div>}
