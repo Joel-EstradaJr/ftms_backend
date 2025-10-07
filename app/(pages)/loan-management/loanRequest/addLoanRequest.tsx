@@ -1,13 +1,51 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ModalHeader from '../../../Components/ModalHeader';
 import { showSuccess, showError } from '../../../utility/Alerts';
+import {
+  PaymentScheduleType,
+  PaymentAmountType,
+  PaymentMode,
+  PaymentEntry,
+  PaymentStatus,
+  PaymentConfiguration
+} from '../../../types/loanPaymentTypes';
+import {
+  generatePaymentSchedule,
+  calculateTotalPeso,
+  calculateTotalPercentage,
+  validatePayments,
+  convertPercentageToPeso,
+  convertPesoToPercentage,
+  formatCurrency,
+  formatPercentage
+} from '../../../utility/paymentCalculations';
 
 //@ts-ignore
 import '../../../styles/loan-management/addLoanRequest.css';
 //@ts-ignore
 import '../../../styles/components/modal.css';
+
+/**
+ * Custom hook for debouncing values
+ * Delays update until user stops typing for specified milliseconds
+ */
+const useDebounce = <T,>(value: T, delay: number): T => {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 export enum LoanType {
   EMERGENCY = 'emergency',
@@ -85,7 +123,6 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
     requested_amount: editData?.requested_amount?.toString() || '',
     purpose: editData?.purpose || '',
     justification: editData?.justification || '',
-    repayment_terms: editData?.repayment_terms?.toString() || '12',
     emergency_contact_name: editData?.emergency_contact_name || '',
     emergency_contact_phone: editData?.emergency_contact_phone || '',
     emergency_contact_relationship: editData?.emergency_contact_relationship || ''
@@ -93,6 +130,26 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Payment Configuration State (now mandatory)
+  const [paymentScheduleType, setPaymentScheduleType] = useState<PaymentScheduleType>(PaymentScheduleType.MONTHLY);
+  const [paymentAmountType, setPaymentAmountType] = useState<PaymentAmountType>(PaymentAmountType.FIXED);
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(PaymentMode.PESO);
+  const [fixedPaymentAmount, setFixedPaymentAmount] = useState<string>('');
+  const [paymentStartDate, setPaymentStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [paymentDuration, setPaymentDuration] = useState<string>('');
+  const [manualDuration, setManualDuration] = useState<string>(''); // User-entered duration when locked
+  const [customPayments, setCustomPayments] = useState<PaymentEntry[]>([]);
+  const [generatedPayments, setGeneratedPayments] = useState<PaymentEntry[]>([]);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  
+  // Track which field was last edited for smart auto-calculation
+  const [lastEditedField, setLastEditedField] = useState<'amount' | 'duration'>('amount');
+  
+  // Debounced values to prevent lag during typing
+  const debouncedPaymentAmount = useDebounce(fixedPaymentAmount, 2000);
+  const debouncedStartDate = useDebounce(paymentStartDate, 500);
+  const debouncedManualDuration = useDebounce(manualDuration, 1500);
 
   // Sample employees if none provided
   const sampleEmployees: Employee[] = employees.length > 0 ? employees : [
@@ -127,9 +184,318 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
 
   const selectedEmployee = sampleEmployees.find(emp => emp.employee_id === formData.employee_id);
   const maxLoanAmount = selectedEmployee ? ((selectedEmployee.monthly_salary ?? 0) * 6) : 0; // 6 months salary max
-  const monthlyDeduction = formData.requested_amount && formData.repayment_terms 
-    ? parseFloat(formData.requested_amount) / parseInt(formData.repayment_terms)
-    : 0;
+
+  /**
+   * Calculate duration from amount (when amount is locked)
+   * Returns 0 if inputs are invalid
+   */
+  const calculateDurationFromAmount = (): number => {
+    const loanAmount = parseFloat(formData.requested_amount);
+    const paymentAmount = parseFloat(debouncedPaymentAmount);
+    
+    if (!loanAmount || !paymentAmount || paymentAmount <= 0) {
+      return 0;
+    }
+    
+    // Convert percentage to peso if needed
+    const amountInPeso = paymentMode === PaymentMode.PERCENTAGE
+      ? convertPercentageToPeso(paymentAmount, loanAmount)
+      : paymentAmount;
+    
+    // Round up to ensure full loan coverage
+    return Math.ceil(loanAmount / amountInPeso);
+  };
+
+  /**
+   * Calculate amount from duration (when duration is locked)
+   * Returns 0 if inputs are invalid
+   */
+  const calculateAmountFromDuration = (): number => {
+    const loanAmount = parseFloat(formData.requested_amount);
+    const duration = parseInt(debouncedManualDuration);
+    
+    if (!loanAmount || !duration || duration <= 0) {
+      return 0;
+    }
+    
+    // Divide loan evenly across duration
+    const amountInPeso = loanAmount / duration;
+    
+    // Convert to percentage if in percentage mode
+    return paymentMode === PaymentMode.PERCENTAGE
+      ? convertPesoToPercentage(amountInPeso, loanAmount)
+      : amountInPeso;
+  };
+
+  /**
+   * Generate balanced payment schedule that auto-adjusts final payment
+   * Always stores amounts in PESO internally for accuracy
+   * Percentage mode is for display only
+   */
+  const generateBalancedSchedule = (): PaymentEntry[] => {
+    const loanAmount = parseFloat(formData.requested_amount);
+    let paymentAmountInput: number;
+    let duration: number;
+    
+    // Determine calculation direction based on last edited field
+    if (lastEditedField === 'amount') {
+      paymentAmountInput = parseFloat(debouncedPaymentAmount);
+      duration = calculateDurationFromAmount();
+    } else {
+      duration = parseInt(debouncedManualDuration);
+      paymentAmountInput = calculateAmountFromDuration();
+    }
+    
+    if (!loanAmount || !paymentAmountInput || duration === 0) {
+      return [];
+    }
+    
+    // Convert to peso for internal calculations (always store in peso)
+    const paymentAmountInPeso = paymentMode === PaymentMode.PERCENTAGE
+      ? convertPercentageToPeso(paymentAmountInput, loanAmount)
+      : paymentAmountInput;
+    
+    const payments: PaymentEntry[] = [];
+    let remainingBalance = loanAmount;
+    
+    for (let i = 0; i < duration; i++) {
+      const isLastPayment = i === duration - 1;
+      
+      // Calculate amount in peso (always)
+      let amountInPeso: number;
+      if (isLastPayment) {
+        // Final payment takes exact remaining balance
+        amountInPeso = remainingBalance;
+      } else {
+        // Regular payment, but don't exceed remaining balance
+        amountInPeso = Math.min(paymentAmountInPeso, remainingBalance);
+      }
+      
+      // Calculate payment date based on schedule type
+      let paymentDate = new Date(debouncedStartDate);
+      if (paymentScheduleType === PaymentScheduleType.DAILY) {
+        paymentDate.setDate(paymentDate.getDate() + i);
+      } else if (paymentScheduleType === PaymentScheduleType.WEEKLY) {
+        paymentDate.setDate(paymentDate.getDate() + (i * 7));
+      } else if (paymentScheduleType === PaymentScheduleType.MONTHLY) {
+        paymentDate.setMonth(paymentDate.getMonth() + i);
+      }
+      
+      // ✅ ALWAYS store in peso for accuracy (convert percentage to peso)
+      // Display mode is handled separately in the UI
+      payments.push({
+        id: `payment-${i + 1}`,
+        payment_date: paymentDate.toISOString().split('T')[0],
+        amount: parseFloat(amountInPeso.toFixed(2)), // ✅ Store in peso always
+        mode: paymentMode, // ✅ Store display mode for reference
+        status: PaymentStatus.PENDING
+      });
+      
+      remainingBalance -= amountInPeso;
+    }
+    
+    return payments;
+  };
+
+  // Auto-generate balanced payments when debounced values change
+  useEffect(() => {
+    if (paymentScheduleType !== PaymentScheduleType.CUSTOM && 
+        paymentAmountType === PaymentAmountType.FIXED &&
+        formData.requested_amount) {
+      
+      const loanAmount = parseFloat(formData.requested_amount);
+      
+      if (!isNaN(loanAmount) && loanAmount > 0) {
+        
+        // If amount was last edited, calculate duration
+        if (lastEditedField === 'amount' && debouncedPaymentAmount) {
+          const amount = parseFloat(debouncedPaymentAmount);
+          if (!isNaN(amount) && amount > 0) {
+            const calculatedDuration = calculateDurationFromAmount();
+            setPaymentDuration(calculatedDuration.toString());
+            setManualDuration(calculatedDuration.toString());
+            
+            if (debouncedStartDate) {
+              const balancedPayments = generateBalancedSchedule();
+              setGeneratedPayments(balancedPayments);
+              if (balancedPayments.length > 0) {
+                setValidationErrors([]);
+              }
+            }
+          }
+        }
+        
+        // If duration was last edited, calculate amount
+        else if (lastEditedField === 'duration' && debouncedManualDuration) {
+          const duration = parseInt(debouncedManualDuration);
+          if (!isNaN(duration) && duration > 0) {
+            const calculatedAmount = calculateAmountFromDuration();
+            setFixedPaymentAmount(calculatedAmount.toFixed(2));
+            
+            if (debouncedStartDate) {
+              const balancedPayments = generateBalancedSchedule();
+              setGeneratedPayments(balancedPayments);
+              if (balancedPayments.length > 0) {
+                setValidationErrors([]);
+              }
+            }
+          }
+        }
+      }
+    }
+  }, [
+    lastEditedField,
+    debouncedPaymentAmount,
+    debouncedManualDuration,
+    debouncedStartDate,
+    paymentScheduleType,
+    paymentAmountType,
+    paymentMode,
+    formData.requested_amount
+  ]);
+
+  /**
+   * Get current active payment schedule
+   */
+  const getCurrentPayments = (): PaymentEntry[] => {
+    if (paymentScheduleType === PaymentScheduleType.CUSTOM || paymentAmountType === PaymentAmountType.CUSTOM) {
+      return customPayments;
+    }
+    return generatedPayments;
+  };
+
+  /**
+   * Calculate remaining balance for custom schedules
+   */
+  const getRemainingBalance = (): number => {
+    const loanAmount = parseFloat(formData.requested_amount) || 0;
+    // ✅ Amounts are ALWAYS stored in peso, just sum them directly
+    const totalPaid = customPayments.reduce((sum, p) => sum + p.amount, 0);
+    return loanAmount - totalPaid;
+  };
+
+  /**
+   * Validate payment configuration with enhanced checks
+   */
+  const validatePaymentConfiguration = (): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const loanAmount = parseFloat(formData.requested_amount);
+    
+    if (!loanAmount || loanAmount <= 0) {
+      errors.push('Please enter a valid loan amount first');
+      return { valid: false, errors };
+    }
+
+    // For fixed schedules
+    if (paymentScheduleType !== PaymentScheduleType.CUSTOM && paymentAmountType === PaymentAmountType.FIXED) {
+      const paymentAmount = parseFloat(fixedPaymentAmount);
+      
+      if (!paymentAmount || paymentAmount <= 0) {
+        errors.push('Payment amount must be greater than zero');
+      } else {
+        const duration = calculateDurationFromAmount();
+        
+        // Check for excessive payments
+        const maxPayments = paymentScheduleType === PaymentScheduleType.DAILY ? 365 
+          : paymentScheduleType === PaymentScheduleType.WEEKLY ? 104 
+          : 60; // monthly max
+        
+        if (duration > maxPayments) {
+          errors.push(`Payment amount too small. Would create ${duration} payments (max: ${maxPayments})`);
+        }
+        
+        if (duration === 0) {
+          errors.push('Invalid payment configuration');
+        }
+      }
+      
+      if (!paymentStartDate) {
+        errors.push('Please select a start date');
+      }
+    }
+
+    // For custom schedules
+    if (paymentScheduleType === PaymentScheduleType.CUSTOM || paymentAmountType === PaymentAmountType.CUSTOM) {
+      if (customPayments.length === 0) {
+        errors.push('Please add at least one payment entry');
+      } else {
+        const remaining = getRemainingBalance();
+        if (Math.abs(remaining) > 0.01) { // Allow 1 cent tolerance
+          if (remaining > 0) {
+            errors.push(`Payment total is insufficient. Remaining: ${formatCurrency(remaining)}`);
+          } else {
+            errors.push(`Payment total exceeds loan amount by ${formatCurrency(Math.abs(remaining))}`);
+          }
+        }
+        
+        // Check for invalid amounts
+        const invalidPayments = customPayments.filter(p => p.amount <= 0);
+        if (invalidPayments.length > 0) {
+          errors.push('All payment amounts must be greater than zero');
+        }
+        
+        // Check for duplicate dates
+        const dates = customPayments.map(p => p.payment_date);
+        const hasDuplicates = dates.some((date, index) => dates.indexOf(date) !== index);
+        if (hasDuplicates) {
+          errors.push('Duplicate payment dates found');
+        }
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  };
+
+  // Payment handlers
+  const handleTogglePaymentMode = () => {
+    const newMode = paymentMode === PaymentMode.PESO ? PaymentMode.PERCENTAGE : PaymentMode.PESO;
+    setPaymentMode(newMode);
+    
+    const principal = parseFloat(formData.requested_amount) || 0;
+    
+    // Convert fixed amount
+    if (fixedPaymentAmount) {
+      const amount = parseFloat(fixedPaymentAmount);
+      if (!isNaN(amount) && principal > 0) {
+        const converted = newMode === PaymentMode.PERCENTAGE
+          ? convertPesoToPercentage(amount, principal)
+          : convertPercentageToPeso(amount, principal);
+        setFixedPaymentAmount(converted.toFixed(2));
+      }
+    }
+    
+    // Convert custom payments
+    setCustomPayments(customPayments.map(p => ({
+      ...p,
+      mode: newMode,
+      amount: principal > 0
+        ? (newMode === PaymentMode.PERCENTAGE
+          ? convertPesoToPercentage(p.amount, principal)
+          : convertPercentageToPeso(p.amount, principal))
+        : p.amount
+    })));
+  };
+
+  const handleAddCustomPayment = () => {
+    const newPayment: PaymentEntry = {
+      id: `custom-${Date.now()}`,
+      payment_date: new Date().toISOString().split('T')[0],
+      amount: 0,
+      mode: paymentMode,
+      status: PaymentStatus.PENDING
+    };
+    setCustomPayments([...customPayments, newPayment]);
+  };
+
+  const handleRemoveCustomPayment = (id: string) => {
+    setCustomPayments(customPayments.filter(p => p.id !== id));
+  };
+
+  const handleUpdateCustomPayment = (id: string, field: keyof PaymentEntry, value: any) => {
+    setCustomPayments(customPayments.map(p => 
+      p.id === id ? { ...p, [field]: value } : p
+    ));
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -141,6 +507,9 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
     }
   };
 
+  /**
+   * Validate form fields
+   */
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -160,10 +529,6 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
 
     if (!formData.justification.trim()) {
       newErrors.justification = 'Justification is required';
-    }
-
-    if (!formData.repayment_terms || parseInt(formData.repayment_terms) < 1) {
-      newErrors.repayment_terms = 'Please select repayment terms';
     }
 
     // Emergency contact validation for emergency loans
@@ -188,17 +553,54 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
     
     if (!validateForm()) return;
 
+    // Validate payment configuration (now mandatory)
+    const paymentValidation = validatePaymentConfiguration();
+    if (!paymentValidation.valid) {
+      setValidationErrors(paymentValidation.errors);
+      showError(
+        `Payment configuration errors:\n${paymentValidation.errors.join('\n')}`, 
+        'Validation Error'
+      );
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       
-      const loanData = {
+      const currentPayments = getCurrentPayments();
+      const principal = parseFloat(formData.requested_amount) || 0;
+      // ✅ Amounts are ALWAYS stored in peso, just sum them directly
+      const totalAmount = currentPayments.reduce((sum, p) => sum + p.amount, 0);
+      const totalPercentage = principal > 0 ? (totalAmount / principal) * 100 : 0;
+      
+      // Calculate repayment terms based on payment schedule
+      const repaymentTermsMonths = paymentScheduleType === PaymentScheduleType.MONTHLY
+        ? currentPayments.length
+        : Math.ceil(currentPayments.length / (paymentScheduleType === PaymentScheduleType.WEEKLY ? 4 : 30));
+      
+      const paymentConfig: PaymentConfiguration = {
+        schedule_type: paymentScheduleType,
+        amount_type: paymentAmountType,
+        payment_mode: paymentMode,
+        fixed_amount: fixedPaymentAmount ? parseFloat(fixedPaymentAmount) : undefined,
+        start_date: paymentStartDate || undefined,
+        duration: paymentDuration ? parseInt(paymentDuration) : undefined,
+        custom_payments: paymentScheduleType === PaymentScheduleType.CUSTOM || paymentAmountType === PaymentAmountType.CUSTOM
+          ? customPayments
+          : undefined,
+        total_amount: totalAmount,
+        total_percentage: totalPercentage
+      };
+      
+      const loanData: any = {
         ...formData,
         requested_amount: parseFloat(formData.requested_amount),
-        repayment_terms: parseInt(formData.repayment_terms),
-        monthly_deduction: monthlyDeduction,
+        repayment_terms: repaymentTermsMonths, // Derived from payment schedule
         employee: selectedEmployee,
         application_date: new Date().toISOString().split('T')[0],
-        status: 'draft'
+        status: 'draft',
+        paymentConfiguration: paymentConfig,
+        paymentSchedule: currentPayments
       };
 
       await onSubmit(loanData);
@@ -310,35 +712,319 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
                     />
                     {errors.requested_amount && <div className="error-message">{errors.requested_amount}</div>}
                   </div>
-
-                  <div className="formField">
-                    <label htmlFor="repayment_terms">
-                      Repayment Terms <span className="requiredTags">*</span>
-                    </label>
-                    <select
-                      id="repayment_terms"
-                      name="repayment_terms"
-                      value={formData.repayment_terms}
-                      onChange={handleInputChange}
-                      className={errors.repayment_terms ? 'input-error' : ''}
-                    >
-                      <option value="6">6 months</option>
-                      <option value="12">12 months</option>
-                      <option value="18">18 months</option>
-                      <option value="24">24 months</option>
-                      <option value="36">36 months</option>
-                    </select>
-                    {errors.repayment_terms && <div className="error-message">{errors.repayment_terms}</div>}
-                  </div>
                 </div>
 
-                {/* Monthly Deduction Display */}
-                {monthlyDeduction > 0 && (
-                  <div className="calculation-box">
-                    <strong>Monthly Deduction: ₱{monthlyDeduction.toLocaleString(undefined, { 
-                      minimumFractionDigits: 2, 
-                      maximumFractionDigits: 2 
-                    })}</strong>
+                
+
+                {/* Payment Schedule Configuration (Mandatory) - Only show if loan amount is entered */}
+                {formData.requested_amount && parseFloat(formData.requested_amount) > 0 ? (
+                  <div className="payment-configuration-section">
+                    <h4>Payment Schedule Configuration</h4>
+
+                    {/* Mode Toggle */}
+                    <div className="mode-toggle-container">
+                      <span className="mode-label">Amount Mode:</span>
+                      <div className="mode-toggle">
+                        <button
+                          type="button"
+                          className={`mode-button ${paymentMode === PaymentMode.PESO ? 'active' : ''}`}
+                          onClick={() => paymentMode !== PaymentMode.PESO && handleTogglePaymentMode()}
+                        >
+                          Peso (₱)
+                        </button>
+                        <button
+                          type="button"
+                          className={`mode-button ${paymentMode === PaymentMode.PERCENTAGE ? 'active' : ''}`}
+                          onClick={() => paymentMode !== PaymentMode.PERCENTAGE && handleTogglePaymentMode()}
+                        >
+                          Percentage (%)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Schedule Configuration */}
+                    <div className="formRow">
+                      <div className="formField">
+                        <label htmlFor="paymentScheduleType">Schedule Type</label>
+                        <select
+                          id="paymentScheduleType"
+                          value={paymentScheduleType}
+                          onChange={(e) => setPaymentScheduleType(e.target.value as PaymentScheduleType)}
+                        >
+                          <option value={PaymentScheduleType.DAILY}>Daily</option>
+                          <option value={PaymentScheduleType.WEEKLY}>Weekly</option>
+                          <option value={PaymentScheduleType.MONTHLY}>Monthly</option>
+                          <option value={PaymentScheduleType.CUSTOM}>Custom</option>
+                        </select>
+                      </div>
+
+                      <div className="formField">
+                        <label htmlFor="paymentAmountType">Amount Type</label>
+                        <select
+                          id="paymentAmountType"
+                          value={paymentAmountType}
+                          onChange={(e) => setPaymentAmountType(e.target.value as PaymentAmountType)}
+                        >
+                          <option value={PaymentAmountType.FIXED}>Fixed Amount</option>
+                          <option value={PaymentAmountType.CUSTOM}>Custom Amounts</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Fixed Schedule Inputs */}
+                    {paymentScheduleType !== PaymentScheduleType.CUSTOM && paymentAmountType === PaymentAmountType.FIXED && (
+                      <div className="fixed-schedule-inputs">
+                        <div className="formRow">
+                          <div className="formField">
+                            <label htmlFor="fixedPaymentAmount">
+                              Payment Amount {paymentMode === PaymentMode.PERCENTAGE && '(%)'} <span className="requiredTags">*</span>
+                              {fixedPaymentAmount !== debouncedPaymentAmount && (
+                                <span className="calculating-indicator"> Calculating...</span>
+                              )}
+                            </label>
+                            <input
+                              type="number"
+                              id="fixedPaymentAmount"
+                              value={fixedPaymentAmount}
+                              onChange={(e) => {
+                                setFixedPaymentAmount(e.target.value);
+                                setLastEditedField('amount');
+                                if (validationErrors.length > 0) {
+                                  setValidationErrors([]);
+                                }
+                              }}
+                              onFocus={() => setLastEditedField('amount')}
+                              placeholder={paymentMode === PaymentMode.PESO ? "e.g., 5000" : "e.g., 10"}
+                              step={paymentMode === PaymentMode.PESO ? "0.01" : "0.1"}
+                              min="0"
+                              className={validationErrors.some(e => e.includes('Payment amount')) ? 'payment-validation-error' : ''}
+                            />
+                            {validationErrors.some(e => e.includes('Payment amount')) && (
+                              <div className="payment-validation-message">
+                                {validationErrors.find(e => e.includes('Payment amount'))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="formField">
+                            <label htmlFor="paymentStartDate">Start Date <span className="requiredTags">*</span></label>
+                            <input
+                              type="date"
+                              id="paymentStartDate"
+                              value={paymentStartDate}
+                              onChange={(e) => {
+                                setPaymentStartDate(e.target.value);
+                                if (validationErrors.length > 0) {
+                                  setValidationErrors([]);
+                                }
+                              }}
+                              className={validationErrors.some(e => e.includes('start date')) ? 'payment-validation-error' : ''}
+                            />
+                          </div>
+
+                          <div className="formField">
+                            <label htmlFor="paymentDuration">
+                              Duration ({paymentScheduleType === PaymentScheduleType.DAILY ? 'days' : 
+                                         paymentScheduleType === PaymentScheduleType.WEEKLY ? 'weeks' : 'months'})
+                              <span className="requiredTags">*</span>
+                              {manualDuration !== debouncedManualDuration && (
+                                <span className="calculating-indicator"> Calculating...</span>
+                              )}
+                            </label>
+                            <input
+                              type="number"
+                              id="paymentDuration"
+                              value={lastEditedField === 'duration' ? manualDuration : paymentDuration}
+                              onChange={(e) => {
+                                setManualDuration(e.target.value);
+                                setPaymentDuration(e.target.value);
+                                setLastEditedField('duration');
+                                if (validationErrors.length > 0) {
+                                  setValidationErrors([]);
+                                }
+                              }}
+                              onFocus={() => setLastEditedField('duration')}
+                              placeholder="Enter duration"
+                              min="1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom Payment Entries */}
+                    {(paymentScheduleType === PaymentScheduleType.CUSTOM || paymentAmountType === PaymentAmountType.CUSTOM) && (
+                      <div className="custom-payments-section">
+                        <div className="custom-payments-header">
+                          <h5>Custom Payment Entries</h5>
+                          <button 
+                            type="button" 
+                            className="add-payment-button"
+                            onClick={handleAddCustomPayment}
+                          >
+                            + Add Payment
+                          </button>
+                        </div>
+
+                        <div className="custom-payments-list">
+                          {customPayments.map((payment, index) => (
+                            <div key={payment.id} className="custom-payment-entry">
+                              <span className="payment-number">{index + 1}</span>
+                              <input
+                                type="date"
+                                value={payment.payment_date}
+                                onChange={(e) => handleUpdateCustomPayment(payment.id, 'payment_date', e.target.value)}
+                              />
+                              <input
+                                type="number"
+                                value={payment.amount}
+                                onChange={(e) => handleUpdateCustomPayment(payment.id, 'amount', parseFloat(e.target.value) || 0)}
+                                placeholder={paymentMode === PaymentMode.PESO ? "Amount (₱)" : "Percentage (%)"}
+                                step={paymentMode === PaymentMode.PESO ? "0.01" : "0.1"}
+                                min="0"
+                              />
+                              <button
+                                type="button"
+                                className="remove-payment-button"
+                                onClick={() => handleRemoveCustomPayment(payment.id)}
+                                title="Remove payment"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                          {customPayments.length === 0 && (
+                            <div className="no-payments-message">
+                              No custom payments added. Click "Add Payment" to start.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Payment Summary Table */}
+                    {getCurrentPayments().length > 0 && (
+                      <div className="payment-summary-section">
+                        <h5>Payment Summary</h5>
+                        <div className="payment-summary-table">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Payment Date</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {getCurrentPayments().map((payment, index) => {
+                                const principal = parseFloat(formData.requested_amount) || 0;
+                                
+                                // ✅ Payment amount is always stored in peso
+                                // Convert to percentage for display only
+                                const amountInPeso = payment.amount;
+                                const amountInPercentage = principal > 0 
+                                  ? (amountInPeso / principal * 100).toFixed(2)
+                                  : '0.00';
+                                
+                                return (
+                                  <tr key={payment.id}>
+                                    <td>{index + 1}</td>
+                                    <td>{new Date(payment.payment_date).toLocaleDateString()}</td>
+                                    <td>
+                                      {paymentMode === PaymentMode.PESO 
+                                        ? formatCurrency(amountInPeso)
+                                        : `${amountInPercentage}% (${formatCurrency(amountInPeso)})`
+                                      }
+                                    </td>
+                                    <td>
+                                      <span className={`status-badge status-${payment.status.toLowerCase()}`}>
+                                        {payment.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr>
+                                <td colSpan={2}><strong>Total</strong></td>
+                                <td>
+                                  <strong>
+                                    {(() => {
+                                      const principal = parseFloat(formData.requested_amount) || 0;
+                                      // ✅ Amounts are ALWAYS stored in peso, just sum them directly
+                                      const totalPeso = getCurrentPayments().reduce((sum, p) => sum + p.amount, 0);
+                                      
+                                      if (paymentMode === PaymentMode.PESO) {
+                                        return formatCurrency(totalPeso);
+                                      } else {
+                                        // ✅ Calculate percentage correctly from peso total
+                                        const totalPercentage = principal > 0 
+                                          ? (totalPeso / principal * 100).toFixed(2)
+                                          : '0.00';
+                                        return `${totalPercentage}% (${formatCurrency(totalPeso)})`;
+                                      }
+                                    })()}
+                                  </strong>
+                                </td>
+                                <td></td>
+                              </tr>
+                              {formData.requested_amount && (
+                                <tr>
+                                  <td colSpan={2}><strong>Loan Principal</strong></td>
+                                  <td><strong>{formatCurrency(parseFloat(formData.requested_amount))}</strong></td>
+                                  <td></td>
+                                </tr>
+                              )}
+                            </tfoot>
+                          </table>
+                        </div>
+
+                        {/* Remaining Balance for Custom Schedules */}
+                        {(paymentScheduleType === PaymentScheduleType.CUSTOM || paymentAmountType === PaymentAmountType.CUSTOM) && (
+                          <div className={`remaining-balance-display ${
+                            Math.abs(getRemainingBalance()) < 0.01 ? 'balanced' : 
+                            getRemainingBalance() < 0 ? 'over' : ''
+                          }`}>
+                            {Math.abs(getRemainingBalance()) < 0.01 ? (
+                              <>✓ Balanced: Total matches loan amount</>
+                            ) : getRemainingBalance() > 0 ? (
+                              <>⚠ Remaining Balance: {formatCurrency(getRemainingBalance())}</>
+                            ) : (
+                              <>⚠ Over Payment: {formatCurrency(Math.abs(getRemainingBalance()))}</>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Validation Errors */}
+                        {validationErrors.length > 0 && (
+                          <div className="validation-warning">
+                            <strong>⚠ Validation Issues:</strong>
+                            <ul>
+                              {validationErrors.map((error, idx) => (
+                                <li key={idx}>{error}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="payment-config-info-box" style={{
+                    backgroundColor: '#FFFFFF',
+                    borderColor: 'var(--primary-color)',
+                    borderWidth: '2px',
+                    borderStyle: 'solid',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <p style={{margin: 0, color: '#000000'}}>
+                      <strong style={{color: 'var(--primary-color)'}}>ℹ️ Payment Schedule Configuration</strong><br/>
+                      Please enter the requested loan amount above to configure the payment schedule.
+                    </p>
                   </div>
                 )}
 

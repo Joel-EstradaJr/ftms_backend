@@ -152,7 +152,7 @@ const Sidebar: React.FC = () => {
             }`}
             onClick={() => toggleSubMenu("loan-management")}
           >
-            <i className="ri-wallet-3-line"></i>
+            <i className="ri-hand-heart-line"></i>
             <span>Loans</span>
             <i
               className={`dropdown-arrow ri-arrow-down-s-line ${
