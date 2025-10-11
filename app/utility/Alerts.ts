@@ -292,5 +292,331 @@ export const showLoanRejectionDialog = (loanRequestId: string) => {
   });
 };
 
+// ========================================================================================
+// LOAN PAYMENT ALERTS
+// ========================================================================================
+
+/**
+ * Shows confirmation dialog before adding a payment
+ * @param amount - Payment amount to be added
+ * @param loanId - ID of the loan being paid
+ */
+export const showPaymentConfirmation = (amount: number, loanId: string) => {
+  return Swal.fire({
+    title: 'Confirm Payment',
+    html: `
+      <div style="text-align: left; padding: 10px;">
+        <p style="margin-bottom: 10px;"><strong>Loan ID:</strong> ${loanId}</p>
+        <p style="margin-bottom: 10px;"><strong>Payment Amount:</strong> ₱${amount.toFixed(2)}</p>
+        <p style="color: #666;">Are you sure you want to record this payment?</p>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Confirm Payment',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#961C1E',
+    cancelButtonColor: '#6c757d',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows warning when making a partial payment
+ * @param amount - Payment amount
+ * @param remaining - Remaining balance after payment
+ */
+export const showPartialPaymentWarning = (amount: number, remaining: number) => {
+  return Swal.fire({
+    title: 'Partial Payment',
+    html: `
+      <div style="text-align: left; padding: 10px;">
+        <p style="margin-bottom: 10px;"><strong>Payment Amount:</strong> ₱${amount.toFixed(2)}</p>
+        <p style="margin-bottom: 10px;"><strong>Remaining Balance:</strong> ₱${remaining.toFixed(2)}</p>
+        <p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
+          ⚠️ This is a partial payment. The loan will remain active.
+        </p>
+      </div>
+    `,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Continue',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#961C1E',
+    cancelButtonColor: '#6c757d',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows warning when payment exceeds remaining balance
+ * @param amount - Payment amount
+ * @param remaining - Current remaining balance
+ */
+export const showOverpaymentWarning = (amount: number, remaining: number) => {
+  const overpayment = amount - remaining;
+  return Swal.fire({
+    title: 'Overpayment Detected',
+    html: `
+      <div style="text-align: left; padding: 10px;">
+        <p style="margin-bottom: 10px;"><strong>Payment Amount:</strong> ₱${amount.toFixed(2)}</p>
+        <p style="margin-bottom: 10px;"><strong>Remaining Balance:</strong> ₱${remaining.toFixed(2)}</p>
+        <p style="margin-bottom: 10px;"><strong>Overpayment:</strong> ₱${overpayment.toFixed(2)}</p>
+        <p style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 4px; border-left: 4px solid #dc3545;">
+          ⚠️ Payment exceeds remaining balance. Please verify the amount.
+        </p>
+      </div>
+    `,
+    icon: 'error',
+    confirmButtonText: 'OK',
+    confirmButtonColor: '#961C1E',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows success message after payment is recorded
+ * @param receiptNumber - Receipt number for the payment
+ */
+export const showPaymentSuccess = (receiptNumber?: string) => {
+  return Swal.fire({
+    icon: 'success',
+    title: 'Payment Recorded',
+    html: receiptNumber 
+      ? `<p>Payment has been successfully recorded.</p><p><strong>Receipt #:</strong> ${receiptNumber}</p>`
+      : '<p>Payment has been successfully recorded.</p>',
+    confirmButtonColor: '#961C1E',
+    background: 'white',
+    backdrop: false,
+    timer: 3000,
+    timerProgressBar: true,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows error message when payment fails
+ * @param message - Error message to display
+ */
+export const showPaymentError = (message: string) => {
+  return Swal.fire({
+    icon: 'error',
+    title: 'Payment Failed',
+    text: message || 'An error occurred while recording the payment. Please try again.',
+    confirmButtonColor: '#961C1E',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows confirmation dialog before closing a loan
+ * @param loanId - ID of the loan to be closed
+ * @param finalAmount - Final payment amount (should be remaining balance)
+ */
+export const showCloseLoanConfirmation = (loanId: string, finalAmount: number) => {
+  return Swal.fire({
+    title: 'Close Loan',
+    html: `
+      <div style="text-align: left; padding: 10px;">
+        <p style="margin-bottom: 10px;"><strong>Loan ID:</strong> ${loanId}</p>
+        <p style="margin-bottom: 10px;"><strong>Final Payment:</strong> ₱${finalAmount.toFixed(2)}</p>
+        <p style="color: #155724; background: #d4edda; padding: 10px; border-radius: 4px; border-left: 4px solid #28a745;">
+          ✓ This will mark the loan as fully paid and closed.
+        </p>
+        <p style="margin-top: 10px; color: #666;">Are you sure you want to close this loan?</p>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Close Loan',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#28a745',
+    cancelButtonColor: '#6c757d',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows success message after loan is closed
+ */
+export const showCloseLoanSuccess = () => {
+  return Swal.fire({
+    icon: 'success',
+    title: 'Loan Closed',
+    text: 'The loan has been successfully closed and marked as fully paid.',
+    confirmButtonColor: '#961C1E',
+    background: 'white',
+    backdrop: false,
+    timer: 3000,
+    timerProgressBar: true,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows confirmation dialog before deleting a payment
+ * @param paymentId - ID of the payment to be deleted
+ * @param amount - Amount of the payment being deleted
+ */
+export const showDeletePaymentConfirmation = (paymentId: string, amount: number) => {
+  return Swal.fire({
+    title: 'Delete Payment',
+    html: `
+      <div style="text-align: left; padding: 10px;">
+        <p style="margin-bottom: 10px;"><strong>Payment ID:</strong> ${paymentId}</p>
+        <p style="margin-bottom: 10px;"><strong>Amount:</strong> ₱${amount.toFixed(2)}</p>
+        <p style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 4px; border-left: 4px solid #dc3545;">
+          ⚠️ Warning: This action cannot be undone. The loan balance will be adjusted.
+        </p>
+        <p style="margin-top: 10px; color: #666;">Are you sure you want to delete this payment?</p>
+      </div>
+    `,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Delete Payment',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#dc3545',
+    cancelButtonColor: '#6c757d',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows success message after payment is deleted
+ */
+export const showDeletePaymentSuccess = () => {
+  return Swal.fire({
+    icon: 'success',
+    title: 'Payment Deleted',
+    text: 'The payment record has been successfully deleted.',
+    confirmButtonColor: '#961C1E',
+    background: 'white',
+    backdrop: false,
+    timer: 3000,
+    timerProgressBar: true,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows confirmation dialog before performing audit
+ */
+export const showAuditConfirmation = () => {
+  return Swal.fire({
+    title: 'Generate Audit Report',
+    text: 'This will generate a comprehensive audit report of all payment transactions. Continue?',
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonText: 'Generate Report',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#961C1E',
+    cancelButtonColor: '#6c757d',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows success message after audit report is generated
+ */
+export const showAuditSuccess = () => {
+  return Swal.fire({
+    icon: 'success',
+    title: 'Audit Report Generated',
+    text: 'The audit report has been successfully generated.',
+    confirmButtonColor: '#961C1E',
+    background: 'white',
+    backdrop: false,
+    timer: 2000,
+    timerProgressBar: true,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows confirmation dialog before editing a payment
+ * @param paymentId - ID of the payment to be edited
+ */
+export const showEditPaymentConfirmation = (paymentId: string) => {
+  return Swal.fire({
+    title: 'Edit Payment',
+    html: `
+      <div style="text-align: left; padding: 10px;">
+        <p style="margin-bottom: 10px;"><strong>Payment ID:</strong> ${paymentId}</p>
+        <p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
+          ℹ️ Editing this payment will update the loan balance and create an audit trail.
+        </p>
+        <p style="margin-top: 10px; color: #666;">Continue with editing?</p>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Continue',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#961C1E',
+    cancelButtonColor: '#6c757d',
+    background: 'white',
+    backdrop: false,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+/**
+ * Shows success message after payment is updated
+ */
+export const showEditPaymentSuccess = () => {
+  return Swal.fire({
+    icon: 'success',
+    title: 'Payment Updated',
+    text: 'The payment record has been successfully updated.',
+    confirmButtonColor: '#961C1E',
+    background: 'white',
+    backdrop: false,
+    timer: 2000,
+    timerProgressBar: true,
+    customClass: {
+      popup: 'swal-custom-popup'
+    }
+  });
+};
+
+
 
 

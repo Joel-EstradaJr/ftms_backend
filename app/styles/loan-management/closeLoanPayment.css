@@ -1,0 +1,488 @@
+/* ========================================
+   CLOSE LOAN PAYMENT MODAL STYLES
+   ======================================== */
+
+/* ---------- Modal Container ---------- */
+.closeLoanPaymentModal {
+  max-width: 800px !important;
+}
+
+.closeLoanPaymentModal .modalContent {
+  background-color: var(--modal-content-background-color) !important;
+}
+
+/* ---------- Header ---------- */
+.close-loan-header {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  color: white !important;
+  padding: 1.5rem !important;
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem !important;
+  border-radius: 8px 8px 0 0 !important;
+  text-align: center !important;
+}
+
+.close-loan-header h3 {
+  margin: 0 !important;
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+}
+
+.close-loan-header h3::before {
+  content: '✓' !important;
+  font-size: 2rem !important;
+  background-color: white !important;
+  color: #22c55e !important;
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 900 !important;
+}
+
+.close-loan-header .subtitle {
+  font-size: 1rem !important;
+  opacity: 0.9 !important;
+  margin-top: 0.5rem !important;
+}
+
+/* ---------- Loan Summary Section ---------- */
+.close-loan-summary {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+  border: 2px solid #22c55e !important;
+  border-radius: 8px !important;
+  padding: 2rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.close-loan-summary-title {
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+  color: #166534 !important;
+  text-align: center !important;
+  margin-bottom: 1.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+}
+
+.close-loan-summary-title::before {
+  content: '📋' !important;
+  font-size: 1.3rem !important;
+}
+
+.close-loan-details-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.close-loan-detail-item {
+  background-color: white !important;
+  padding: 1rem !important;
+  border-radius: 6px !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+.close-loan-detail-label {
+  font-size: 0.85rem !important;
+  color: #6b7280 !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.close-loan-detail-value {
+  font-size: 1.1rem !important;
+  color: var(--secondary-text-color) !important;
+  font-weight: 700 !important;
+}
+
+.close-loan-detail-item.highlight {
+  grid-column: 1 / -1 !important;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%) !important;
+  border-color: #22c55e !important;
+  text-align: center !important;
+  padding: 1.5rem !important;
+}
+
+.close-loan-detail-item.highlight .close-loan-detail-label {
+  font-size: 0.95rem !important;
+  color: #166534 !important;
+}
+
+.close-loan-detail-item.highlight .close-loan-detail-value {
+  font-size: 2rem !important;
+  color: #166534 !important;
+}
+
+/* ---------- Payment Summary Cards ---------- */
+.close-payment-summary-cards {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 1rem !important;
+  margin: 2rem 0 !important;
+}
+
+.close-payment-summary-card {
+  background-color: white !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.25rem !important;
+  text-align: center !important;
+  transition: all 0.3s ease !important;
+}
+
+.close-payment-summary-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.close-payment-summary-card.total-paid {
+  border-color: #22c55e !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%) !important;
+}
+
+.close-payment-summary-card.original {
+  border-color: #3b82f6 !important;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%) !important;
+}
+
+.close-payment-summary-card.balance {
+  border-color: #fbbf24 !important;
+  background: linear-gradient(135deg, #fefce8 0%, #ffffff 100%) !important;
+}
+
+.close-payment-card-icon {
+  font-size: 2rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.close-payment-card-label {
+  font-size: 0.8rem !important;
+  color: #6b7280 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.close-payment-card-value {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: var(--primary-color) !important;
+}
+
+.close-payment-summary-card.total-paid .close-payment-card-value {
+  color: #16a34a !important;
+}
+
+.close-payment-summary-card.original .close-payment-card-value {
+  color: #2563eb !important;
+}
+
+.close-payment-summary-card.balance .close-payment-card-value {
+  color: #ca8a04 !important;
+}
+
+/* ---------- Validation Messages ---------- */
+.close-loan-validation-box {
+  background-color: white !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.close-loan-validation-box.success {
+  border-color: #22c55e !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%) !important;
+}
+
+.close-loan-validation-box.error {
+  border-color: #ef4444 !important;
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%) !important;
+}
+
+.validation-checklist {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.validation-checklist-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  padding: 0.75rem !important;
+  margin-bottom: 0.5rem !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+}
+
+.validation-checklist-item.passed {
+  background-color: #f0fdf4 !important;
+  color: #166534 !important;
+}
+
+.validation-checklist-item.passed::before {
+  content: '✓' !important;
+  font-size: 1.3rem !important;
+  color: #22c55e !important;
+  font-weight: 900 !important;
+}
+
+.validation-checklist-item.failed {
+  background-color: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+.validation-checklist-item.failed::before {
+  content: '✕' !important;
+  font-size: 1.3rem !important;
+  color: #ef4444 !important;
+  font-weight: 900 !important;
+}
+
+/* ---------- Closure Date Section ---------- */
+.close-loan-date-section {
+  background-color: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.close-loan-date-section h4 {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-color) !important;
+  margin-bottom: 1rem !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.close-loan-date-section h4::before {
+  content: '📅' !important;
+  font-size: 1.1rem !important;
+}
+
+.close-loan-date-display {
+  background-color: white !important;
+  border: 2px solid #22c55e !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  text-align: center !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #166534 !important;
+}
+
+/* ---------- Final Remarks Section ---------- */
+.close-loan-remarks-section {
+  margin: 1.5rem 0 !important;
+}
+
+.close-loan-remarks-section h4 {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-color) !important;
+  margin-bottom: 0.75rem !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.close-loan-remarks-section h4::before {
+  content: '📝' !important;
+  font-size: 1.1rem !important;
+}
+
+.close-loan-remarks-textarea {
+  width: 100% !important;
+  min-height: 120px !important;
+  padding: 1rem !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+  color: var(--primary-text-color) !important;
+  resize: vertical !important;
+  font-family: inherit !important;
+}
+
+.close-loan-remarks-textarea:focus {
+  outline: none !important;
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1) !important;
+}
+
+.close-loan-remarks-textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+.remarks-counter {
+  text-align: right !important;
+  font-size: 0.85rem !important;
+  color: #6b7280 !important;
+  margin-top: 0.5rem !important;
+}
+
+/* ---------- Confirmation Box ---------- */
+.close-loan-confirmation-box {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
+  border: 2px solid #fb923c !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 2rem 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 1rem !important;
+}
+
+.close-loan-confirmation-icon {
+  font-size: 2.5rem !important;
+  flex-shrink: 0 !important;
+}
+
+.close-loan-confirmation-content {
+  flex: 1 !important;
+}
+
+.close-loan-confirmation-title {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: #9a3412 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.close-loan-confirmation-message {
+  font-size: 0.95rem !important;
+  color: #78350f !important;
+  line-height: 1.5 !important;
+}
+
+/* ---------- Button Group ---------- */
+.close-loan-button-group {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 1rem !important;
+  margin-top: 2rem !important;
+  padding-top: 1.5rem !important;
+  border-top: 2px solid var(--border-color) !important;
+}
+
+.close-loan-button-group button {
+  padding: 0.875rem 2.5rem !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  border-radius: 6px !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.close-loan-button-group button.cancel {
+  background-color: #6c757d !important;
+  color: white !important;
+}
+
+.close-loan-button-group button.cancel:hover {
+  background-color: #545b62 !important;
+}
+
+.close-loan-button-group button.confirm {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3) !important;
+}
+
+.close-loan-button-group button.confirm:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4) !important;
+}
+
+.close-loan-button-group button.confirm:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* ---------- Loading State ---------- */
+.close-loan-loading {
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+  position: relative !important;
+}
+
+.close-loan-loading::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 40px !important;
+  height: 40px !important;
+  border: 4px solid #f3f4f6 !important;
+  border-top-color: #22c55e !important;
+  border-radius: 50% !important;
+  animation: spin 0.8s linear infinite !important;
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg) !important;
+  }
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 768px) {
+  .closeLoanPaymentModal {
+    max-width: 95% !important;
+  }
+
+  .close-loan-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .close-payment-summary-cards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .close-loan-button-group {
+    flex-direction: column-reverse !important;
+  }
+
+  .close-loan-button-group button {
+    width: 100% !important;
+  }
+
+  .close-loan-confirmation-box {
+    flex-direction: column !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .close-loan-header h3 {
+    font-size: 1.5rem !important;
+  }
+
+  .close-loan-detail-item.highlight .close-loan-detail-value {
+    font-size: 1.5rem !important;
+  }
+
+  .close-payment-card-value {
+    font-size: 1.5rem !important;
+  }
+}

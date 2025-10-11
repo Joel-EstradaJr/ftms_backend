@@ -1,0 +1,452 @@
+/* ========================================
+   VIEW LOAN PAYMENT MODAL STYLES
+   ======================================== */
+
+/* ---------- Modal Container ---------- */
+.viewLoanPaymentModal {
+  max-width: 1200px !important;
+}
+
+.viewLoanPaymentModal .modalContent {
+  background-color: var(--modal-content-background-color) !important;
+}
+
+/* ---------- Header Section ---------- */
+.view-payment-header {
+  background: linear-gradient(135deg, #961C1E 0%, #7a1618 100%) !important;
+  color: white !important;
+  padding: 1.5rem !important;
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem !important;
+  border-radius: 8px 8px 0 0 !important;
+}
+
+.view-payment-header h3 {
+  margin: 0 !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+}
+
+.view-payment-header .loan-id {
+  font-size: 1rem !important;
+  opacity: 0.9 !important;
+  margin-top: 0.25rem !important;
+}
+
+/* ---------- Summary Cards ---------- */
+.payment-summary-cards {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  gap: 1rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.summary-card {
+  background-color: white !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.25rem !important;
+  text-align: center !important;
+  transition: all 0.3s ease !important;
+}
+
+.summary-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.summary-card.primary {
+  border-color: #961C1E !important;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%) !important;
+}
+
+.summary-card.success {
+  border-color: #22c55e !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%) !important;
+}
+
+.summary-card.warning {
+  border-color: #ffc107 !important;
+  background: linear-gradient(135deg, #fefce8 0%, #ffffff 100%) !important;
+}
+
+.summary-card.info {
+  border-color: #3b82f6 !important;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%) !important;
+}
+
+.summary-card-icon {
+  font-size: 2rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.summary-card-label {
+  font-size: 0.85rem !important;
+  color: #6b7280 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.summary-card-value {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: var(--primary-color) !important;
+  line-height: 1 !important;
+}
+
+.summary-card.success .summary-card-value {
+  color: #16a34a !important;
+}
+
+.summary-card.warning .summary-card-value {
+  color: #ca8a04 !important;
+}
+
+.summary-card.info .summary-card-value {
+  color: #2563eb !important;
+}
+
+.summary-card-subtext {
+  font-size: 0.75rem !important;
+  color: #9ca3af !important;
+  margin-top: 0.25rem !important;
+}
+
+/* ---------- Loan Information Section ---------- */
+.loan-info-section {
+  background-color: #f8f9fa !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.loan-info-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.loan-info-section h4::before {
+  content: '📋' !important;
+  font-size: 1.2rem !important;
+}
+
+.loan-info-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 1rem !important;
+}
+
+.loan-info-item {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.25rem !important;
+}
+
+.loan-info-label {
+  font-size: 0.85rem !important;
+  color: #6b7280 !important;
+  font-weight: 500 !important;
+}
+
+.loan-info-value {
+  font-size: 1rem !important;
+  color: var(--secondary-text-color) !important;
+  font-weight: 600 !important;
+}
+
+/* ---------- Payment History Section ---------- */
+.payment-history-section {
+  margin: 2rem 0 !important;
+}
+
+.payment-history-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 1rem !important;
+}
+
+.payment-history-header h4 {
+  margin: 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.payment-history-header h4::before {
+  content: '💳' !important;
+  font-size: 1.2rem !important;
+}
+
+.export-button {
+  padding: 0.5rem 1rem !important;
+  background-color: #22c55e !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.export-button:hover {
+  background-color: #16a34a !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ---------- Payment Table ---------- */
+.payment-table-container {
+  overflow-x: auto !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  background-color: white !important;
+}
+
+.payment-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+.payment-table thead {
+  background-color: #f8f9fa !important;
+}
+
+.payment-table th {
+  padding: 0.75rem 1rem !important;
+  text-align: left !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: var(--secondary-text-color) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  border-bottom: 2px solid var(--border-color) !important;
+}
+
+.payment-table td {
+  padding: 1rem !important;
+  font-size: 0.95rem !important;
+  color: var(--primary-text-color) !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.payment-table tbody tr:hover {
+  background-color: #f8f9fa !important;
+}
+
+.payment-table tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* ---------- Payment Status Chips ---------- */
+.payment-status-chip {
+  display: inline-block !important;
+  padding: 0.35rem 0.75rem !important;
+  border-radius: 12px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+}
+
+.payment-status-chip.completed {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.payment-status-chip.pending {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.payment-status-chip.overdue {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.payment-status-chip.cancelled {
+  background-color: #e5e7eb !important;
+  color: #374151 !important;
+}
+
+/* ---------- Payment Schedule Section ---------- */
+.payment-schedule-section {
+  margin: 2rem 0 !important;
+}
+
+.payment-schedule-section h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.payment-schedule-section h4::before {
+  content: '📅' !important;
+  font-size: 1.2rem !important;
+}
+
+/* ---------- Next Payment Card ---------- */
+.next-payment-card {
+  background: linear-gradient(135deg, #fef3c7 0%, #fefce8 100%) !important;
+  border: 2px solid #fbbf24 !important;
+  border-radius: 8px !important;
+  padding: 1.25rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.next-payment-card.overdue {
+  background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%) !important;
+  border-color: #ef4444 !important;
+}
+
+.next-payment-label {
+  font-size: 0.875rem !important;
+  color: #92400e !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.next-payment-card.overdue .next-payment-label {
+  color: #991b1b !important;
+}
+
+.next-payment-info {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.next-payment-amount {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: #b45309 !important;
+}
+
+.next-payment-card.overdue .next-payment-amount {
+  color: #dc2626 !important;
+}
+
+.next-payment-date {
+  font-size: 1.1rem !important;
+  color: #78350f !important;
+  font-weight: 600 !important;
+}
+
+/* ---------- Empty State ---------- */
+.empty-state {
+  text-align: center !important;
+  padding: 3rem 1rem !important;
+  color: #9ca3af !important;
+}
+
+.empty-state-icon {
+  font-size: 3rem !important;
+  margin-bottom: 1rem !important;
+  opacity: 0.5 !important;
+}
+
+.empty-state-message {
+  font-size: 1rem !important;
+  color: #6b7280 !important;
+}
+
+/* ---------- Action Buttons ---------- */
+.payment-action-buttons {
+  display: flex !important;
+  gap: 0.5rem !important;
+}
+
+.payment-action-btn {
+  padding: 0.4rem 0.75rem !important;
+  font-size: 0.85rem !important;
+  border: none !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.payment-action-btn.view {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+.payment-action-btn.view:hover {
+  background-color: #2563eb !important;
+}
+
+.payment-action-btn.edit {
+  background-color: #fbbf24 !important;
+  color: #78350f !important;
+}
+
+.payment-action-btn.edit:hover {
+  background-color: #f59e0b !important;
+}
+
+.payment-action-btn.delete {
+  background-color: #ef4444 !important;
+  color: white !important;
+}
+
+.payment-action-btn.delete:hover {
+  background-color: #dc2626 !important;
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 968px) {
+  .viewLoanPaymentModal {
+    max-width: 95% !important;
+  }
+
+  .loan-info-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .payment-summary-cards {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .payment-history-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 1rem !important;
+  }
+
+  .payment-table {
+    font-size: 0.85rem !important;
+  }
+
+  .payment-table th,
+  .payment-table td {
+    padding: 0.5rem !important;
+  }
+
+  .next-payment-info {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.5rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .payment-summary-cards {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -148,7 +148,7 @@ const Sidebar: React.FC = () => {
           {/* Loan Submenu */}
           <div
             className={`nav-item module ${
-              ["loan-request", "loan-approval"].includes(activeItem!) ? "active" : ""
+              ["loan-request", "loan-payment"].includes(activeItem!) ? "active" : ""
             }`}
             onClick={() => toggleSubMenu("loan-management")}
           >
