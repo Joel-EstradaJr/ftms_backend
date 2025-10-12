@@ -407,6 +407,75 @@
   background-color: #dc2626 !important;
 }
 
+/* ---------- Payment Schedule Section ---------- */
+.payment-schedule-section {
+  background-color: white !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.payment-schedule-header {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.25rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.payment-schedule-header h4 {
+  margin: 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+}
+
+.schedule-subtitle {
+  color: #6b7280 !important;
+  font-size: 0.9rem !important;
+  font-style: italic !important;
+}
+
+/* Row highlighting for schedule */
+.payment-table tbody tr.overdue-row {
+  background-color: #fee2e2 !important;
+}
+
+.payment-table tbody tr.partial-row {
+  background-color: #fffbeb !important;
+}
+
+/* Status chips for schedule */
+.chip {
+  display: inline-block !important;
+  padding: 0.35rem 0.75rem !important;
+  border-radius: 6px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.chip.paid {
+  background-color: #d1fae5 !important;
+  color: #059669 !important;
+}
+
+.chip.pending {
+  background-color: #dbeafe !important;
+  color: #2563eb !important;
+}
+
+.chip.overdue {
+  background-color: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+.chip.partial {
+  background-color: #fef3c7 !important;
+  color: #d97706 !important;
+}
+
 /* ---------- Responsive Design ---------- */
 @media (max-width: 968px) {
   .viewLoanPaymentModal {

@@ -177,10 +177,75 @@ export default function ViewLoanPaymentModal({ show, onClose, loan }: ViewLoanPa
             </div>
           </div>
 
+          {/* Payment Schedule Section */}
+          <div className="payment-schedule-section">
+            <div className="payment-schedule-header">
+              <h4>📅 Payment Schedule</h4>
+              <span className="schedule-subtitle">Track all scheduled installments and payment history</span>
+            </div>
+            
+            {loan.paymentSchedule && loan.paymentSchedule.length > 0 ? (
+              <div className="payment-table-container">
+                <table className="payment-table">
+                  <thead>
+                    <tr>
+                      <th>Due Date</th>
+                      <th>Scheduled Amount</th>
+                      <th>Amount Paid</th>
+                      <th>Balance</th>
+                      <th>Status</th>
+                      <th>Payment Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loan.paymentSchedule.map((schedule: any, index: number) => {
+                      const isPaid = schedule.status === 'PAID';
+                      const isPartial = schedule.status === 'PARTIAL';
+                      const isOverdue = schedule.status === 'OVERDUE';
+                      const isPending = schedule.status === 'PENDING';
+                      
+                      return (
+                        <tr key={index} className={isOverdue ? 'overdue-row' : isPartial ? 'partial-row' : ''}>
+                          <td>{formatDate(schedule.payment_date || schedule.due_date)}</td>
+                          <td style={{ fontWeight: 600 }}>
+                            {formatCurrency(schedule.amount || schedule.scheduled_amount)}
+                          </td>
+                          <td style={{ color: isPaid ? '#166534' : '#6b7280', fontWeight: 600 }}>
+                            {formatCurrency(schedule.paid_amount || 0)}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>
+                            {formatCurrency(schedule.balance || schedule.amount)}
+                          </td>
+                          <td>
+                            <span className={`chip ${isPaid ? 'paid' : isPartial ? 'partial' : isOverdue ? 'overdue' : 'pending'}`}>
+                              {isPaid ? 'PAID' : isPartial ? 'PARTIAL' : isOverdue ? 'OVERDUE' : 'PENDING'}
+                            </span>
+                          </td>
+                          <td style={{ color: '#6b7280', fontStyle: isPaid ? 'normal' : 'italic' }}>
+                            {isPaid && schedule.payment_records && schedule.payment_records.length > 0
+                              ? formatDate(schedule.payment_records[schedule.payment_records.length - 1].payment_date)
+                              : isPaid 
+                                ? formatDate(schedule.paid_date)
+                                : 'Not yet paid'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state-icon">📋</div>
+                <div className="empty-state-message">No payment schedule available</div>
+              </div>
+            )}
+          </div>
+
           {/* Payment History Section */}
           <div className="payment-history-section">
             <div className="payment-history-header">
-              <h4>Recent Payment History</h4>
+              <h4>💳 Payment Transaction History</h4>
               {loan.loanPayments && loan.loanPayments.length > 0 && (
                 <button className="export-button" onClick={() => alert('Export functionality')}>
                   📥 Export History

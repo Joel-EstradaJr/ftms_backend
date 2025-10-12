@@ -2,6 +2,11 @@
    PAYMENT SCHEDULE COMPONENT STYLES
    ======================================== */
 
+/* ---------- Modal Overlay - Higher z-index to appear above other modals ---------- */
+.modalOverlay:has(.payment-schedule-container) {
+  z-index: 1060 !important;
+}
+
 /* ---------- Container ---------- */
 .payment-schedule-container {
   background-color: white !important;

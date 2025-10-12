@@ -172,94 +172,46 @@
 }
 
 .table-action-btn.export {
-  background-color: #22c55e !important;
+  background-color:  var(--secondary-color) !important;
   color: white !important;
-  border-color: #22c55e !important;
 }
 
 .table-action-btn.export:hover {
-  background-color: #16a34a !important;
+  background-color: var(--secondary-hover-color) !important;
 }
 
-/* ---------- Payment History Table ---------- */
-.payment-history-table-container {
-  overflow-x: auto !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 8px !important;
-  margin-bottom: 1.5rem !important;
-}
-
-.payment-history-table {
-  width: 100% !important;
-  border-collapse: collapse !important;
-  background-color: white !important;
-}
-
-.payment-history-table thead {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 10 !important;
-}
-
-.payment-history-table th {
-  padding: 1rem !important;
-  text-align: left !important;
-  font-size: 0.875rem !important;
-  font-weight: 700 !important;
-  color: var(--secondary-text-color) !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
-  border-bottom: 2px solid var(--border-color) !important;
-  white-space: nowrap !important;
-}
-
-.payment-history-table th.sortable {
+/* ---------- Payment History Table (Using table.css) ---------- */
+/* Sortable column headers */
+.data-table th.sortable {
   cursor: pointer !important;
   user-select: none !important;
   position: relative !important;
+  transition: background-color 0.2s ease !important;
 }
 
-.payment-history-table th.sortable:hover {
+.data-table th.sortable:hover {
   background-color: #e9ecef !important;
 }
 
-.payment-history-table th.sortable::after {
+.data-table th.sortable::after {
   content: '⇅' !important;
   margin-left: 0.5rem !important;
   opacity: 0.4 !important;
   font-size: 0.9rem !important;
 }
 
-.payment-history-table th.sortable.asc::after {
+.data-table th.sortable.asc::after {
   content: '↑' !important;
   opacity: 1 !important;
-  color: #961C1E !important;
+  color: var(--primary-color) !important;
+  font-weight: bold !important;
 }
 
-.payment-history-table th.sortable.desc::after {
+.data-table th.sortable.desc::after {
   content: '↓' !important;
   opacity: 1 !important;
-  color: #961C1E !important;
-}
-
-.payment-history-table td {
-  padding: 1rem !important;
-  font-size: 0.95rem !important;
-  color: var(--primary-text-color) !important;
-  border-bottom: 1px solid #e5e7eb !important;
-}
-
-.payment-history-table tbody tr {
-  transition: background-color 0.15s ease !important;
-}
-
-.payment-history-table tbody tr:hover {
-  background-color: #f9fafb !important;
-}
-
-.payment-history-table tbody tr:last-child td {
-  border-bottom: none !important;
+  color: var(--primary-color) !important;
+  font-weight: bold !important;
 }
 
 /* ---------- Status Column ---------- */

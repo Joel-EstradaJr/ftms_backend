@@ -542,7 +542,7 @@
 }
 
 /* ---------- Modal Footer ---------- */
-.modalFooter {
+.modalFooter, .modalButtons {
   display: flex !important;
   justify-content: flex-end !important;
   align-items: center !important;
@@ -551,4 +551,328 @@
   margin-top: 1.5rem !important;
   border-top: 1px solid var(--border-color) !important;
   width: 100% !important;
+}
+
+/* ---------- Payment Schedule Styles ---------- */
+.payment-summary-cards {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 1rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+.summary-card {
+  background: white !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+  text-align: center !important;
+}
+
+.summary-card.total {
+  border-color: var(--info-color) !important;
+  background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%) !important;
+}
+
+.summary-card.paid {
+  border-color: var(--success-color) !important;
+  background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%) !important;
+}
+
+.summary-card.pending {
+  border-color: var(--warning-color) !important;
+  background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%) !important;
+}
+
+.summary-card.overdue {
+  border-color: var(--error-color) !important;
+  background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%) !important;
+}
+
+.summary-card-label {
+  font-size: 0.85rem !important;
+  color: var(--secondary-text-color) !important;
+  margin-bottom: 0.5rem !important;
+  font-weight: 500 !important;
+}
+
+.summary-card-value {
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  color: var(--primary-color) !important;
+}
+
+.payment-summary-section {
+  margin: 1.5rem 0 !important;
+}
+
+.payment-summary-section h5 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+}
+
+/* Table Row States */
+.overdue-row {
+  background-color: #fee2e2 !important;
+}
+
+.partial-row {
+  background-color: #fffbeb !important;
+}
+
+.locked-row {
+  background-color: #f9fafb !important;
+  opacity: 0.6 !important;
+}
+
+/* Status Badges */
+.overdue-badge {
+  background-color: var(--error-color) !important;
+  color: white !important;
+  padding: 0.25rem 0.75rem !important;
+  border-radius: 12px !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+}
+
+.due-today-badge {
+  background-color: var(--warning-color) !important;
+  color: #000 !important;
+  padding: 0.25rem 0.75rem !important;
+  border-radius: 12px !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  animation: pulse 2s infinite !important;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.upcoming-badge {
+  background-color: var(--info-color) !important;
+  color: white !important;
+  padding: 0.25rem 0.75rem !important;
+  border-radius: 12px !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+}
+
+/* Action Buttons */
+.actionButtons {
+  display: flex !important;
+  gap: 0.5rem !important;
+  justify-content: center !important;
+}
+
+.payBtn, .viewBtn {
+  padding: 0.5rem 1rem !important;
+  font-size: 0.9rem !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+
+.btn-disabled {
+  background-color: #9ca3af !important;
+  border-color: #9ca3af !important;
+  color: #e5e7eb !important;
+  cursor: not-allowed !important;
+  opacity: 0.5 !important;
+}
+
+.btn-disabled:hover {
+  background-color: #9ca3af !important;
+  border-color: #9ca3af !important;
+  transform: none !important;
+}
+
+/* Selected Payment Info */
+.selected-payment-info {
+  background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%) !important;
+  border: 2px solid var(--info-color) !important;
+  border-radius: 8px !important;
+  padding: 1.25rem !important;
+  margin: 1rem 0 !important;
+}
+
+.selected-payment-info h4 {
+  margin: 0 0 1rem 0 !important;
+  color: var(--primary-color) !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+}
+
+.payment-info-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 0.75rem !important;
+}
+
+.info-item {
+  font-size: 0.95rem !important;
+  color: var(--primary-text-color) !important;
+  line-height: 1.6 !important;
+}
+
+.info-item strong {
+  color: var(--secondary-text-color) !important;
+  font-weight: 600 !important;
+  margin-right: 0.5rem !important;
+}
+
+/* Back Button */
+.back-button {
+  background: white !important;
+  border: 2px solid var(--border-color) !important;
+  color: var(--primary-text-color) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 6px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  margin-bottom: 1rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  min-width: auto !important;
+}
+
+.back-button:hover {
+  background: #f9fafb !important;
+  border-color: var(--primary-color) !important;
+  color: var(--primary-color) !important;
+  transform: translateX(-2px) !important;
+}
+
+.back-button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.back-button:disabled:hover {
+  transform: none !important;
+  border-color: var(--border-color) !important;
+  color: var(--primary-text-color) !important;
+}
+
+/* Enhanced Status Chips with Days Info */
+.chip {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 6px !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  min-width: 100px !important;
+  text-align: center !important;
+}
+
+.chip small {
+  font-weight: 400 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  opacity: 0.9 !important;
+}
+
+.chip.paid {
+  background-color: #d1fae5 !important;
+  color: #059669 !important;
+}
+
+.chip.pending {
+  background-color: #dbeafe !important;
+  color: #2563eb !important;
+}
+
+.chip.overdue {
+  background-color: #fee2e2 !important;
+  color: #dc2626 !important;
+  animation: pulse 2s ease-in-out infinite !important;
+}
+
+.chip.partial {
+  background-color: #fef3c7 !important;
+  color: #d97706 !important;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Action Buttons in Table */
+.actionButtons {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  min-width: 80px !important;
+}
+
+.actionButtons button {
+  padding: 0.5rem 0.75rem !important;
+  border: none !important;
+  border-radius: 6px !important;
+  font-size: 1.2rem !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  min-width: 50px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.payBtn {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+}
+
+.payBtn:hover:not(:disabled) {
+  background-color: #7a1618 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 8px rgba(150, 28, 30, 0.3) !important;
+}
+
+.viewBtn {
+  background-color: #6b7280 !important;
+  color: white !important;
+}
+
+.viewBtn:hover {
+  background-color: #4b5563 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 8px rgba(107, 114, 128, 0.3) !important;
+}
+
+.lockedBtn {
+  background-color: #d1d5db !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+.lockedBtn:hover {
+  background-color: #d1d5db !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure table cells for actions don't get squeezed */
+.data-table td:last-child {
+  min-width: 100px !important;
+  text-align: center !important;
 }

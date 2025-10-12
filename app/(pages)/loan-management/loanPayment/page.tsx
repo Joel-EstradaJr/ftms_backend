@@ -468,6 +468,16 @@ const LoanPaymentPage = () => {
             <i className="ri-eye-line" />
           </button>
           <button 
+            className="submitBtn"
+            onClick={() => {
+              setActiveRecord(loan);
+              setShowPaymentScheduleModal(true);
+            }}
+            title="Payment Schedule"
+          >
+            <i className="ri-calendar-check-line" />
+          </button>
+          <button 
             className="exportBtn"
             onClick={() => {
               console.log('Export loan:', loan.loan_request_id);
@@ -513,15 +523,16 @@ const LoanPaymentPage = () => {
           <i className="ri-money-dollar-circle-line" />
         </button>
         <button 
-          className="editBtn"
+          className="submitBtn"
           onClick={() => {
             setActiveRecord(loan);
-            setShowPaymentHistoryModal(true);
+            setShowPaymentScheduleModal(true);
           }}
-          title="Payment History"
+          title="Payment Schedule"
         >
-          <i className="ri-file-list-3-line" />
+          <i className="ri-calendar-check-line" />
         </button>
+  
         <button 
           className="deleteBtn"
           onClick={async () => {
@@ -578,6 +589,18 @@ const LoanPaymentPage = () => {
           
           <div className="filters">
             <button 
+              onClick={() => setShowPaymentHistoryModal(true)} 
+              id="paymentOverview"
+              style={{
+                backgroundColor: '#23915F',
+                color: 'white',
+                width: '180px'
+              }}
+            >
+              <i className="ri-file-list-3-line" /> Payment Overview
+            </button>
+            
+            <button 
               onClick={() => setShowPaymentScheduleModal(true)} 
               id="paymentSchedule"
               style={{
@@ -590,7 +613,7 @@ const LoanPaymentPage = () => {
             </button>
             
             <button onClick={handleExport} id="export">
-              <i className="ri-download-line" /> Export CSV
+              <i className="ri-receipt-line" /> Export CSV
             </button>
           </div>
         </div>
@@ -702,13 +725,18 @@ const LoanPaymentPage = () => {
           />
         )}
 
-        {showPaymentHistoryModal && activeRecord && (
+        {showPaymentHistoryModal && (
           <PaymentHistory
             show={showPaymentHistoryModal}
-            loan={activeRecord}
+            loans={loanPayments}
             onClose={() => {
               setShowPaymentHistoryModal(false);
               setActiveRecord(null);
+            }}
+            onPayNow={(loan) => {
+              setActiveRecord(loan);
+              setShowAddPaymentModal(true);
+              setShowPaymentHistoryModal(false);
             }}
           />
         )}
@@ -725,11 +753,14 @@ const LoanPaymentPage = () => {
           />
         )}
 
-        {showPaymentScheduleModal && activeRecord && (
+        {showPaymentScheduleModal && (
           <PaymentSchedule
             show={showPaymentScheduleModal}
-            loan={activeRecord}
-            onClose={() => setShowPaymentScheduleModal(false)}
+            loan={activeRecord || currentRecords[0]}
+            onClose={() => {
+              setShowPaymentScheduleModal(false);
+              setActiveRecord(null);
+            }}
           />
         )}
 

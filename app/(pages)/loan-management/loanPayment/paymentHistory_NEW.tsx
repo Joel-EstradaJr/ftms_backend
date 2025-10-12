@@ -10,7 +10,7 @@ import {
 
 interface PaymentHistoryProps {
   show: boolean;
-  loans: any[]; // Array of all loans for overview
+  loans: any[]; // Array of all loans
   onClose: () => void;
   onPayNow?: (loan: any) => void;
 }
@@ -61,24 +61,22 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
   };
 
   /**
-   * Format payment method for display
+   * Check if date is today
    */
-  const formatPaymentMethod = (method: string) => {
-    const methods: { [key: string]: string } = {
-      'CASH': 'Cash',
-      'CHECK': 'Check',
-      'BANK_TRANSFER': 'Bank Transfer',
-      'SALARY_DEDUCTION': 'Salary Deduction',
-      'PAYROLL_ADJUSTMENT': 'Payroll Adjustment'
-    };
-    return methods[method] || method;
+  const isToday = (dateString: string) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    date.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return date.getTime() === today.getTime();
   };
 
   /**
    * Get filtered and sorted loans overview
    */
   const filteredLoans = useMemo(() => {
-    let loansList = [...loans];
+    let loansList = [...loans].filter(loan => loan.status !== 'closed' && loan.remaining_balance > 0);
 
     // Apply status filter
     const today = new Date();
@@ -164,7 +162,7 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortDirection('desc');
+      setSortDirection('asc');
     }
   };
 
@@ -188,7 +186,7 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
 
     if (!result.isConfirmed) return;
 
-    const csvHeaders = ['Employee Name', 'Loan ID', 'Due Date', 'Amount Due', 'Paid Amount', 'Balance', 'Status'];
+    const csvHeaders = ['Employee Name', 'Loan ID', 'Due Date', 'Amount Due', 'Total Paid', 'Balance', 'Status'];
     const csvRows = filteredLoans.map((loan: any) => [
       loan.employee?.name || '',
       loan.loan_request_id || '',
@@ -196,7 +194,7 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
       loan.next_payment_amount || 0,
       loan.total_paid || 0,
       loan.remaining_balance || 0,
-      loan.is_overdue ? 'OVERDUE' : 'ACTIVE'
+      loan.is_overdue ? 'OVERDUE' : isToday(loan.next_payment_date) ? 'DUE TODAY' : 'UPCOMING'
     ]);
 
     const csvContent = [
@@ -213,31 +211,11 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
     window.URL.revokeObjectURL(url);
   };
 
-  /**
-   * Get status badge class
-   */
-  const getStatusClass = (loan: any) => {
-    if (loan.is_overdue) return 'overdue';
-    if (loan.next_payment_date && isDueToday(loan.next_payment_date)) return 'due-today';
-    return 'active';
-  };
-
-  /**
-   * Check if payment is due today
-   */
-  const isDueToday = (dateString: string) => {
-    const today = new Date();
-    const date = new Date(dateString);
-    today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    return today.getTime() === date.getTime();
-  };
-
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalContainer" style={{ maxWidth: '1400px' }} onClick={(e) => e.stopPropagation()}>
         <div className="modalHeader">
-          <h1>💳 Payment Overview - Who Should Pay Today</h1>
+          <h1>💳 Payment Overview - Due Payments</h1>
           <button className="closeButton" onClick={onClose}>&times;</button>
         </div>
 
@@ -269,7 +247,7 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
                     setCurrentPage(1);
                   }}
                 >
-                  <option value="all">All Status</option>
+                  <option value="all">All Active Loans</option>
                   <option value="due_today">Due Today</option>
                   <option value="overdue">Overdue</option>
                   <option value="upcoming">Upcoming</option>
@@ -308,7 +286,7 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
                           className={`sortable ${sortField === 'employee_name' ? sortDirection : ''}`}
                           onClick={() => handleSort('employee_name')}
                         >
-                          Employee Name
+                          Employee
                         </th>
                         <th>Loan ID</th>
                         <th 
@@ -323,7 +301,7 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
                         >
                           Amount Due
                         </th>
-                        <th>Paid Amount</th>
+                        <th>Total Paid</th>
                         <th 
                           className={`sortable ${sortField === 'balance' ? sortDirection : ''}`}
                           onClick={() => handleSort('balance')}
@@ -335,54 +313,63 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedLoans.map((loan: any, index: number) => (
-                        <tr key={loan.id || index}
-                            className={getStatusClass(loan)}
-                            title="Click to view loan details">
-                          <td>
-                            <strong>{loan.employee?.name || 'N/A'}</strong><br />
-                            <small>{loan.employee?.employee_number || ''}</small>
-                          </td>
-                          <td style={{ fontFamily: 'monospace' }}>{loan.loan_request_id || 'N/A'}</td>
-                          <td>
-                            {loan.next_payment_date ? (
-                              <>
-                                <strong>{formatDate(loan.next_payment_date)}</strong>
-                                {loan.is_overdue && (
-                                  <><br /><small style={{ color: '#dc2626' }}>
-                                    {loan.days_overdue} days overdue
-                                  </small></>
+                      {paginatedLoans.map((loan: any) => {
+                        const isDueToday = isToday(loan.next_payment_date);
+                        const isOverdue = loan.is_overdue;
+                        
+                        return (
+                          <tr key={loan.id}
+                              className={isOverdue ? 'overdue-row' : isDueToday ? 'due-today-row' : ''}
+                              style={{ cursor: 'pointer' }}>
+                            <td>
+                              <div>
+                                <strong>{loan.employee?.name || 'N/A'}</strong><br />
+                                <small>{loan.employee?.employee_number || 'N/A'}</small>
+                              </div>
+                            </td>
+                            <td style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>
+                              {loan.loan_request_id || 'N/A'}
+                            </td>
+                            <td style={{ fontWeight: isOverdue || isDueToday ? 700 : 400, color: isOverdue ? '#DC2626' : isDueToday ? '#D97706' : 'inherit' }}>
+                              {formatDate(loan.next_payment_date)}
+                            </td>
+                            <td style={{ fontWeight: 600, color: '#166534' }}>
+                              {formatCurrency(loan.next_payment_amount || 0)}
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {formatCurrency(loan.total_paid || 0)}
+                            </td>
+                            <td style={{ fontWeight: 700, color: '#D97706' }}>
+                              {formatCurrency(loan.remaining_balance || 0)}
+                            </td>
+                            <td>
+                              {isOverdue ? (
+                                <span className="chip overdue">OVERDUE</span>
+                              ) : isDueToday ? (
+                                <span className="chip partial">DUE TODAY</span>
+                              ) : (
+                                <span className="chip pending">UPCOMING</span>
+                              )}
+                            </td>
+                            <td className="actionButtons">
+                              <div className="actionButtonsContainer">
+                                {onPayNow && (
+                                  <button 
+                                    className="payBtn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onPayNow(loan);
+                                    }}
+                                    title="Pay Now"
+                                  >
+                                    <i className="ri-money-dollar-circle-line" />
+                                  </button>
                                 )}
-                              </>
-                            ) : 'No due date'}
-                          </td>
-                          <td style={{ fontWeight: 600, color: '#166534' }}>
-                            {formatCurrency(loan.next_payment_amount || 0)}
-                          </td>
-                          <td style={{ fontWeight: 600 }}>
-                            {formatCurrency(loan.total_paid || 0)}
-                          </td>
-                          <td style={{ fontWeight: 700, color: '#ca8a04' }}>
-                            {formatCurrency(loan.remaining_balance || 0)}
-                          </td>
-                          <td>
-                            <span className={`chip ${loan.is_overdue ? 'overdue' : loan.next_payment_date && isDueToday(loan.next_payment_date) ? 'due-today' : 'active'}`}>
-                              {loan.is_overdue ? 'OVERDUE' : loan.next_payment_date && isDueToday(loan.next_payment_date) ? 'DUE TODAY' : 'ACTIVE'}
-                            </span>
-                          </td>
-                          <td className="actionButtons">
-                            <div className="actionButtonsContainer">
-                              <button 
-                                className="payBtn"
-                                onClick={() => onPayNow && onPayNow(loan)}
-                                title="Pay Now"
-                              >
-                                <i className="ri-money-dollar-circle-line" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -445,7 +432,7 @@ export default function PaymentHistory({ show, loans, onClose, onPayNow }: Payme
           ) : (
             <div className="payment-history-empty">
               <div className="payment-history-empty-icon">💳</div>
-              <div className="payment-history-empty-title">No Loans Found</div>
+              <div className="payment-history-empty-title">No Payments Found</div>
               <div className="payment-history-empty-message">
                 {searchTerm || statusFilter !== 'all'
                   ? 'Try adjusting your filters'
