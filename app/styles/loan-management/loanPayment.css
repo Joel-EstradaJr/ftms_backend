@@ -1,0 +1,172 @@
+/* ============================================================
+   loanPayment.css – Loan Payment Management page
+   Uses tokens defined in globals.css (:root variables)
+   Chips use styles from chips.css
+   ============================================================ */
+
+/* ---------- Base ---------- */
+button {
+  border-radius: var(--page-button-border-radius) !important;
+}
+
+/* ---------- Settings (filters) ---------- */
+.settings {
+  display: flex !important;
+  width: 100% !important;
+  flex-wrap: wrap !important;
+  gap: 0 !important;
+  margin-bottom: 0px !important;
+  justify-content: space-between !important;
+  background-color: none !important;
+}
+
+/* Search bar */
+.loan_searchBar {
+  display: flex !important;
+  align-items: center !important;
+  width: auto !important;
+  padding: var(--search-input-padding-right) !important;
+  height: var(--search-input-height) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--search-input-border-radius) !important;
+  background-color: var(--foreground-color) !important;
+  box-shadow: var(--box-shadow) !important;
+}
+
+.loan_searchBar .searchInput {
+  flex: 1 !important;
+  border: none !important;
+  outline: none !important;
+  padding: 0 8px !important;
+  font-size: 14px !important;
+  color: var(--primary-text-color) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ---------- Filter Inputs ---------- */
+.filters {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+.dateFilter,
+#statusFilter,
+#employeeFilter,
+#departmentFilter,
+#loanTypeFilter {
+  padding: 0 8px !important;
+  gap: var(--page-button-gap) !important;
+  font-size: var(--page-button-font-size) !important;
+  height: var(--page-button-height) !important;
+  width: var(--page-button-width) !important;
+  border-radius: var(--page-button-border-radius) !important;
+  box-shadow: var(--box-shadow) !important;
+}
+
+#statusFilter,
+#employeeFilter,
+#departmentFilter,
+#loanTypeFilter {
+  max-width: max-content !important;
+}
+
+/* ---------- Loading indicator ---------- */
+.loading {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  height: 200px !important;
+  font-size: 1.2rem !important;
+  color: var(--secondary-text-color) !important;
+}
+
+/* ---------- Employee Info in Table ---------- */
+.employee-info {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.employee-info strong {
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+}
+
+.employee-info small {
+  font-size: 11px !important;
+  color: var(--secondary-text-color) !important;
+}
+
+/* ---------- Export button ---------- */
+#export {
+  height: var(--page-button-height) !important;
+  width: var(--page-button-width) !important;
+  font-size: var(--page-button-font-size) !important;
+  border-radius: var(--page-button-border-radius) !important;
+  cursor: pointer !important;
+  border: none !important;
+  outline: none !important;
+  background-color: var(--secondary-color) !important;
+  color: var(--button-font-color) !important;
+  transition: background-color 0.3s !important;
+}
+
+#export:hover {
+  background-color: var(--secondary-hover-color) !important;
+}
+
+/* ---------- Payment Overview button ---------- */
+#paymentOverview {
+  height: var(--page-button-height) !important;
+  width: var(--page-button-width) !important;
+  font-size: var(--page-button-font-size) !important;
+  border-radius: var(--page-button-border-radius) !important;
+  cursor: pointer !important;
+  border: none !important;
+  outline: none !important;
+  background-color: var(--info-color) !important;
+  color: var(--button-font-color) !important;
+  transition: background-color 0.3s !important;
+}
+
+#paymentOverview:hover {
+    background-color: var(--info-hover-color) !important;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  .settings {
+    flex-direction: column !important;
+  }
+
+  .filters {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+
+  .filters input[type="date"],
+  .filters select,
+  #export,
+  #paymentOverview {
+    width: 100% !important;
+  }
+
+  .employee-info {
+    font-size: 0.9rem !important;
+  }
+
+  .actionButtons {
+    flex-direction: column !important;
+  }
+}
+
+/* ---------- Print Styles ---------- */
+@media print {
+  .filters,
+  .actionButtons {
+    display: none !important;
+  }
+}

@@ -1539,10 +1539,7 @@ const LoanRequestPage = () => {
                 {currentRecords.map(loan => (
                   <tr key={loan.id}>
                     <td>
-                      <div>
-                        <strong>{loan.employee.name}</strong><br />
-                        <small>{loan.employee.employee_number} - {loan.employee.job_title}</small>
-                      </div>
+                        <strong>{loan.employee.name}</strong>
                     </td>
                     <td>{formatDepartment(loan.employee.department)}</td>
                     <td>{formatLoanType(loan.loan_type)}</td>

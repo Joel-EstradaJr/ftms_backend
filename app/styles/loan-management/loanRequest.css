@@ -430,6 +430,19 @@ button {
   background-color: var(--error-hover-color) !important;
 }
 
+#paymentOverview {
+  height: var(--page-button-height) !important;
+  width: calc(var(--page-button-width) + 10%) !important;
+  font-size: var(--page-button-font-size) !important;
+  border-radius: var(--page-button-border-radius) !important;
+  cursor: pointer !important;
+  border: none !important;
+  outline: none !important;
+  background-color: var(--info-color) !important;
+  color: var(--button-font-color) !important;
+  transition: background-color 0.3s !important;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .loanRequestPage {

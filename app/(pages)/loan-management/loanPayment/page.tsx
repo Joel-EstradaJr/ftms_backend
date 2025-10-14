@@ -20,7 +20,7 @@ import PaymentSchedule from "./paymentSchedule";
 import AuditLoanPayment from "./auditLoanPayment";
 
 //@ts-ignore
-import "../../../styles/loan-management/loanRequest.css";
+import "../../../styles/loan-management/loanPayment.css";
 //@ts-ignore
 import "../../../styles/components/table.css";
 //@ts-ignore
@@ -588,28 +588,8 @@ const LoanPaymentPage = () => {
           />
           
           <div className="filters">
-            <button 
-              onClick={() => setShowPaymentHistoryModal(true)} 
-              id="paymentOverview"
-              style={{
-                backgroundColor: '#23915F',
-                color: 'white',
-                width: '180px'
-              }}
-            >
-              <i className="ri-file-list-3-line" /> Payment Overview
-            </button>
-            
-            <button 
-              onClick={() => setShowPaymentScheduleModal(true)} 
-              id="paymentSchedule"
-              style={{
-                backgroundColor: '#2D8EFF',
-                color: 'white',
-                width: '180px'
-              }}
-            >
-              <i className="ri-calendar-check-line" /> Payment Schedule
+            <button onClick={() => setShowPaymentHistoryModal(true)} id="paymentOverview">
+              <i className="ri-file-list-3-line" /> Overview
             </button>
             
             <button onClick={handleExport} id="export">
@@ -628,7 +608,6 @@ const LoanPaymentPage = () => {
                   <th>Loan Type</th>
                   <th>Amount</th>
                   <th>Payments</th>
-                  <th>Next Payment</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -658,19 +637,7 @@ const LoanPaymentPage = () => {
                         <small>({calculatePaymentProgress(loan.payments_made, loan.repayment_terms)}% complete)</small>
                       </div>
                     </td>
-                    <td>
-                      {loan.next_payment_date ? (
-                        <div>
-                          <strong>{formatDate(loan.next_payment_date)}</strong><br />
-                          <small>₱{loan.next_payment_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small>
-                          {loan.is_overdue && (
-                            <><br /><small style={{ color: '#FF4949' }}>{loan.days_overdue} days overdue</small></>
-                          )}
-                        </div>
-                      ) : (
-                        <span style={{ color: '#23915F' }}>Completed</span>
-                      )}
-                    </td>
+                    
                     <td className="table-status">
                       <span className={`chip ${loan.payment_status}`}>
                         {formatPaymentStatus(loan.payment_status)}

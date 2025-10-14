@@ -1,164 +1,55 @@
-/* ----- CHIPS STYLING ----- */
+/* ============================================================
+   CHIPS STYLING - Unified Status Badges
+   Uses tokens defined in globals.css (:root variables)
+   ============================================================ */
+
+/* ----- Base Chip Style ----- */
 .chip {
-    /* width: 130px; */
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    display: inline-block;
-}
-
-.chip.Paid,
-.chip.Released {
-    background-color: var(--success-chip-bg-color);
-    color: var(--success-chip-text-color);
-}
-
-.chip.Pending,
-.chip.out-of-stock,
-.chip.not-returned,
-.chip.decommissioned {
-    background-color: var(--error-chip-bg-color);
-    color: var(--error-chip-text-color);
-}
-
-.chip.Active {
-    background-color: var(--info-chip-bg-color);
-    color: var(--info-chip-text-color);
-}
-
-.chip.low-stock,
-.chip.pending {
-    background-color: var(--warning-chip-bg-color);
-    color: var(--warning-chip-text-color);
-}
-
-.chip.expired {
-    background-color: var(--expired-chip-bg-color);
-    color: var(--primary-text-color);
-}
-
-
-/* Budget Request Page Styles */
-/* ----- CHIPS STYLING ----- */
-.chip {
-    /* width: 130px; */
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    display: inline-block;
-}
-
-.chip.Paid,
-.chip.Released {
-    background-color: var(--success-chip-bg-color);
-    color: var(--success-chip-text-color);
-}
-
-.chip.Pending,
-.chip.out-of-stock,
-.chip.not-returned,
-.chip.decommissioned {
-    background-color: var(--error-chip-bg-color);
-    color: var(--error-chip-text-color);
-}
-
-.chip.Active {
-    background-color: var(--info-chip-bg-color);
-    color: var(--info-chip-text-color);
-}
-
-.chip.low-stock,
-.chip.pending {
-    background-color: var(--warning-chip-bg-color);
-    color: var(--warning-chip-text-color);
-}
-
-.chip.expired {
-    background-color: var(--expired-chip-bg-color);
-    color: var(--primary-text-color);
-}
-
-/* Budget Request Status Chips - using unified chip styling */
-.chip.Draft {
-    background-color: var(--info-chip-bg-color);
-    color: var(--info-chip-text-color);
-}
-
-.chip.pending-approval {
-    background-color: var(--warning-chip-bg-color);
-    color: var(--warning-chip-text-color);
-}
-
-.chip.Approved {
-    background-color: var(--success-chip-bg-color);
-    color: var(--success-chip-text-color);
-}
-
-.chip.Rejected {
-    background-color: var(--error-chip-bg-color);
-    color: var(--error-chip-text-color);
-}
-
-.chip.Closed {
-    background-color: #F5F5F5;
-    color: #616161;
-}
-
-/* Purchase Request Status Chips */
-.chip.completed {
-    background-color: var(--success-chip-bg-color);
-    color: var(--success-chip-text-color);
-}
-
-.chip.partially-completed {
-    background-color: var(--warning-chip-bg-color);
-    color: var(--warning-chip-text-color);
-}
-
-.chip.cancelled {
-    background-color: var(--error-chip-bg-color);
-    color: var(--error-chip-text-color);
-}
-
-.chip.refund-processing {
-    background-color: #e91e63;
-    color: white;
-}
-
-/* Purchase Request Status Chips - Missing ones */
-.chip.approved {
-    background-color: var(--success-chip-bg-color);
-    color: var(--success-chip-text-color);
-}
-
-.chip.rejected {
-    background-color: var(--error-chip-bg-color);
-    color: var(--error-chip-text-color);
-}
-
-/* Request Type Chips */
-.chip.normal {
-    background-color: var(--info-chip-bg-color);
-    color: var(--info-chip-text-color);
-}
-
-.chip.urgent {
-    background-color: #ff5722;
-    color: white;
+    width: 130px;
+    padding: 3px 10px !important;
+    border-radius: 12px !important;
+    font-size: 12px !important;
+    display: inline-block !important;
 }
 
 /* ============================================================
-   Loan Payment Status Chips
+   SUCCESS - Green (Approved, Completed, Paid, Active)
    ============================================================ */
-
-/* Active Loan - On Track */
+.chip.Paid,
+.chip.Released,
+.chip.Approved,
+.chip.approved,
+.chip.completed,
 .chip.active,
-.chip.disbursed {
+.chip.disbursed,
+.chip.up-to-date,
+.chip.paid-in-full,
+.chip.paid {
     background-color: var(--success-chip-bg-color);
     color: var(--success-chip-text-color);
 }
 
-/* Overdue Payment - Missed Payment with pulse animation */
+/* Extra emphasis for paid status */
+.chip.paid-in-full,
+.chip.paid {
+    font-weight: 600;
+}
+
+/* ============================================================
+   ERROR - Red (Rejected, Cancelled, Overdue, Out of Stock)
+   ============================================================ */
+.chip.Pending,
+.chip.Rejected,
+.chip.rejected,
+.chip.cancelled,
+.chip.out-of-stock,
+.chip.not-returned,
+.chip.decommissioned {
+    background-color: var(--error-chip-bg-color);
+    color: var(--error-chip-text-color);
+}
+
+/* Overdue with pulse animation */
 .chip.overdue {
     background-color: var(--error-chip-bg-color);
     color: var(--error-chip-text-color);
@@ -166,55 +57,73 @@
 }
 
 @keyframes pulse {
-    0% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.7;
-    }
-    100% {
-        opacity: 1;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
-/* Closed/Completed Loan - Fully Paid */
-.chip.closed,
-.chip.completed {
-    background-color: #F5F5F5;
-    color: #616161;
+/* ============================================================
+   WARNING - Yellow (Pending Approval, Partial, Low Stock)
+   ============================================================ */
+.chip.low-stock,
+.chip.pending,
+.chip.pending-approval,
+.chip.partially-completed {
+    background-color: var(--warning-chip-bg-color);
+    color: var(--warning-chip-text-color);
 }
 
-/* Due Today */
-.chip.due_today,
-.chip.due-today {
-    background-color: #FFF5C2;
-    color: #85643B;
-    font-weight: 600;
+/* ============================================================
+   INFO - Blue (Draft, Active, Normal, Due This Month)
+   ============================================================ */
+.chip.Active,
+.chip.Draft,
+.chip.normal {
+    background-color: var(--info-chip-bg-color);
+    color: var(--info-chip-text-color);
 }
 
-/* Due This Week */
-.chip.due_this_week,
-.chip.due-this-week {
-    background-color: #FFF5C2;
-    color: #85643B;
-}
-
-/* Due This Month */
 .chip.due_this_month,
 .chip.due-this-month {
     background-color: #D6E4FF;
     color: #0050B3;
 }
 
-/* Payment Status Chips */
-.chip.up-to-date {
-    background-color: var(--success-chip-bg-color);
-    color: var(--success-chip-text-color);
+/* ============================================================
+   NEUTRAL - Gray (Closed, Completed, Expired)
+   ============================================================ */
+.chip.Closed,
+.chip.closed,
+.chip.expired {
+    background-color: #F5F5F5;
+    color: #616161;
 }
 
-.chip.paid-in-full,
-.chip.paid {
-    background-color: var(--success-chip-bg-color);
-    color: var(--success-chip-text-color);
+.chip.expired {
+    background-color: var(--expired-chip-bg-color);
+    color: var(--primary-text-color);
+}
+
+/* ============================================================
+   DUE TODAY / THIS WEEK - Yellow (Payment Due Soon)
+   ============================================================ */
+.chip.due_today,
+.chip.due-today,
+.chip.due_this_week,
+.chip.due-this-week {
+    background-color: #FFF5C2;
+    color: #85643B;
     font-weight: 600;
+}
+
+/* ============================================================
+   SPECIAL COLORS (Urgent, Refund Processing)
+   ============================================================ */
+.chip.urgent {
+    background-color: #ff5722;
+    color: white;
+}
+
+.chip.refund-processing {
+    background-color: #e91e63;
+    color: white;
 }

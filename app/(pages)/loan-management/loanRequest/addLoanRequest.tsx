@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import ModalHeader from '../../../Components/ModalHeader';
-import { showSuccess, showError } from '../../../utility/Alerts';
+import { showSuccess, showError, showConfirmation } from '../../../utility/Alerts';
 import {
   PaymentScheduleType,
   PaymentAmountType,
@@ -131,16 +131,34 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Payment Configuration State (now mandatory)
-  const [paymentScheduleType, setPaymentScheduleType] = useState<PaymentScheduleType>(PaymentScheduleType.MONTHLY);
-  const [paymentAmountType, setPaymentAmountType] = useState<PaymentAmountType>(PaymentAmountType.FIXED);
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>(PaymentMode.PESO);
-  const [fixedPaymentAmount, setFixedPaymentAmount] = useState<string>('');
-  const [paymentStartDate, setPaymentStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [paymentDuration, setPaymentDuration] = useState<string>('');
-  const [manualDuration, setManualDuration] = useState<string>(''); // User-entered duration when locked
-  const [customPayments, setCustomPayments] = useState<PaymentEntry[]>([]);
-  const [generatedPayments, setGeneratedPayments] = useState<PaymentEntry[]>([]);
+  // Payment Configuration State - Initialize from editData if in edit mode
+  const [paymentScheduleType, setPaymentScheduleType] = useState<PaymentScheduleType>(
+    editData?.paymentConfiguration?.schedule_type || PaymentScheduleType.MONTHLY
+  );
+  const [paymentAmountType, setPaymentAmountType] = useState<PaymentAmountType>(
+    editData?.paymentConfiguration?.amount_type || PaymentAmountType.FIXED
+  );
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(
+    editData?.paymentConfiguration?.payment_mode || PaymentMode.PESO
+  );
+  const [fixedPaymentAmount, setFixedPaymentAmount] = useState<string>(
+    editData?.paymentConfiguration?.fixed_amount?.toString() || ''
+  );
+  const [paymentStartDate, setPaymentStartDate] = useState<string>(
+    editData?.paymentConfiguration?.start_date || new Date().toISOString().split('T')[0]
+  );
+  const [paymentDuration, setPaymentDuration] = useState<string>(
+    editData?.paymentConfiguration?.duration?.toString() || ''
+  );
+  const [manualDuration, setManualDuration] = useState<string>(
+    editData?.paymentConfiguration?.duration?.toString() || ''
+  );
+  const [customPayments, setCustomPayments] = useState<PaymentEntry[]>(
+    editData?.paymentConfiguration?.custom_payments || []
+  );
+  const [generatedPayments, setGeneratedPayments] = useState<PaymentEntry[]>(
+    editData?.paymentSchedule || []
+  );
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   
   // Track which field was last edited for smart auto-calculation
@@ -561,13 +579,42 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
       return;
     }
 
+    // Show confirmation dialog before submitting
+    const currentPayments = getCurrentPayments();
+    const principal = parseFloat(formData.requested_amount) || 0;
+    const totalAmount = currentPayments.reduce((sum, p) => sum + p.amount, 0);
+    
+    const confirmationMessage = isEditMode 
+      ? `<p>Are you sure you want to <b>UPDATE</b> this loan request?</p>
+         <p style="margin-top: 10px; color: #666;">
+           <strong>Employee:</strong> ${selectedEmployee?.name}<br/>
+           <strong>Loan Type:</strong> ${formData.loan_type.toUpperCase()}<br/>
+           <strong>Amount:</strong> ₱${principal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<br/>
+           <strong>Total Payments:</strong> ${currentPayments.length}<br/>
+           <strong>Total Amount:</strong> ₱${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+         </p>`
+      : `<p>Are you sure you want to <b>ADD</b> this loan request?</p>
+         <p style="margin-top: 10px; color: #666;">
+           <strong>Employee:</strong> ${selectedEmployee?.name}<br/>
+           <strong>Loan Type:</strong> ${formData.loan_type.toUpperCase()}<br/>
+           <strong>Amount:</strong> ₱${principal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<br/>
+           <strong>Total Payments:</strong> ${currentPayments.length}<br/>
+           <strong>Total Amount:</strong> ₱${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+         </p>`;
+
+    const result = await showConfirmation(
+      confirmationMessage,
+      isEditMode ? 'Update Loan Request' : 'Create Loan Request'
+    );
+
+    if (!result.isConfirmed) {
+      return; // User cancelled
+    }
+
     try {
       setIsSubmitting(true);
       
-      const currentPayments = getCurrentPayments();
-      const principal = parseFloat(formData.requested_amount) || 0;
       // ✅ Amounts are ALWAYS stored in peso, just sum them directly
-      const totalAmount = currentPayments.reduce((sum, p) => sum + p.amount, 0);
       const totalPercentage = principal > 0 ? (totalAmount / principal) * 100 : 0;
       
       // Calculate repayment terms based on payment schedule
@@ -611,11 +658,21 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
       console.log('📅 Payment Schedule:', loanData.paymentSchedule);
       
       await onSubmit(loanData);
-      showSuccess('Loan request has been created successfully', 'Success');
+      showSuccess(
+        isEditMode 
+          ? 'Loan request has been updated successfully' 
+          : 'Loan request has been created successfully', 
+        'Success'
+      );
       onClose();
     } catch (error) {
       console.error('Error creating loan request:', error);
-      showError('Failed to create loan request. Please try again.', 'Error');
+      showError(
+        isEditMode 
+          ? 'Failed to update loan request. Please try again.' 
+          : 'Failed to create loan request. Please try again.', 
+        'Error'
+      );
     } finally {
       setIsSubmitting(false);
     }
