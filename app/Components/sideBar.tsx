@@ -5,29 +5,73 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MICROSERVICES } from '../config/microservices';
+import { useNavigationUrl } from '../hooks/useRouteContext';
 // @ts-ignore
 import "../styles/components/sidebar.css";
 
 const Sidebar: React.FC = () => {
   const pathname = usePathname();
+  const { getUrl } = useNavigationUrl();
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
 
+  // Define route patterns that work with both admin and staff
+  const getRoutePatterns = () => ({
+    "dashboard": "dashboard",
+    "revenue": "revenue", 
+    "expense": "expense",
+    "reimbursement": "reimbursement",
+    "financial-management/payroll": "payroll",
+    "purchase-request-approval": "purchaseApproval",
+    "loan-management/loanRequest": "loan-request",
+    "loan-management/loanPayment": "loan-payment", 
+    "report": "report",
+    "JEV": "JEV",
+    "audit": "audit",
+    "budget-management/budgetAllocation": "budgetAllocation",
+    "budget-management/budgetApproval": "budgetApproval",
+  });
+
   const staticRoutes: { [key: string]: string } = {
     "/dashboard": "dashboard",
+    "/admin/dashboard": "dashboard",
+    "/staff/dashboard": "dashboard",
     "/revenue": "revenue",
-    "/expense": "expense",
+    "/admin/revenue": "revenue",
+    "/staff/revenue": "revenue",
+    "/expense": "expense", 
+    "/admin/expense": "expense",
+    "/staff/expense": "expense",
     "/reimbursement": "reimbursement",
+    "/admin/reimbursement": "reimbursement",
+    "/staff/reimbursement": "reimbursement",
     "/financial-management/payroll": "payroll",
-    "/purchase-request-approval": "purchaseApproval", // Added missing route
+    "/admin/financial-management/payroll": "payroll",
+    "/staff/financial-management/payroll": "payroll",
+    "/purchase-request-approval": "purchaseApproval",
+    "/admin/purchase-request-approval": "purchaseApproval",
+    "/staff/purchase-request-approval": "purchaseApproval",
     "/loan-management/loanRequest": "loan-request",
+    "/admin/loan-management/loanRequest": "loan-request",
+    "/staff/loan-management/loanRequest": "loan-request",
     "/loan-management/loanPayment": "loan-payment",
+    "/admin/loan-management/loanPayment": "loan-payment",
+    "/staff/loan-management/loanPayment": "loan-payment",
     "/report": "report",
+    "/admin/report": "report", 
+    "/staff/report": "report",
     "/JEV": "JEV",
+    "/admin/JEV": "JEV",
+    "/staff/JEV": "JEV",
     "/audit": "audit",
-    // Budget Management routes
+    "/admin/audit": "audit",
+    "/staff/audit": "audit",
     "/budget-management/budgetAllocation": "budgetAllocation",
+    "/admin/budget-management/budgetAllocation": "budgetAllocation",
+    "/staff/budget-management/budgetAllocation": "budgetAllocation",
     "/budget-management/budgetApproval": "budgetApproval",
+    "/admin/budget-management/budgetApproval": "budgetApproval", 
+    "/staff/budget-management/budgetApproval": "budgetApproval",
   };
 
   useEffect(() => {

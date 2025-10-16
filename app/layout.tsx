@@ -3,12 +3,14 @@
 import "./globals.css";
 //@ts-ignore
 import './styles/general/index.css';
-import SideBar from "./Components/sideBar";
-import TopBar from './Components/topBar';
+import { usePathname } from 'next/navigation';
 
 
 // Root Layout Component
 export default function RootLayout({children,}: Readonly<{children: React.ReactNode;}>) {
+  const pathname = usePathname();
+  const isRoleSelectionPage = pathname === '/';
+
   return (
     <html lang="en">
       <head>
@@ -29,18 +31,17 @@ export default function RootLayout({children,}: Readonly<{children: React.ReactN
       </head>
 
       <body>
-        <div className="app-wrapper">
-          {/* Sidebar Navbar */}
-          <SideBar />
-
-          <div className="layout-right">
-              <TopBar /> 
-
-              <div className="content">
-                  {children}
-              </div>
+        {isRoleSelectionPage ? (
+          // Role selection page without sidebar/topbar
+          <div className="role-selection-wrapper">
+            {children}
           </div>
-        </div>
+        ) : (
+          // Regular app pages with layout - this will be overridden by route group layouts
+          <div>
+            {children}
+          </div>
+        )}
       </body>
     </html>
   );

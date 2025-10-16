@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-     "lint:fix": "eslint \"{app,pages,src}/**/*.{js,ts,tsx}\" --fix",
+    "lint:fix": "eslint \"{app,pages,src}/**/*.{js,ts,tsx}\" --fix",
     "dev": "next dev",
+    "dev:admin": "next dev --turbo && echo 'Admin interface available at http://localhost:3000/admin'",
+    "dev:staff": "next dev --turbo && echo 'Staff interface available at http://localhost:3000/staff'",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
