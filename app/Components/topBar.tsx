@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from 'react';
+import RoleSwitcher from './RoleSwitcher';
 import "../styles/components/topbar.css";
 
 const Topbar = () => {
@@ -72,6 +73,9 @@ const Topbar = () => {
 				<a href="#" className="top-link">Inventory</a>
 				<a href="#" className="top-link">Operational</a>
 				<div className="link-underline" ref={underlineRef}></div>
+			</div>
+			<div className="top-bar-right">
+				<RoleSwitcher />
 			</div>
 		</div>
 	);

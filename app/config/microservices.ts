@@ -4,8 +4,8 @@ export const MICROSERVICES: MicroserviceConfig[] = [
   {
     id: 'budget-request-management',
     name: 'Budget Management',
-    url: 'http://localhost:3004',
-    port: 3004,
+    url: 'http://localhost:3001',
+    port: 3001,
     icon: 'ri-wallet-3-line',
     category: 'Financial',
     healthCheck: '/api/health',
@@ -20,11 +20,11 @@ export const MICROSERVICES: MicroserviceConfig[] = [
 
   {
     id: 'purchase-request',
-    name: 'Purchase Request',
-    url: 'http://localhost:3005',
-    port: 3005,
+    name: 'Budget Request',
+    url: 'http://localhost:3002',
+    port: 3002,
     icon: 'ri-store-3-line',
-    category: 'Purchase',
+    category: 'Financial',
     healthCheck: '/api/health',
     routes: [
       {

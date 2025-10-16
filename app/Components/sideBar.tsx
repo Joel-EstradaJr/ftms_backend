@@ -11,72 +11,40 @@ import "../styles/components/sidebar.css";
 
 const Sidebar: React.FC = () => {
   const pathname = usePathname();
-  const { getUrl } = useNavigationUrl();
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
-
-  // Define route patterns that work with both admin and staff
-  const getRoutePatterns = () => ({
-    "dashboard": "dashboard",
-    "revenue": "revenue", 
-    "expense": "expense",
-    "reimbursement": "reimbursement",
-    "financial-management/payroll": "payroll",
-    "purchase-request-approval": "purchaseApproval",
-    "loan-management/loanRequest": "loan-request",
-    "loan-management/loanPayment": "loan-payment", 
-    "report": "report",
-    "JEV": "JEV",
-    "audit": "audit",
-    "budget-management/budgetAllocation": "budgetAllocation",
-    "budget-management/budgetApproval": "budgetApproval",
-  });
+  const { getUrl } = useNavigationUrl();
 
   const staticRoutes: { [key: string]: string } = {
     "/dashboard": "dashboard",
-    "/admin/dashboard": "dashboard",
-    "/staff/dashboard": "dashboard",
     "/revenue": "revenue",
-    "/admin/revenue": "revenue",
-    "/staff/revenue": "revenue",
-    "/expense": "expense", 
-    "/admin/expense": "expense",
-    "/staff/expense": "expense",
+    "/expense": "expense",
     "/reimbursement": "reimbursement",
-    "/admin/reimbursement": "reimbursement",
-    "/staff/reimbursement": "reimbursement",
     "/financial-management/payroll": "payroll",
-    "/admin/financial-management/payroll": "payroll",
-    "/staff/financial-management/payroll": "payroll",
-    "/purchase-request-approval": "purchaseApproval",
-    "/admin/purchase-request-approval": "purchaseApproval",
-    "/staff/purchase-request-approval": "purchaseApproval",
+    "/purchase-request-approval": "purchaseApproval", // Added missing route
     "/loan-management/loanRequest": "loan-request",
-    "/admin/loan-management/loanRequest": "loan-request",
-    "/staff/loan-management/loanRequest": "loan-request",
     "/loan-management/loanPayment": "loan-payment",
-    "/admin/loan-management/loanPayment": "loan-payment",
-    "/staff/loan-management/loanPayment": "loan-payment",
     "/report": "report",
-    "/admin/report": "report", 
-    "/staff/report": "report",
     "/JEV": "JEV",
-    "/admin/JEV": "JEV",
-    "/staff/JEV": "JEV",
     "/audit": "audit",
-    "/admin/audit": "audit",
-    "/staff/audit": "audit",
+    // Budget Management routes
     "/budget-management/budgetAllocation": "budgetAllocation",
-    "/admin/budget-management/budgetAllocation": "budgetAllocation",
-    "/staff/budget-management/budgetAllocation": "budgetAllocation",
     "/budget-management/budgetApproval": "budgetApproval",
-    "/admin/budget-management/budgetApproval": "budgetApproval", 
-    "/staff/budget-management/budgetApproval": "budgetApproval",
+  };
+
+  // Function to normalize pathname for comparison (remove role prefix)
+  const getNormalizedPath = (path: string): string => {
+    if (path.startsWith('/admin')) return path.replace('/admin', '');
+    if (path.startsWith('/staff')) return path.replace('/staff', '');
+    return path;
   };
 
   useEffect(() => {
+    // Normalize pathname to check against static routes
+    const normalizedPath = getNormalizedPath(pathname);
+    
     // Check static routes first
-    const staticMatch = staticRoutes[pathname];
+    const staticMatch = staticRoutes[normalizedPath];
     if (staticMatch) {
       setActiveItem(staticMatch);
       
@@ -137,7 +105,7 @@ const Sidebar: React.FC = () => {
 
         <div className="nav-links">
           <Link
-            href="/dashboard"
+            href={getUrl("/dashboard")}
             className={`nav-item ${activeItem === "dashboard" ? "active" : ""}`}
             onClick={() => setActiveItem("dashboard")}
           >
@@ -146,7 +114,7 @@ const Sidebar: React.FC = () => {
           </Link>
 
           <Link
-            href="/revenue"
+            href={getUrl("/revenue")}
             className={`nav-item ${activeItem === "revenue" ? "active" : ""}`}
             onClick={() => setActiveItem("revenue")}
           >
@@ -173,14 +141,14 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "expense-management" && (
             <div className="sub-menu active">
               <Link
-                href="/expense"
+                href={getUrl("/expense")}
                 className={`sub-item ${activeItem === "expense" ? "active" : ""}`}
                 onClick={() => setActiveItem("expense")}
               >
                 Expenses
               </Link>
               <Link
-                href="/reimbursement"
+                href={getUrl("/reimbursement")}
                 className={`sub-item ${activeItem === "reimbursement" ? "active" : ""}`}
                 onClick={() => setActiveItem("reimbursement")}
               >
@@ -208,14 +176,14 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "loan-management" && (
             <div className="sub-menu active">
               <Link
-                href="/loan-management/loanRequest"
+                href={getUrl("/loan-management/loanRequest")}
                 className={`sub-item ${activeItem === "loan-request" ? "active" : ""}`}
                 onClick={() => setActiveItem("loan-request")}
               >
                 Loan Requests
               </Link>
               <Link
-                href="/loan-management/loanPayment"
+                href={getUrl("/loan-management/loanPayment")}
                 className={`sub-item ${activeItem === "loan-payment" ? "active" : ""}`}
                 onClick={() => setActiveItem("loan-payment")}
               >
@@ -225,7 +193,7 @@ const Sidebar: React.FC = () => {
           )}
 
           <Link
-            href="/financial-management/payroll"
+            href={getUrl("/financial-management/payroll")}
             className={`nav-item ${activeItem === "payroll" ? "active" : ""}`}
             onClick={() => setActiveItem("payroll")}
           >
@@ -252,21 +220,21 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "budget-management" && (
             <div className="sub-menu active">
               <Link
-                href="/microservice/budget-request-management/budget-management/adminBudgetRequest"
+                href={getUrl("/microservice/budget-request-management/budget-management/adminBudgetRequest")}
                 className={`sub-item ${activeItem === "budget-request" ? "active" : ""}`}
                 onClick={() => setActiveItem("budget-request")}
               >
                 <span>Budget Request 'microservice'</span>
               </Link>
               <Link
-                href="/budget-management/budgetAllocation"
+                href={getUrl("/budget-management/budgetAllocation")}
                 className={`sub-item ${activeItem === "budgetAllocation" ? "active" : ""}`}
                 onClick={() => setActiveItem("budgetAllocation")}
               >
                 Budget Allocation
               </Link>
               <Link
-                href="/budget-management/budgetApproval"
+                href={getUrl("/budget-management/budgetApproval")}
                 className={`sub-item ${activeItem === "budgetApproval" ? "active" : ""}`}
                 onClick={() => setActiveItem("budgetApproval")}
               >
@@ -294,14 +262,14 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "purchase-management" && (
             <div className="sub-menu active">
               <Link
-                href="/microservice/purchase-request/purchase-request"
+                href={getUrl("/microservice/purchase-request/purchase-request")}
                 className={`sub-item ${activeItem === "purchase-request" ? "active" : ""}`}
                 onClick={() => setActiveItem("purchase-request")}
               >
                 <span>Purchase Request 'microservice'</span>
               </Link>
               <Link
-                href="/purchase-request-approval"
+                href={getUrl("/purchase-request-approval")}
                 className={`sub-item ${activeItem === "purchaseApproval" ? "active" : ""}`}
                 onClick={() => setActiveItem("purchaseApproval")}
               >
@@ -311,7 +279,7 @@ const Sidebar: React.FC = () => {
           )}
 
           <Link
-            href="/report"
+            href={getUrl("/report")}
             className={`nav-item ${activeItem === "report" ? "active" : ""}`}
             onClick={() => setActiveItem("report")}
           >
@@ -320,7 +288,7 @@ const Sidebar: React.FC = () => {
           </Link>
 
           <Link
-            href="/JEV"
+            href={getUrl("/JEV")}
             className={`nav-item ${activeItem === "JEV" ? "active" : ""}`}
             onClick={() => setActiveItem("JEV")}
           >
@@ -329,7 +297,7 @@ const Sidebar: React.FC = () => {
           </Link>
 
           <Link
-            href="/audit"
+            href={getUrl("/audit")}
             className={`nav-item ${activeItem === "audit" ? "active" : ""}`}
             onClick={() => setActiveItem("audit")}
           >
