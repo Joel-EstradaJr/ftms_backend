@@ -63,7 +63,8 @@ export async function createRevenueFromBusTrip(params: {
     ? trip.assignment_type
     : 'Bus Rental';
   const category_id = await resolveCategoryIdByName(assignmentType as any);
-  const existing = await prisma.revenueRecord.findFirst({ where: { bus_trip_id, assignment_id: trip.assignment_id, is_deleted: false } });
+  // Idempotency check using scalar filters (safe in WHERE)
+  const existing = await prisma.revenueRecord.findFirst({ where: { is_deleted: false, bus_trip_id, assignment_id: trip.assignment_id } });
   if (existing) return existing;
 
   if (trip.trip_revenue == null && typeof params.override_amount !== 'number') {
@@ -83,15 +84,15 @@ export async function createRevenueFromBusTrip(params: {
   const created = await prisma.revenueRecord.create({
     data: ({
       revenue_id: await (await import('@/lib/idGenerator')).generateId('REV'),
-      assignment_id: trip.assignment_id,
-      bus_trip_id: trip.bus_trip_id,
       total_amount: (typeof params.override_amount === 'number' ? params.override_amount : (trip.trip_revenue as unknown as any)),
       created_by,
       collection_date,
       // link required relations via connect
       category: { connect: { id: category_id } },
       payment_status: { connect: { id: pendingStatus.id } },
-      // no source_id/source_ref in schema; omit
+      // establish trip relations via connect so underlying FKs are set
+      busTripByAssignment: { connect: { assignment_id: trip.assignment_id } },
+      busTripByTripId: { connect: { bus_trip_id: trip.bus_trip_id } },
       is_deleted: false,
     } as any),
     include: { category: true, source: true },

@@ -75,6 +75,12 @@ model RevenueRecord {
   loans               Loan[]
   installments        RevenueInstallment[]
   payments            RevenuePayment[]
+  // Relations to BusTripCache (cache of operations bus trips)
+  // Mapping clarification:
+  // - RevenueRecord.assignment_id -> BusTripCache.assignment_id (PK)
+  // - RevenueRecord.bus_trip_id   -> BusTripCache.bus_trip_id (unique)
+  busTripByAssignment BusTripCache?       @relation("RevenueToBusTripByAssignment", fields: [assignment_id], references: [assignment_id], onDelete: SetNull, onUpdate: Cascade)
+  busTripByTripId     BusTripCache?       @relation("RevenueToBusTripByTripId", fields: [bus_trip_id], references: [bus_trip_id], onDelete: SetNull, onUpdate: Cascade)
 
   // Ensure only one revenue per assignment+BusTrip
   @@unique([assignment_id, bus_trip_id], name: "unique_revenue_trip_assignment")
@@ -269,6 +275,9 @@ model BusTripCache {
   @@unique([bus_trip_id])
   @@index([date_assigned])
   @@index([is_revenue_recorded])
+  // Back-relations for RevenueRecord
+  revenuesByAssignment RevenueRecord[] @relation("RevenueToBusTripByAssignment")
+  revenuesByTripId     RevenueRecord[] @relation("RevenueToBusTripByTripId")
 }
 
 model Reimbursement {

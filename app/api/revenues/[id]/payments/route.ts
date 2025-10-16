@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPositiveDecimal, enforceLoanDoesNotExceedOutstanding } from '@/lib/validators/revenue';
 
 async function updateInstallmentAndRevenue({ revenue_id, installment_id }: { revenue_id: string; installment_id?: string | null }) {
   // Recalc installment amount_paid and status from payments
@@ -68,6 +69,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const sum = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     if (!(sum > 0)) return NextResponse.json({ error: 'Total payment amount must be > 0' }, { status: 400 });
 
+    // Validate each payment line must have payment_method_id when amount > 0
+    for (const p of payments) {
+      if (isPositiveDecimal(p.amount) && !p.payment_method_id) {
+        return NextResponse.json({ error: 'payment_method_id is required for each payment with amount > 0' }, { status: 400 });
+      }
+    }
+
     // Optional: enforce outstanding check unless explicitly overpaid
     const revenue = await (prisma as any).revenueRecord.findUnique({ where: { revenue_id: id } });
     if (!revenue) return NextResponse.json({ error: 'Revenue not found' }, { status: 404 });
@@ -102,6 +110,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       created.push(pay);
       await updateInstallmentAndRevenue({ revenue_id: id, installment_id: p.installment_id || null });
     }
+
+    // Ensure existing loans do not exceed new outstanding balance
+    await enforceLoanDoesNotExceedOutstanding(id);
 
     return NextResponse.json({ payments: created });
   } catch (e) {

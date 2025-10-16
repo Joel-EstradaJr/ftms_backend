@@ -8,6 +8,7 @@ import { logAudit } from '@/lib/auditLogger'
 import { upsertBoundaryLoanForRevenue } from '@/lib/loans'
 import { deleteFromDrive } from '@/lib/google/drive'
 import { isValidCollectionDateForEdit, validateAmountAgainstTrip } from '@/app/utils/revenueCalc'
+import { requirePaymentMethodWhenRemitted, validateARAndDates, enforceLoanDoesNotExceedOutstanding } from '@/lib/validators/revenue'
 
 
 export async function GET(
@@ -60,7 +61,7 @@ export async function PUT(
     // Convert collection_date string to Date object
     const collectionDateTime = new Date(collection_date);
     
-    // Validate date against original created_at
+  // Validate date against original created_at
     const now = new Date();
 
     // Get the original record for comparison and validation
@@ -79,7 +80,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Collection date must be within 3 months before the record creation date and not in the future.' }, { status: 400 });
     }
 
-    // Validate payment status/method if provided
+    // Due date must be >= collection date if AR
+    if ((typeof is_receivable === 'boolean' ? is_receivable : (originalRecord as any).is_receivable) && due_date) {
+      const due = new Date(due_date);
+      if (due < collectionDateTime) {
+        return NextResponse.json({ error: 'due_date must be on or after collection_date' }, { status: 400 });
+      }
+    }
+
+  // Validate payment status/method if provided
     if (payment_status_id) {
       const status = await prisma.globalPaymentStatus.findUnique({ where: { id: payment_status_id } });
       if (!status || !status.applicable_modules.includes('revenue')) {
@@ -93,6 +102,12 @@ export async function PUT(
     if (payment_method_id) {
       const pm = await prisma.globalPaymentMethod.findUnique({ where: { id: payment_method_id } });
       if (!pm) return NextResponse.json({ error: 'Invalid payment_method_id' }, { status: 400 });
+    }
+    // Enforce payment method rule if remitted
+    if (typeof total_amount === 'number') {
+      const recStatus = payment_status_id ? (await prisma.globalPaymentStatus.findUnique({ where: { id: payment_status_id } }))?.name : (await prisma.revenueRecord.findUnique({ where: { revenue_id } , select: { payment_status: true } }))?.payment_status?.name;
+      const check = requirePaymentMethodWhenRemitted({ total_amount, is_receivable: Boolean(is_receivable ?? (originalRecord as any).is_receivable), payment_method_id: payment_method_id ?? (originalRecord as any).payment_method_id, payment_status_name: recStatus || null });
+      if (!check.ok) return NextResponse.json({ error: check.message }, { status: 400 });
     }
     if (typeof remarks === 'string') {
       const trimmed = remarks.trim();
@@ -150,6 +165,9 @@ export async function PUT(
       const outstanding = Math.max(0, Number((Number((updatedRevenue as any).total_amount) - paid).toFixed(4)));
       await (prisma as any).revenueRecord.update({ where: { revenue_id }, data: { outstanding_balance: outstanding } });
     }
+
+  // Ensure loans fit within outstanding balance after update
+  await enforceLoanDoesNotExceedOutstanding(revenue_id);
 
     // Recompute Option2 loan for Boundary category if applicable
     try {
