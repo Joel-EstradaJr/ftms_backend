@@ -20,7 +20,7 @@
 
 6.
     # Run Prisma migrations
-    npx prisma migrate dev --name initial_database; npx prisma db seed; npx tsx prisma/lib/backfill_enums_to_globals.ts
+    npx prisma migrate dev --name initial_database; npx prisma db seed
 
 7.
     # Set up the OCR service

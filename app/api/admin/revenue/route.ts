@@ -34,6 +34,24 @@ export async function GET(req: NextRequest) {
       where.sourceId = parseInt(sourceId, 10);
     }
 
+    // Filter by multiple sources (comma-separated IDs)
+    const sources = searchParams.get('sources');
+    if (sources) {
+      const sourceIds = sources.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+      if (sourceIds.length > 0) {
+        where.sourceId = { in: sourceIds };
+      }
+    }
+
+    // Filter by multiple payment methods (comma-separated IDs)
+    const paymentMethods = searchParams.get('paymentMethods');
+    if (paymentMethods) {
+      const methodIds = paymentMethods.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+      if (methodIds.length > 0) {
+        where.paymentMethodId = { in: methodIds };
+      }
+    }
+
     // Filter by externalRefType
     const externalRefType = searchParams.get('externalRefType');
     if (externalRefType) {
@@ -58,9 +76,9 @@ export async function GET(req: NextRequest) {
       where.arStatus = arStatus;
     }
 
-    // Date range filter
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+    // Date range filter (support both old and new parameter names)
+    const startDate = searchParams.get('startDate') || searchParams.get('dateFrom');
+    const endDate = searchParams.get('endDate') || searchParams.get('dateTo');
     if (startDate || endDate) {
       where.transactionDate = {};
       if (startDate) {
@@ -71,6 +89,19 @@ export async function GET(req: NextRequest) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
         where.transactionDate.lte = end;
+      }
+    }
+
+    // Amount range filter
+    const amountFrom = searchParams.get('amountFrom');
+    const amountTo = searchParams.get('amountTo');
+    if (amountFrom || amountTo) {
+      where.amount = {};
+      if (amountFrom) {
+        where.amount.gte = parseFloat(amountFrom);
+      }
+      if (amountTo) {
+        where.amount.lte = parseFloat(amountTo);
       }
     }
 

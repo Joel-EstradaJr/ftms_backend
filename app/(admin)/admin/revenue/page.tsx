@@ -15,6 +15,7 @@ import React, { useState, useEffect } from "react";
 import "../../../styles/revenue/revenue.css";
 import "../../../styles/components/table.css";
 import PaginationComponent from "../../../Components/pagination";
+import RevenueFilter from "../../../Components/RevenueFilter";
 import Swal from 'sweetalert2';
 import { showSuccess, showError } from '../../../utility/Alerts';
 import { formatDate } from '../../../utility/dateFormatter';
@@ -59,9 +60,24 @@ const AdminRevenuePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Filter options state
+  const [revenueSources, setRevenueSources] = useState<RevenueSource[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  
   // Search and filter states
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState(""); // For debouncing
+  const [activeFilters, setActiveFilters] = useState<{
+    sources: string[];
+    paymentMethods: string[];
+    dateRange: { from: string; to: string };
+    amountRange: { from: string; to: string };
+  }>({
+    sources: [],
+    paymentMethods: [],
+    dateRange: { from: '', to: '' },
+    amountRange: { from: '', to: '' }
+  });
   
   // Sort states
   const [sortBy, setSortBy] = useState<"revenueCode" | "transactionDate" | "amount">("transactionDate");
@@ -72,6 +88,27 @@ const AdminRevenuePage = () => {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Fetch filter options (revenue sources and payment methods)
+  const fetchFilterOptions = async () => {
+    try {
+      // Fetch revenue sources
+      const sourcesResponse = await fetch('/api/admin/revenue-sources');
+      if (sourcesResponse.ok) {
+        const sourcesData = await sourcesResponse.json();
+        setRevenueSources(sourcesData.data || []);
+      }
+
+      // Fetch payment methods
+      const methodsResponse = await fetch('/api/admin/payment-methods');
+      if (methodsResponse.ok) {
+        const methodsData = await methodsResponse.json();
+        setPaymentMethods(methodsData.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching filter options:', err);
+    }
+  };
 
   // Fetch data from API
   const fetchData = async () => {
@@ -90,6 +127,35 @@ const AdminRevenuePage = () => {
       // Add search parameter if exists
       if (search) {
         params.append('search', search);
+      }
+
+      // Add filter parameters
+      if (activeFilters.sources && Array.isArray(activeFilters.sources) && activeFilters.sources.length > 0) {
+        params.append('sources', activeFilters.sources.join(','));
+      }
+
+      if (activeFilters.paymentMethods && Array.isArray(activeFilters.paymentMethods) && activeFilters.paymentMethods.length > 0) {
+        params.append('paymentMethods', activeFilters.paymentMethods.join(','));
+      }
+
+      if (activeFilters.dateRange && typeof activeFilters.dateRange === 'object') {
+        const dateRange = activeFilters.dateRange as { from: string; to: string };
+        if (dateRange.from) {
+          params.append('dateFrom', dateRange.from);
+        }
+        if (dateRange.to) {
+          params.append('dateTo', dateRange.to);
+        }
+      }
+
+      if (activeFilters.amountRange && typeof activeFilters.amountRange === 'object') {
+        const amountRange = activeFilters.amountRange as { from: string; to: string };
+        if (amountRange.from) {
+          params.append('amountFrom', amountRange.from);
+        }
+        if (amountRange.to) {
+          params.append('amountTo', amountRange.to);
+        }
       }
 
       // Fetch from API
@@ -124,10 +190,15 @@ const AdminRevenuePage = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
+  // Fetch filter options on mount
+  useEffect(() => {
+    fetchFilterOptions();
+  }, []);
+
   // Fetch data when dependencies change
   useEffect(() => {
     fetchData();
-  }, [currentPage, pageSize, search, sortBy, sortOrder]);
+  }, [currentPage, pageSize, search, sortBy, sortOrder, activeFilters]);
 
   // Sort handler
   const handleSort = (field: "revenueCode" | "transactionDate" | "amount") => {
@@ -146,6 +217,17 @@ const AdminRevenuePage = () => {
   const getSortIndicator = (field: string) => {
     if (sortBy !== field) return null;
     return sortOrder === "asc" ? " ↑" : " ↓";
+  };
+
+  // Handle filter apply
+  const handleFilterApply = (filterValues: {
+    sources: string[];
+    paymentMethods: string[];
+    dateRange: { from: string; to: string };
+    amountRange: { from: string; to: string };
+  }) => {
+    setActiveFilters(filterValues);
+    setCurrentPage(1); // Reset to first page when filters change
   };
 
   // Action handlers
@@ -264,6 +346,20 @@ const AdminRevenuePage = () => {
           </div>
 
           <div className="filters">
+            {/* Filter Dropdown */}
+            <RevenueFilter
+              sources={revenueSources.map(source => ({
+                id: source.id.toString(),
+                label: source.name
+              }))}
+              paymentMethods={paymentMethods.map(method => ({
+                id: method.id.toString(),
+                label: method.methodName
+              }))}
+              onApply={handleFilterApply}
+              initialValues={activeFilters}
+            />
+
             {/* Add Revenue Button */}
             <button onClick={handleAdd} id='addRevenue'>
               <i className="ri-add-line" /> Add Revenue

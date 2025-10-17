@@ -28,7 +28,7 @@ button {
   height: var(--search-input-height) !important;
 }
 
-/* Search bar */
+/* ---------- Search Bar and Filter Container ---------- */
 .revenue_searchBar {
   display: flex !important;
   align-items: center !important;
@@ -52,14 +52,17 @@ button {
   box-shadow: none !important;
 }
 
+/* Filter button positioning next to search bar */
+.filter {
+  margin-left: 0.5rem !important;
+}
 
 /* ---------- Import / Export ---------- */
-
- #export{
+#export {
   height: var(--page-button-height) !important;
   width: var(--page-button-width) !important;
   font-size: var(--page-button-font-size) !important;
-  border-radius: var(--page-button-border-radius)!important;
+  border-radius: var(--page-button-border-radius) !important;
   cursor: pointer !important;
   border: none !important;
   background-color: var(--secondary-color) !important;
@@ -67,8 +70,8 @@ button {
   transition: background-color 0.3s !important;
 }
 
- #export:hover {
-  background-color: var(--secondary-hover-color)!important;
+#export:hover {
+  background-color: var(--secondary-hover-color) !important;
 }
 
 /* ---------- Filter Inputs ---------- */
@@ -85,7 +88,7 @@ button {
   font-size: var(--page-button-font-size) !important;
   height: var(--page-button-height) !important;
   width: var(--page-button-width) !important;
-  border-radius: var(--page-button-border-radius)!important;
+  border-radius: var(--page-button-border-radius) !important;
   box-shadow: var(--box-shadow) !important;
 }
 
@@ -99,7 +102,7 @@ button {
   color: var(--button-font-color) !important;
   border: none !important;
   cursor: pointer !important;
-  border-radius: var(--page-button-border-radius)!important;
+  border-radius: var(--page-button-border-radius) !important;
   font-weight: 500 !important;
   transition: background-color 0.2s !important;
   height: var(--page-button-height) !important;
@@ -107,11 +110,12 @@ button {
   gap: var(--page-button-gap) !important;
   font-size: var(--page-button-font-size) !important;
 }
+
 #addRevenue:hover {
   background-color: var(--primary-hover-color) !important;
 }
 
-/* ---------- Action Buttons ---------- */
+/* ---------- Action Buttons - Fixed Visibility ---------- */
 .actionButtonsContainer {
   display: flex !important;
   gap: 0.5rem !important;
@@ -121,30 +125,55 @@ button {
 .actionButtons button {
   padding: 0.25rem !important;
   border: none !important;
-  background: none !important;
+  background: transparent !important;
   cursor: pointer !important;
-  transition: transform 0.2s !important;
-  color: var(--secondary-text-color) !important;
+  transition: all 0.2s ease !important;
+  opacity: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .actionButtons button:hover {
   transform: scale(1.1) !important;
+  opacity: 0.85 !important;
 }
 
-.viewBtn:hover {
-  color: var(--info-color) !important;
+/* Button colors - fixed, always visible */
+.actionButtons .viewBtn,
+.actionButtons button.viewBtn {
+  color: #3498db !important; /* Info blue */
 }
 
-.editBtn:hover {
-  color: var(--warning-color) !important;
+.actionButtons .editBtn,
+.actionButtons button.editBtn {
+  color: #f39c12 !important; /* Warning orange */
 }
 
-.deleteBtn:hover {
-  color: var(--error-color) !important;
+.actionButtons .deleteBtn,
+.actionButtons button.deleteBtn {
+  color: #e74c3c !important; /* Error red */
 }
 
+/* Force icon visibility */
+.actionButtons button i,
 .actionButtons i {
   font-size: 1.25rem !important;
+  color: inherit !important;
+  opacity: 1 !important;
+  display: inline-block !important;
+}
+
+.viewBtn i {
+  color: #3498db !important;
+}
+
+.editBtn i {
+  color: #f39c12 !important;
+}
+
+.deleteBtn i {
+  color: #e74c3c !important;
 }
 
 /* ---------- Responsive ---------- */
@@ -152,12 +181,10 @@ button {
   .revenuePage {
     padding: 1rem !important;
   }
-
   .settings {
     flex-direction: column !important;
     gap: 1rem !important;
   }
-
   .filters input[type="date"],
   .filters select,
   #addRevenue {
@@ -267,4 +294,3 @@ button {
   font-weight: 600 !important;
   text-transform: uppercase !important;
 }
-
