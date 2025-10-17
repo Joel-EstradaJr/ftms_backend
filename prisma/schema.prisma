@@ -118,20 +118,20 @@ enum ReimbursementPaymentMethodType {
 // ============================================
 
 model PaymentMethod {
-  id              Int       @id @default(autoincrement())
-  methodCode      String    @unique @db.VarChar(20)
-  methodName      String    @db.VarChar(100)
-  description     String?   @db.Text
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  methodCode  String   @unique @db.VarChar(20)
+  methodName  String   @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  revenues        Revenue[]
-  expenses        Expense[]
-  loanPayments    LoanPayment[]
-  payrollItems    PayrollItem[]
-  reimbursements  Reimbursement[]
+  revenues           Revenue[]
+  expenses           Expense[]
+  loanPayments       LoanPayment[]
+  payrollItems       PayrollItem[]
+  reimbursements     Reimbursement[]
   refundReplacements RefundReplacement[]
 
   @@index([methodCode])
@@ -139,13 +139,13 @@ model PaymentMethod {
 }
 
 model BudgetPeriodType {
-  id              Int       @id @default(autoincrement())
-  periodCode      String    @unique @db.VarChar(20)
-  periodName      String    @db.VarChar(100)
-  description     String?   @db.Text
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  periodCode  String   @unique @db.VarChar(20)
+  periodName  String   @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   budgetAllocations BudgetAllocation[]
@@ -155,31 +155,31 @@ model BudgetPeriodType {
 }
 
 model LoanPaymentFrequencyType {
-  id              Int       @id @default(autoincrement())
-  frequencyCode   String    @unique @db.VarChar(20)
-  frequencyName   String    @db.VarChar(100)
-  daysInterval    Int?      // e.g., 7 for WEEKLY, 14 for BI-WEEKLY
-  description     String?   @db.Text
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            Int      @id @default(autoincrement())
+  frequencyCode String   @unique @db.VarChar(20)
+  frequencyName String   @db.VarChar(100)
+  daysInterval  Int? // e.g., 7 for WEEKLY, 14 for BI-WEEKLY
+  description   String?  @db.Text
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
-  loans           Loan[]
+  loans Loan[]
 
   @@index([frequencyCode])
   @@index([isActive])
 }
 
 model AccountType {
-  id              Int       @id @default(autoincrement())
-  typeCode        String    @unique @db.VarChar(20)
-  typeName        String    @db.VarChar(100)
-  description     String?   @db.Text
-  normalBalance   String    @db.VarChar(10) // DEBIT or CREDIT
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            Int      @id @default(autoincrement())
+  typeCode      String   @unique @db.VarChar(20)
+  typeName      String   @db.VarChar(100)
+  description   String?  @db.Text
+  normalBalance String   @db.VarChar(10) // DEBIT or CREDIT
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
   chartOfAccounts ChartOfAccount[]
@@ -193,17 +193,17 @@ model AccountType {
 // ============================================
 
 model ExpenseCategory {
-  id            Int       @id @default(autoincrement())
-  categoryCode  String    @unique @db.VarChar(20)
-  name          String    @db.VarChar(100)
-  description   String?   @db.Text
-  department    String?   @db.VarChar(100)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           Int      @id @default(autoincrement())
+  categoryCode String   @unique @db.VarChar(20)
+  name         String   @db.VarChar(100)
+  description  String?  @db.Text
+  department   String?  @db.VarChar(100)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  expenses              Expense[]
-  budgetAllocations     BudgetAllocation[]
+  expenses          Expense[]
+  budgetAllocations BudgetAllocation[]
 
   @@index([categoryCode])
   @@index([department])
@@ -211,30 +211,30 @@ model ExpenseCategory {
 }
 
 model RevenueSource {
-  id            Int       @id @default(autoincrement())
-  sourceCode    String    @unique @db.VarChar(20)
-  name          String    @db.VarChar(100)
-  description   String?   @db.Text
-  isActive      Boolean   @default(true)
-  accountCode   String?   @db.VarChar(20)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  sourceCode  String   @unique @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  accountCode String?  @db.VarChar(20)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  revenues      Revenue[]
+  revenues Revenue[]
 
   @@index([sourceCode])
   @@index([isActive])
 }
 
 model BudgetRequestType {
-  id            Int       @id @default(autoincrement())
-  typeCode      String    @unique @db.VarChar(20)
-  name          String    @db.VarChar(100)
-  description   String?   @db.Text
-  priority      Int       @default(1)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  typeCode    String   @unique @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  priority    Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   budgetRequests BudgetRequest[]
 
@@ -244,13 +244,13 @@ model BudgetRequestType {
 }
 
 model BudgetRequestStatus {
-  id            Int       @id @default(autoincrement())
-  statusCode    String    @unique @db.VarChar(20)
-  name          String    @db.VarChar(100)
-  description   String?   @db.Text
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  statusCode  String   @unique @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   budgetRequests BudgetRequest[]
 
@@ -263,15 +263,15 @@ model BudgetRequestStatus {
 // ============================================
 
 model ApprovalAuthority {
-  id                 Int          @id @default(autoincrement())
-  role               ApproverRole
-  approvalType       String       @db.VarChar(100) // "PURCHASE_REQUEST", "BUDGET_REQUEST", "JOURNAL_ENTRY", "REFUND_REQUEST"
-  minThreshold       Decimal?     @db.Decimal(15, 2)
-  maxThreshold       Decimal?     @db.Decimal(15, 2)
-  isActive           Boolean      @default(true)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  createdBy          String       @db.VarChar(100)
+  id           Int          @id @default(autoincrement())
+  role         ApproverRole
+  approvalType String       @db.VarChar(100) // "PURCHASE_REQUEST", "BUDGET_REQUEST", "JOURNAL_ENTRY", "REFUND_REQUEST"
+  minThreshold Decimal?     @db.Decimal(15, 2)
+  maxThreshold Decimal?     @db.Decimal(15, 2)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  createdBy    String       @db.VarChar(100)
 
   @@unique([role, approvalType, minThreshold, maxThreshold])
   @@index([role])
@@ -302,24 +302,24 @@ model EmployeeCache {
 }
 
 model PayrollCache {
-  id               Int      @id @default(autoincrement())
-  employeeNumber   String   @db.VarChar(20)
-  firstName        String   @db.VarChar(100)
-  middleName       String?  @db.VarChar(100)
-  lastName         String   @db.VarChar(100)
-  suffix           String?  @db.VarChar(20)
-  employeeStatus   String   @db.VarChar(50)
-  hiredate         DateTime?
-  terminationDate  DateTime?
-  basicRate        Decimal  @db.Decimal(15, 2)
-  positionName     String   @db.VarChar(100)
-  departmentName   String   @db.VarChar(100)
-  attendanceData   Json?    // Array: [{"date": "2025-10-13T14:04:14.590Z", "status": "Present"}]
-  benefitsData     Json?    // Array: [{"value": 750, "frequency": "Monthly", "effectiveDate": "2025-08-15T14:04:14.590Z", "endDate": null, "isActive": true, "name": "Housing Allowance"}]
-  deductionsData   Json?    // Array: [{"type": "Uniform Deduction", "value": 200, "frequency": "Monthly", "effectiveDate": "2025-07-16T14:04:14.590Z", "endDate": null, "isActive": true}]
-  lastSynced       DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              Int       @id @default(autoincrement())
+  employeeNumber  String    @db.VarChar(20)
+  firstName       String    @db.VarChar(100)
+  middleName      String?   @db.VarChar(100)
+  lastName        String    @db.VarChar(100)
+  suffix          String?   @db.VarChar(20)
+  employeeStatus  String    @db.VarChar(50)
+  hiredate        DateTime?
+  terminationDate DateTime?
+  basicRate       Decimal   @db.Decimal(15, 2)
+  positionName    String    @db.VarChar(100)
+  departmentName  String    @db.VarChar(100)
+  attendanceData  Json? // Array: [{"date": "2025-10-13T14:04:14.590Z", "status": "Present"}]
+  benefitsData    Json? // Array: [{"value": 750, "frequency": "Monthly", "effectiveDate": "2025-08-15T14:04:14.590Z", "endDate": null, "isActive": true, "name": "Housing Allowance"}]
+  deductionsData  Json? // Array: [{"type": "Uniform Deduction", "value": 200, "frequency": "Monthly", "effectiveDate": "2025-07-16T14:04:14.590Z", "endDate": null, "isActive": true}]
+  lastSynced      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([employeeNumber])
   @@index([departmentName])
@@ -328,37 +328,38 @@ model PayrollCache {
 
 model BusTripCache {
   id                      Int      @id @default(autoincrement())
-  assignmentId            String   @unique @db.VarChar(20)
-  busTripId               String   @db.VarChar(20)
-  busRoute                String   @db.VarChar(100)
-  isRevenueRecorded       Boolean  @default(false)
-  isExpenseRecorded       Boolean  @default(false)
-  dateAssigned            DateTime
-  tripFuelExpense         Decimal  @db.Decimal(15, 2)
-  tripRevenue             Decimal  @db.Decimal(15, 2)
-  assignmentType          String   @db.VarChar(50) // "Percentage", "Boundary"
-  assignmentValue         Decimal  @db.Decimal(15, 4)
-  paymentMethod           String   @db.VarChar(50)
-  driverName              String   @db.VarChar(100)
-  conductorName           String   @db.VarChar(100)
-  driverEmployeeNumber    String?  @db.VarChar(20)
-  conductorEmployeeNumber String?  @db.VarChar(20)
-  busPlateNumber          String   @db.VarChar(20)
-  busType                 String   @db.VarChar(50)
-  bodyNumber              String   @db.VarChar(20)
-  routeCode               String?  @db.VarChar(20)
-  tripStatus              String?  @db.VarChar(50) @default("COMPLETED")
-  lastSynced              DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  assignmentId            String   @unique @map("assignment_id") @db.VarChar(20)
+  busTripId               String   @map("bus_trip_id") @db.VarChar(20)
+  busRoute                String   @map("bus_route") @db.VarChar(100)
+  isRevenueRecorded       Boolean  @default(false) @map("is_revenue_recorded")
+  isExpenseRecorded       Boolean  @default(false) @map("is_expense_recorded")
+  dateAssigned            DateTime @map("date_assigned")
+  tripFuelExpense         Decimal  @map("trip_fuel_expense") @db.Decimal(15, 2)
+  tripRevenue             Decimal  @map("trip_revenue") @db.Decimal(15, 2)
+  assignmentType          String   @map("assignment_type") @db.VarChar(50) // "Percentage", "Boundary"
+  assignmentValue         Decimal  @map("assignment_value") @db.Decimal(15, 4)
+  paymentMethod           String   @map("payment_method") @db.VarChar(50)
+  driverName              String   @map("driver_name") @db.VarChar(100)
+  conductorName           String   @map("conductor_name") @db.VarChar(100)
+  driverEmployeeNumber    String?  @map("driver_employee_number") @db.VarChar(20)
+  conductorEmployeeNumber String?  @map("conductor_employee_number") @db.VarChar(20)
+  busPlateNumber          String   @map("bus_plate_number") @db.VarChar(20)
+  busType                 String   @map("bus_type") @db.VarChar(50)
+  bodyNumber              String   @map("body_number") @db.VarChar(20)
+  routeCode               String?  @map("route_code") @db.VarChar(20)
+  tripStatus              String?  @default("COMPLETED") @map("trip_status") @db.VarChar(50)
+  lastSynced              DateTime @default(now()) @map("last_synced")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
-  revenueRecords  Revenue[]
-  expenseRecords  Expense[]
+  revenueRecords Revenue[]
+  expenseRecords Expense[]
 
   @@index([assignmentId])
   @@index([busTripId])
   @@index([dateAssigned])
   @@index([driverEmployeeNumber, conductorEmployeeNumber])
+  @@map("bus_trip_cache")
 }
 
 // ============================================
@@ -366,74 +367,74 @@ model BusTripCache {
 // ============================================
 
 model InventoryPurchaseRequestSync {
-  id              Int       @id @default(autoincrement())
-  invPrId         String    @unique @db.VarChar(20)
-  finPrId         String?   @db.VarChar(20)
+  id      Int     @id @default(autoincrement())
+  invPrId String  @unique @db.VarChar(20)
+  finPrId String? @db.VarChar(20)
 
-  categoryId      Int?
-  categoryName    String?   @db.VarChar(100)
-  estimatedAmount Decimal   @db.Decimal(15, 2)
-  priority        String?   @db.VarChar(20)
-  autoTrigger     Boolean   @default(false)
-  reorderOfInvPrId String?  @db.VarChar(20)
+  categoryId       Int?
+  categoryName     String? @db.VarChar(100)
+  estimatedAmount  Decimal @db.Decimal(15, 2)
+  priority         String? @db.VarChar(20)
+  autoTrigger      Boolean @default(false)
+  reorderOfInvPrId String? @db.VarChar(20)
 
-  syncStatus      String    @db.VarChar(50) @default("PENDING")
-  lastSyncedAt    DateTime  @default(now())
-  syncNotes       String?   @db.Text
+  syncStatus   String   @default("PENDING") @db.VarChar(50)
+  lastSyncedAt DateTime @default(now())
+  syncNotes    String?  @db.Text
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([invPrId])
   @@index([syncStatus])
 }
 
 model InventoryOrderSync {
-  id              Int       @id @default(autoincrement())
-  invPoId         String    @unique @db.VarChar(20)
-  finOrderId      Int?
-  invPrId         String    @db.VarChar(20)
+  id         Int    @id @default(autoincrement())
+  invPoId    String @unique @db.VarChar(20)
+  finOrderId Int?
+  invPrId    String @db.VarChar(20)
 
-  supplierId      String?   @db.VarChar(20)
-  supplierName    String?   @db.VarChar(150)
-  totalAmount     Decimal   @db.Decimal(15, 2)
-  actualAmount    Decimal?  @db.Decimal(15, 2)
+  supplierId   String?  @db.VarChar(20)
+  supplierName String?  @db.VarChar(150)
+  totalAmount  Decimal  @db.Decimal(15, 2)
+  actualAmount Decimal? @db.Decimal(15, 2)
 
-  poStatus        String?   @db.VarChar(50)
-  priceMismatchFlag Boolean  @default(false)
-  orderDate       DateTime
+  poStatus             String?   @db.VarChar(50)
+  priceMismatchFlag    Boolean   @default(false)
+  orderDate            DateTime
   expectedDeliveryDate DateTime?
-  actualDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
 
-  syncStatus      String    @db.VarChar(50) @default("PENDING")
-  lastSyncedAt    DateTime  @default(now())
+  syncStatus   String   @default("PENDING") @db.VarChar(50)
+  lastSyncedAt DateTime @default(now())
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([invPoId])
   @@index([syncStatus])
 }
 
 model InventoryDeliverySync {
-  id              Int       @id @default(autoincrement())
-  invDrId         String    @unique @db.VarChar(20)
-  finDeliveryId   Int?
-  invPoId         String    @db.VarChar(20)
+  id            Int    @id @default(autoincrement())
+  invDrId       String @unique @db.VarChar(20)
+  finDeliveryId Int?
+  invPoId       String @db.VarChar(20)
 
-  receivedQuantity Int
+  receivedQuantity  Int
   defectiveQuantity Int      @default(0)
-  missingQuantity  Int       @default(0)
-  deliveryDate    DateTime
-  inspectionStatus String?   @db.VarChar(50)
-  invoiceNumber   String?   @db.VarChar(50)
-  invoiceAmount   Decimal?  @db.Decimal(15, 2)
+  missingQuantity   Int      @default(0)
+  deliveryDate      DateTime
+  inspectionStatus  String?  @db.VarChar(50)
+  invoiceNumber     String?  @db.VarChar(50)
+  invoiceAmount     Decimal? @db.Decimal(15, 2)
 
-  syncStatus      String    @db.VarChar(50) @default("PENDING")
-  lastSyncedAt    DateTime  @default(now())
+  syncStatus   String   @default("PENDING") @db.VarChar(50)
+  lastSyncedAt DateTime @default(now())
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([invDrId])
   @@index([invPoId])
@@ -445,49 +446,49 @@ model InventoryDeliverySync {
 // ============================================
 
 model Revenue {
-  id                    Int            @id @default(autoincrement())
-  revenueCode           String         @unique @default(cuid())
-  sourceId              Int
-  source                RevenueSource  @relation(fields: [sourceId], references: [id])
-  description           String         @db.Text
-  amount                Decimal        @db.Decimal(15, 2)
-  transactionDate       DateTime       @default(now())
-  paymentMethodId       Int
-  paymentMethod         PaymentMethod  @relation(fields: [paymentMethodId], references: [id])
+  id              Int           @id @default(autoincrement())
+  revenueCode     String        @unique @default(cuid())
+  sourceId        Int
+  source          RevenueSource @relation(fields: [sourceId], references: [id])
+  description     String        @db.Text
+  amount          Decimal       @db.Decimal(15, 2)
+  transactionDate DateTime      @default(now())
+  paymentMethodId Int
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
 
-  busTripCacheId        Int?
-  busTripCache          BusTripCache?  @relation(fields: [busTripCacheId], references: [id])
+  busTripCacheId Int?
+  busTripCache   BusTripCache? @relation(fields: [busTripCacheId], references: [id])
 
-  externalRefId         String?        @db.VarChar(20)
-  externalRefType       String?        @db.VarChar(50) // "RENTAL", "DISPOSAL", "FORFEITED_DEPOSIT"
+  externalRefId   String? @db.VarChar(20)
+  externalRefType String? @db.VarChar(50) // "RENTAL", "DISPOSAL", "FORFEITED_DEPOSIT"
 
-  loanPaymentId         Int?           @unique
-  loanPayment           LoanPayment?   @relation(fields: [loanPaymentId], references: [id])
+  loanPaymentId Int?         @unique
+  loanPayment   LoanPayment? @relation(fields: [loanPaymentId], references: [id])
 
-  isInstallment         Boolean        @default(false)
+  isInstallment         Boolean              @default(false)
   installmentScheduleId Int?
   installmentSchedule   InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
 
-  isAccountsReceivable  Boolean        @default(false)
-  arDueDate             DateTime?
-  arPaidDate            DateTime?
-  arStatus              String?        @db.VarChar(50) @default("PENDING")
-  arId                  Int?
-  accountsReceivable    AccountsReceivable? @relation(fields: [arId], references: [id])
+  isAccountsReceivable Boolean             @default(false)
+  arDueDate            DateTime?
+  arPaidDate           DateTime?
+  arStatus             String?             @default("PENDING") @db.VarChar(50)
+  arId                 Int?
+  accountsReceivable   AccountsReceivable? @relation(fields: [arId], references: [id])
 
-  documentIds           String?        @db.Text
+  documentIds String? @db.Text
 
-  journalEntryId        Int?
-  journalEntry          JournalEntry?  @relation("RevenueJournalEntry", fields: [journalEntryId], references: [id])
+  journalEntryId Int?
+  journalEntry   JournalEntry? @relation("RevenueJournalEntry", fields: [journalEntryId], references: [id])
 
-  forfeitedDeposits     ForfeitedDeposit[] @relation("ForfeitedDepositRevenue")
+  forfeitedDeposits ForfeitedDeposit[] @relation("ForfeitedDepositRevenue")
 
-  createdBy             String         @db.VarChar(100)
-  approvedBy            String?        @db.VarChar(100)
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  createdBy  String   @db.VarChar(100)
+  approvedBy String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  auditLogs             AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([sourceId])
   @@index([transactionDate])
@@ -500,77 +501,77 @@ model Revenue {
 // ============================================
 
 model Expense {
-  id                      Int               @id @default(autoincrement())
-  expenseCode             String            @unique @default(cuid())
-  categoryId              Int
-  category                ExpenseCategory   @relation(fields: [categoryId], references: [id])
-  description             String            @db.Text
-  amount                  Decimal           @db.Decimal(15, 2)
-  transactionDate         DateTime          @default(now())
-  paymentMethodId         Int
-  paymentMethod           PaymentMethod     @relation(fields: [paymentMethodId], references: [id])
+  id              Int             @id @default(autoincrement())
+  expenseCode     String          @unique @default(cuid())
+  categoryId      Int
+  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
+  description     String          @db.Text
+  amount          Decimal         @db.Decimal(15, 2)
+  transactionDate DateTime        @default(now())
+  paymentMethodId Int
+  paymentMethod   PaymentMethod   @relation(fields: [paymentMethodId], references: [id])
 
-  busTripCacheId          Int?
-  busTripCache            BusTripCache?     @relation(fields: [busTripCacheId], references: [id])
+  busTripCacheId Int?
+  busTripCache   BusTripCache? @relation(fields: [busTripCacheId], references: [id])
 
-  externalRefId           String?           @db.VarChar(20)
-  externalRefType         String?           @db.VarChar(50)
+  externalRefId   String? @db.VarChar(20)
+  externalRefType String? @db.VarChar(50)
 
-  vendorName              String?           @db.VarChar(150)
-  vendorId                String?           @db.VarChar(20)
+  vendorName String? @db.VarChar(150)
+  vendorId   String? @db.VarChar(20)
 
-  isReimbursement         Boolean           @default(false)
-  reimbursements          Reimbursement[]
+  isReimbursement Boolean         @default(false)
+  reimbursements  Reimbursement[]
 
-  isPayable               Boolean           @default(false)
-  payableDueDate          DateTime?
-  payablePaidDate         DateTime?
-  payableStatus           String?           @db.VarChar(50) @default("PENDING")
-  apId                    Int?
-  accountsPayable         AccountsPayable?  @relation(fields: [apId], references: [id])
+  isPayable       Boolean          @default(false)
+  payableDueDate  DateTime?
+  payablePaidDate DateTime?
+  payableStatus   String?          @default("PENDING") @db.VarChar(50)
+  apId            Int?
+  accountsPayable AccountsPayable? @relation(fields: [apId], references: [id])
 
-  isInstallment           Boolean           @default(false)
-  installmentScheduleId   Int?
-  installmentSchedule     InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
+  isInstallment         Boolean              @default(false)
+  installmentScheduleId Int?
+  installmentSchedule   InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
 
-  refundReplacements      RefundReplacement[]
+  refundReplacements RefundReplacement[]
 
-  documentIds             String?           @db.Text
+  documentIds String? @db.Text
 
-  budgetAllocationId      Int?
-  budgetAllocation        BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
+  budgetAllocationId Int?
+  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
 
-  journalEntryId          Int?
-  journalEntry            JournalEntry?     @relation("ExpenseJournalEntry", fields: [journalEntryId], references: [id])
+  journalEntryId Int?
+  journalEntry   JournalEntry? @relation("ExpenseJournalEntry", fields: [journalEntryId], references: [id])
 
   // PURCHASE INTEGRATION FIELDS
-  purchaseRequestId       String?           @db.VarChar(20)
-  inventoryOrderId        String?           @db.VarChar(20)
-  inventoryDeliveryId     String?           @db.VarChar(20)
+  purchaseRequestId   String? @db.VarChar(20)
+  inventoryOrderId    String? @db.VarChar(20)
+  inventoryDeliveryId String? @db.VarChar(20)
 
-  reservationStatus       ExpenseReservationStatus @default(NONE)
-  amountReserved          Decimal?          @db.Decimal(15, 2)
-  threeWayMatchStatus     String?           @db.VarChar(50) @default("PENDING")
-  threeWayMatchNotes      String?           @db.Text
+  reservationStatus   ExpenseReservationStatus @default(NONE)
+  amountReserved      Decimal?                 @db.Decimal(15, 2)
+  threeWayMatchStatus String?                  @default("PENDING") @db.VarChar(50)
+  threeWayMatchNotes  String?                  @db.Text
 
-  priceDecision           String?           @db.VarChar(50)
-  decisionMadeBy          String?           @db.VarChar(100)
-  decisionDate            DateTime?
-  decisionReason          String?           @db.Text
+  priceDecision  String?   @db.VarChar(50)
+  decisionMadeBy String?   @db.VarChar(100)
+  decisionDate   DateTime?
+  decisionReason String?   @db.Text
 
-  isReversal              Boolean           @default(false)
-  reversalOfId            Int?
-  reversalReason          String?           @db.Text
+  isReversal     Boolean @default(false)
+  reversalOfId   Int?
+  reversalReason String? @db.Text
 
-  isTaxable               Boolean           @default(true)
-  taxExemptionReason      String?           @db.Text
+  isTaxable          Boolean @default(true)
+  taxExemptionReason String? @db.Text
 
-  createdBy               String            @db.VarChar(100)
-  approvedBy              String?           @db.VarChar(100)
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime          @updatedAt
+  createdBy  String   @db.VarChar(100)
+  approvedBy String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  auditLogs               AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([categoryId])
   @@index([transactionDate])
@@ -586,31 +587,31 @@ model Expense {
 // ============================================
 
 model Order {
-  id                  Int       @id @default(autoincrement())
-  orderCode           String    @unique @default(cuid())
+  id        Int    @id @default(autoincrement())
+  orderCode String @unique @default(cuid())
 
-  inventoryPoId       String    @db.VarChar(20)
-  purchaseRequestId   String    @db.VarChar(20)
+  inventoryPoId     String @db.VarChar(20)
+  purchaseRequestId String @db.VarChar(20)
 
-  supplierId          String    @db.VarChar(20)
-  supplierName        String    @db.VarChar(150)
+  supplierId   String @db.VarChar(20)
+  supplierName String @db.VarChar(150)
 
-  status              String    @db.VarChar(50) @default("PENDING")
-  orderDate           DateTime  @default(now())
+  status               String    @default("PENDING") @db.VarChar(50)
+  orderDate            DateTime  @default(now())
   expectedDeliveryDate DateTime?
   actualDeliveryDate   DateTime?
 
-  orderAmount         Decimal   @db.Decimal(15, 2)
-  actualAmount        Decimal?  @db.Decimal(15, 2)
+  orderAmount  Decimal  @db.Decimal(15, 2)
+  actualAmount Decimal? @db.Decimal(15, 2)
 
-  priceMatchFlag      Boolean   @default(false)
-  actualQty           Int?
-  newUnitPrice        Decimal?  @db.Decimal(15, 2)
+  priceMatchFlag Boolean  @default(false)
+  actualQty      Int?
+  newUnitPrice   Decimal? @db.Decimal(15, 2)
 
-  deliveries          Delivery[]
+  deliveries Delivery[]
 
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([inventoryPoId])
   @@index([purchaseRequestId])
@@ -618,26 +619,26 @@ model Order {
 }
 
 model Delivery {
-  id                  Int       @id @default(autoincrement())
-  deliveryCode        String    @unique @default(cuid())
+  id           Int    @id @default(autoincrement())
+  deliveryCode String @unique @default(cuid())
 
-  orderId             Int
-  order               Order     @relation(fields: [orderId], references: [id])
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id])
 
-  inventoryDrId       String?   @db.VarChar(20)
+  inventoryDrId String? @db.VarChar(20)
 
-  receivedQty         Int
-  defectiveQty        Int       @default(0)
-  missingQty          Int       @default(0)
-  receivedDate        DateTime
-  inspectionStatus    String?   @db.VarChar(50)
-  inspectionFindings  String?   @db.Text
+  receivedQty        Int
+  defectiveQty       Int      @default(0)
+  missingQty         Int      @default(0)
+  receivedDate       DateTime
+  inspectionStatus   String?  @db.VarChar(50)
+  inspectionFindings String?  @db.Text
 
-  invoiceNumber       String?   @db.VarChar(50)
-  invoiceAmount       Decimal?  @db.Decimal(15, 2)
+  invoiceNumber String?  @db.VarChar(50)
+  invoiceAmount Decimal? @db.Decimal(15, 2)
 
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orderId])
   @@index([inventoryDrId])
@@ -648,34 +649,34 @@ model Delivery {
 // ============================================
 
 model Reimbursement {
-  id                Int                          @id @default(autoincrement())
-  reimbursementCode String                       @unique @default(cuid())
+  id                Int    @id @default(autoincrement())
+  reimbursementCode String @unique @default(cuid())
 
-  expenseId         Int
-  expense           Expense                      @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expenseId Int
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
 
-  employeeNumber    String                       @db.VarChar(20)
-  employeeName      String                       @db.VarChar(100)
-  department        String?                      @db.VarChar(100)
+  employeeNumber String  @db.VarChar(20)
+  employeeName   String  @db.VarChar(100)
+  department     String? @db.VarChar(100)
 
-  claimedAmount     Decimal                      @db.Decimal(15, 2)
-  approvedAmount    Decimal?                     @db.Decimal(15, 2)
-  status            ReimbursementStatus          @default(PENDING)
+  claimedAmount     Decimal                         @db.Decimal(15, 2)
+  approvedAmount    Decimal?                        @db.Decimal(15, 2)
+  status            ReimbursementStatus             @default(PENDING)
   paymentMethodType ReimbursementPaymentMethodType?
   paymentMethodId   Int?
-  paymentMethod     PaymentMethod?               @relation(fields: [paymentMethodId], references: [id])
+  paymentMethod     PaymentMethod?                  @relation(fields: [paymentMethodId], references: [id])
   disbursementDate  DateTime?
 
-  documentIds       String?                      @db.Text
-  remarks           String?                      @db.Text
+  documentIds String? @db.Text
+  remarks     String? @db.Text
 
-  createdBy         String                       @db.VarChar(100)
-  approvedBy        String?                      @db.VarChar(100)
-  disbursedBy       String?                      @db.VarChar(100)
-  createdAt         DateTime                     @default(now())
-  updatedAt         DateTime                     @updatedAt
+  createdBy   String   @db.VarChar(100)
+  approvedBy  String?  @db.VarChar(100)
+  disbursedBy String?  @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  auditLogs         AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([employeeNumber])
   @@index([status])
@@ -688,58 +689,58 @@ model Reimbursement {
 // ============================================
 
 model RefundReplacement {
-  id                  Int                      @id @default(autoincrement())
-  refundCode          String                   @unique @default(cuid())
+  id         Int    @id @default(autoincrement())
+  refundCode String @unique @default(cuid())
 
-  expenseId           Int
-  expense             Expense                  @relation(fields: [expenseId], references: [id])
+  expenseId Int
+  expense   Expense @relation(fields: [expenseId], references: [id])
 
-  inventoryRefundId   String?                  @db.VarChar(20)
-  inventoryPoId       String                   @db.VarChar(20)
+  inventoryRefundId String? @db.VarChar(20)
+  inventoryPoId     String  @db.VarChar(20)
 
-  type                RefundReplacementType
-  status              RefundReplacementStatus  @default(PENDING)
+  type   RefundReplacementType
+  status RefundReplacementStatus @default(PENDING)
 
-  refundAmount        Decimal?                 @db.Decimal(15, 2)
-  refundMethodId      Int?
-  refundMethod        PaymentMethod?           @relation(fields: [refundMethodId], references: [id])
-  refundDate          DateTime?
+  refundAmount   Decimal?       @db.Decimal(15, 2)
+  refundMethodId Int?
+  refundMethod   PaymentMethod? @relation(fields: [refundMethodId], references: [id])
+  refundDate     DateTime?
 
-  replacementItems    String?                  @db.Text
-  replacementDate     DateTime?
-  replacementAttempts Int                      @default(0)
-  maxReplacementAttempts Int                   @default(2)
+  replacementItems       String?   @db.Text
+  replacementDate        DateTime?
+  replacementAttempts    Int       @default(0)
+  maxReplacementAttempts Int       @default(2)
 
-  supplierName        String                   @db.VarChar(150)
-  supplierId          String?                  @db.VarChar(20)
-  supplierRiskFlag    Boolean                  @default(false)
+  supplierName     String  @db.VarChar(150)
+  supplierId       String? @db.VarChar(20)
+  supplierRiskFlag Boolean @default(false)
 
-  reason              String                   @db.Text
-  remarks             String?                  @db.Text
+  reason  String  @db.Text
+  remarks String? @db.Text
 
-  itemId              String?                  @db.VarChar(20)
-  itemName            String?                  @db.VarChar(150)
+  itemId   String? @db.VarChar(20)
+  itemName String? @db.VarChar(150)
 
-  documentIds         String?                  @db.Text
+  documentIds String? @db.Text
 
-  journalEntryId      Int?
-  journalEntry        JournalEntry?            @relation(fields: [journalEntryId], references: [id])
+  journalEntryId Int?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   // Rollback tracking
-  previousStatus      String?                  @db.VarChar(50)
-  rollbackPermission  String                   @db.VarChar(50) @default("ADMIN_ONLY")
-  isRolledBack        Boolean                  @default(false)
-  rolledBackBy        String?                  @db.VarChar(100)
-  rolledBackAt        DateTime?
-  rolledBackReason    String?                  @db.Text
+  previousStatus     String?   @db.VarChar(50)
+  rollbackPermission String    @default("ADMIN_ONLY") @db.VarChar(50)
+  isRolledBack       Boolean   @default(false)
+  rolledBackBy       String?   @db.VarChar(100)
+  rolledBackAt       DateTime?
+  rolledBackReason   String?   @db.Text
 
-  createdBy           String                   @db.VarChar(100)
-  approvedBy          String?                  @db.VarChar(100)
-  processedBy         String?                  @db.VarChar(100)
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
+  createdBy   String   @db.VarChar(100)
+  approvedBy  String?  @db.VarChar(100)
+  processedBy String?  @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  auditLogs           AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([inventoryPoId])
   @@index([status])
@@ -753,35 +754,35 @@ model RefundReplacement {
 // ============================================
 
 model Payroll {
-  id                Int              @id @default(autoincrement())
-  payrollCode       String           @unique @default(cuid())
-  payrollPeriod     String           @db.VarChar(50)
-  frequency         PayrollFrequency
-  periodStart       DateTime
-  periodEnd         DateTime
-  grossAmount       Decimal?         @db.Decimal(15, 2)
-  totalDeductions   Decimal?         @db.Decimal(15, 2)
-  netAmount         Decimal?         @db.Decimal(15, 2)
-  totalAmount       Decimal          @db.Decimal(15, 2)
-  status            PayrollStatus    @default(DRAFT)
+  id              Int              @id @default(autoincrement())
+  payrollCode     String           @unique @default(cuid())
+  payrollPeriod   String           @db.VarChar(50)
+  frequency       PayrollFrequency
+  periodStart     DateTime
+  periodEnd       DateTime
+  grossAmount     Decimal?         @db.Decimal(15, 2)
+  totalDeductions Decimal?         @db.Decimal(15, 2)
+  netAmount       Decimal?         @db.Decimal(15, 2)
+  totalAmount     Decimal          @db.Decimal(15, 2)
+  status          PayrollStatus    @default(DRAFT)
 
-  payrollItems      PayrollItem[]
+  payrollItems PayrollItem[]
 
-  documentIds       String?          @db.Text
+  documentIds String? @db.Text
 
-  journalEntryId    Int?
-  journalEntry      JournalEntry?    @relation(fields: [journalEntryId], references: [id])
+  journalEntryId Int?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   budgetAllocationId Int?
-  budgetAllocation  BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
+  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
 
-  createdBy         String           @db.VarChar(100)
-  approvedBy        String?          @db.VarChar(100)
-  disbursedBy       String?          @db.VarChar(100)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdBy   String   @db.VarChar(100)
+  approvedBy  String?  @db.VarChar(100)
+  disbursedBy String?  @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  auditLogs         AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([payrollPeriod])
   @@index([status])
@@ -789,30 +790,30 @@ model Payroll {
 }
 
 model PayrollItem {
-  id                Int           @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  payrollId         Int
-  payroll           Payroll       @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  payrollId Int
+  payroll   Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
 
-  employeeNumber    String        @db.VarChar(20)
-  employeeName      String        @db.VarChar(100)
-  position          String        @db.VarChar(100)
-  department        String        @db.VarChar(100)
+  employeeNumber String @db.VarChar(20)
+  employeeName   String @db.VarChar(100)
+  position       String @db.VarChar(100)
+  department     String @db.VarChar(100)
 
-  basicSalary       Decimal       @db.Decimal(15, 2)
-  overtimePay       Decimal       @db.Decimal(15, 2) @default(0)
-  benefits          Decimal       @db.Decimal(15, 2) @default(0)
-  allowances        Decimal       @db.Decimal(15, 2) @default(0)
-  grossPay          Decimal       @db.Decimal(15, 2)
-  deductions        Decimal       @db.Decimal(15, 2) @default(0)
-  netPay            Decimal       @db.Decimal(15, 2)
+  basicSalary Decimal @db.Decimal(15, 2)
+  overtimePay Decimal @default(0) @db.Decimal(15, 2)
+  benefits    Decimal @default(0) @db.Decimal(15, 2)
+  allowances  Decimal @default(0) @db.Decimal(15, 2)
+  grossPay    Decimal @db.Decimal(15, 2)
+  deductions  Decimal @default(0) @db.Decimal(15, 2)
+  netPay      Decimal @db.Decimal(15, 2)
 
-  paymentMethodId   Int?
-  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
-  disbursementDate  DateTime?
+  paymentMethodId  Int?
+  paymentMethod    PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  disbursementDate DateTime?
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([employeeNumber])
   @@index([payrollId])
@@ -824,53 +825,53 @@ model PayrollItem {
 // ============================================
 
 model Loan {
-  id                    Int                     @id @default(autoincrement())
-  loanCode              String                  @unique @default(cuid())
+  id       Int    @id @default(autoincrement())
+  loanCode String @unique @default(cuid())
 
-  employeeNumber        String                  @db.VarChar(20)
-  employeeName          String                  @db.VarChar(100)
-  department            String?                 @db.VarChar(100)
+  employeeNumber String  @db.VarChar(20)
+  employeeName   String  @db.VarChar(100)
+  department     String? @db.VarChar(100)
 
-  principalAmount       Decimal                 @db.Decimal(15, 2)
-  interestRate          Decimal?                @db.Decimal(5, 2)
-  totalAmount           Decimal                 @db.Decimal(15, 2)
-  balanceAmount         Decimal                 @db.Decimal(15, 2)
+  principalAmount Decimal  @db.Decimal(15, 2)
+  interestRate    Decimal? @db.Decimal(5, 2)
+  totalAmount     Decimal  @db.Decimal(15, 2)
+  balanceAmount   Decimal  @db.Decimal(15, 2)
 
-  loanType              String?                 @db.VarChar(50) @default("PERSONAL")
-  collateral            String?                 @db.Text
+  loanType   String? @default("PERSONAL") @db.VarChar(50)
+  collateral String? @db.Text
 
-  paymentFrequencyId    Int
-  paymentFrequency      LoanPaymentFrequencyType @relation(fields: [paymentFrequencyId], references: [id])
-  numberOfPayments      Int
-  paymentAmount         Decimal                 @db.Decimal(15, 2)
+  paymentFrequencyId Int
+  paymentFrequency   LoanPaymentFrequencyType @relation(fields: [paymentFrequencyId], references: [id])
+  numberOfPayments   Int
+  paymentAmount      Decimal                  @db.Decimal(15, 2)
 
-  applicationDate       DateTime                @default(now())
-  approvalDate          DateTime?
-  releaseDate           DateTime?
-  startDate             DateTime?
-  endDate               DateTime?
+  applicationDate DateTime  @default(now())
+  approvalDate    DateTime?
+  releaseDate     DateTime?
+  startDate       DateTime?
+  endDate         DateTime?
 
-  status                LoanStatus              @default(PENDING)
-  isStaffRequest        Boolean                 @default(false)
+  status         LoanStatus @default(PENDING)
+  isStaffRequest Boolean    @default(false)
 
-  documentIds           String?                 @db.Text
-  remarks               String?                 @db.Text
+  documentIds String? @db.Text
+  remarks     String? @db.Text
 
-  loanPayments          LoanPayment[]
+  loanPayments LoanPayment[]
 
-  journalEntryId        Int?
-  journalEntry          JournalEntry?           @relation(fields: [journalEntryId], references: [id])
+  journalEntryId Int?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
-  budgetAllocationId    Int?
-  budgetAllocation      BudgetAllocation?       @relation(fields: [budgetAllocationId], references: [id])
+  budgetAllocationId Int?
+  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
 
-  createdBy             String                  @db.VarChar(100)
-  approvedBy            String?                 @db.VarChar(100)
-  releasedBy            String?                 @db.VarChar(100)
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  createdBy  String   @db.VarChar(100)
+  approvedBy String?  @db.VarChar(100)
+  releasedBy String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  auditLogs             AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([employeeNumber])
   @@index([status])
@@ -879,36 +880,36 @@ model Loan {
 }
 
 model LoanPayment {
-  id                Int           @id @default(autoincrement())
-  paymentCode       String        @unique @default(cuid())
+  id          Int    @id @default(autoincrement())
+  paymentCode String @unique @default(cuid())
 
-  loanId            Int
-  loan              Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loanId Int
+  loan   Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
-  paymentAmount     Decimal       @db.Decimal(15, 2)
-  principalPaid     Decimal       @db.Decimal(15, 2)
-  interestPaid      Decimal       @db.Decimal(15, 2)
-  paymentDate       DateTime      @default(now())
-  paymentMethodId   Int
-  paymentMethod     PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  paymentAmount   Decimal       @db.Decimal(15, 2)
+  principalPaid   Decimal       @db.Decimal(15, 2)
+  interestPaid    Decimal       @db.Decimal(15, 2)
+  paymentDate     DateTime      @default(now())
+  paymentMethodId Int
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
 
-  dueDate           DateTime?
-  isOverdue         Boolean       @default(false)
-  daysOverdue       Int?          @default(0)
+  dueDate     DateTime?
+  isOverdue   Boolean   @default(false)
+  daysOverdue Int?      @default(0)
 
-  remarks           String?       @db.Text
-  documentIds       String?       @db.Text
+  remarks     String? @db.Text
+  documentIds String? @db.Text
 
-  revenue           Revenue?
+  revenue Revenue?
 
-  journalEntryId    Int?
-  journalEntry      JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  journalEntryId Int?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
-  recordedBy        String        @db.VarChar(100)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  recordedBy String   @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  auditLogs         AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([loanId])
   @@index([paymentDate])
@@ -920,47 +921,47 @@ model LoanPayment {
 // ============================================
 
 model BudgetAllocation {
-  id                  Int                @id @default(autoincrement())
-  budgetCode          String             @unique @default(cuid())
+  id         Int    @id @default(autoincrement())
+  budgetCode String @unique @default(cuid())
 
-  department          String             @db.VarChar(100)
-  category            String             @db.VarChar(100)
+  department String @db.VarChar(100)
+  category   String @db.VarChar(100)
 
-  expenseCategoryId   Int?
-  expenseCategory     ExpenseCategory?   @relation(fields: [expenseCategoryId], references: [id])
+  expenseCategoryId Int?
+  expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id])
 
-  periodTypeId        Int
-  periodType          BudgetPeriodType   @relation(fields: [periodTypeId], references: [id])
-  periodStart         DateTime
-  periodEnd           DateTime
+  periodTypeId Int
+  periodType   BudgetPeriodType @relation(fields: [periodTypeId], references: [id])
+  periodStart  DateTime
+  periodEnd    DateTime
 
-  allocatedAmount     Decimal            @db.Decimal(15, 2)
-  consumedAmount      Decimal            @db.Decimal(15, 2) @default(0)
-  reservedAmount      Decimal            @db.Decimal(15, 2) @default(0)
-  releasedAmount      Decimal            @db.Decimal(15, 2) @default(0)
-  availableAmount     Decimal            @db.Decimal(15, 2)
-  minAmount           Decimal?           @db.Decimal(15, 2)
-  maxAmount           Decimal?           @db.Decimal(15, 2)
-  allowOverflow       Boolean            @default(false)
+  allocatedAmount Decimal  @db.Decimal(15, 2)
+  consumedAmount  Decimal  @default(0) @db.Decimal(15, 2)
+  reservedAmount  Decimal  @default(0) @db.Decimal(15, 2)
+  releasedAmount  Decimal  @default(0) @db.Decimal(15, 2)
+  availableAmount Decimal  @db.Decimal(15, 2)
+  minAmount       Decimal? @db.Decimal(15, 2)
+  maxAmount       Decimal? @db.Decimal(15, 2)
+  allowOverflow   Boolean  @default(false)
 
-  previousAllocation  Decimal?           @db.Decimal(15, 2)
-  varianceAmount      Decimal?           @db.Decimal(15, 2)
-  variancePercent     Decimal?           @db.Decimal(5, 2)
+  previousAllocation Decimal? @db.Decimal(15, 2)
+  varianceAmount     Decimal? @db.Decimal(15, 2)
+  variancePercent    Decimal? @db.Decimal(5, 2)
 
-  isActive            Boolean            @default(true)
-  remarks             String?            @db.Text
+  isActive Boolean @default(true)
+  remarks  String? @db.Text
 
-  expenses            Expense[]
-  payrolls            Payroll[]
-  loans               Loan[]
-  budgetRequests      BudgetRequest[]
+  expenses       Expense[]
+  payrolls       Payroll[]
+  loans          Loan[]
+  budgetRequests BudgetRequest[]
 
-  createdBy           String             @db.VarChar(100)
-  approvedBy          String?            @db.VarChar(100)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdBy  String   @db.VarChar(100)
+  approvedBy String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  auditLogs           AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([department])
   @@index([category])
@@ -969,40 +970,40 @@ model BudgetAllocation {
 }
 
 model BudgetRequest {
-  id                  Int                   @id @default(autoincrement())
-  requestCode         String                @unique @default(cuid())
+  id          Int    @id @default(autoincrement())
+  requestCode String @unique @default(cuid())
 
-  budgetAllocationId  Int?
-  budgetAllocation    BudgetAllocation?     @relation(fields: [budgetAllocationId], references: [id])
+  budgetAllocationId Int?
+  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
 
-  department          String                @db.VarChar(100)
-  category            String                @db.VarChar(100)
-  requestTypeId       Int
-  requestType         BudgetRequestType     @relation(fields: [requestTypeId], references: [id])
-  requestedAmount     Decimal               @db.Decimal(15, 2)
-  approvedAmount      Decimal?              @db.Decimal(15, 2)
-  justification       String                @db.Text
+  department      String            @db.VarChar(100)
+  category        String            @db.VarChar(100)
+  requestTypeId   Int
+  requestType     BudgetRequestType @relation(fields: [requestTypeId], references: [id])
+  requestedAmount Decimal           @db.Decimal(15, 2)
+  approvedAmount  Decimal?          @db.Decimal(15, 2)
+  justification   String            @db.Text
 
-  statusId            Int
-  status              BudgetRequestStatus   @relation(fields: [statusId], references: [id])
+  statusId Int
+  status   BudgetRequestStatus @relation(fields: [statusId], references: [id])
 
-  priority            String?               @db.VarChar(50) @default("NORMAL")
-  requiredByDate      DateTime?
-  approvalDeadline    DateTime?
-  expeditedReview     Boolean               @default(false)
+  priority         String?   @default("NORMAL") @db.VarChar(50)
+  requiredByDate   DateTime?
+  approvalDeadline DateTime?
+  expeditedReview  Boolean   @default(false)
 
-  inventoryPrId       String?               @db.VarChar(20)
+  inventoryPrId String? @db.VarChar(20)
 
-  documentIds         String?               @db.Text
-  remarks             String?               @db.Text
+  documentIds String? @db.Text
+  remarks     String? @db.Text
 
-  requestedBy         String                @db.VarChar(100)
-  reviewedBy          String?               @db.VarChar(100)
-  approvedBy          String?               @db.VarChar(100)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  requestedBy String   @db.VarChar(100)
+  reviewedBy  String?  @db.VarChar(100)
+  approvedBy  String?  @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  auditLogs           AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([department])
   @@index([statusId])
@@ -1017,29 +1018,29 @@ model BudgetRequest {
 // ============================================
 
 model ChartOfAccount {
-  id                Int            @id @default(autoincrement())
-  accountCode       String         @unique @db.VarChar(20)
-  accountName       String         @db.VarChar(150)
-  accountTypeId     Int
-  accountType       AccountType    @relation(fields: [accountTypeId], references: [id])
-  parentAccountId   Int?
-  parentAccount     ChartOfAccount? @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
-  childAccounts     ChartOfAccount[] @relation("AccountHierarchy")
+  id              Int              @id @default(autoincrement())
+  accountCode     String           @unique @db.VarChar(20)
+  accountName     String           @db.VarChar(150)
+  accountTypeId   Int
+  accountType     AccountType      @relation(fields: [accountTypeId], references: [id])
+  parentAccountId Int?
+  parentAccount   ChartOfAccount?  @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts   ChartOfAccount[] @relation("AccountHierarchy")
 
-  description       String?        @db.Text
-  isActive          Boolean        @default(true)
-  normalBalance     String         @db.VarChar(10) @default("DEBIT")
-  isSystemAccount   Boolean        @default(false)
-  level             Int            @default(1)
-  balanceSheetSection String?       @db.VarChar(100)
+  description         String? @db.Text
+  isActive            Boolean @default(true)
+  normalBalance       String  @default("DEBIT") @db.VarChar(10)
+  isSystemAccount     Boolean @default(false)
+  level               Int     @default(1)
+  balanceSheetSection String? @db.VarChar(100)
 
-  journalLineItems  JournalLineItem[]
+  journalLineItems JournalLineItem[]
 
-  createdBy         String         @db.VarChar(100)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdBy String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  auditLogs         AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([accountCode])
   @@index([accountTypeId])
@@ -1048,39 +1049,39 @@ model ChartOfAccount {
 }
 
 model JournalEntry {
-  id                Int                @id @default(autoincrement())
-  journalCode       String             @unique @default(cuid())
-  entryDate         DateTime           @default(now())
-  description       String             @db.Text
+  id          Int      @id @default(autoincrement())
+  journalCode String   @unique @default(cuid())
+  entryDate   DateTime @default(now())
+  description String   @db.Text
 
-  sourceModule      String?            @db.VarChar(100)
-  sourceRefId       String?            @db.VarChar(100)
+  sourceModule String? @db.VarChar(100)
+  sourceRefId  String? @db.VarChar(100)
 
-  status            JournalEntryStatus @default(DRAFT)
-  fiscalPeriod      String?            @db.VarChar(50)
-  isAdjustingEntry  Boolean            @default(false)
-  isReversingEntry  Boolean            @default(false)
+  status           JournalEntryStatus @default(DRAFT)
+  fiscalPeriod     String?            @db.VarChar(50)
+  isAdjustingEntry Boolean            @default(false)
+  isReversingEntry Boolean            @default(false)
 
-  lineItems         JournalLineItem[]
-  documentIds       String?            @db.Text
-  remarks           String?            @db.Text
+  lineItems   JournalLineItem[]
+  documentIds String?           @db.Text
+  remarks     String?           @db.Text
 
-  revenues          Revenue[]          @relation("RevenueJournalEntry")
-  expenses          Expense[]          @relation("ExpenseJournalEntry")
-  payrolls          Payroll[]
-  loans             Loan[]
-  loanPayments      LoanPayment[]
+  revenues           Revenue[]           @relation("RevenueJournalEntry")
+  expenses           Expense[]           @relation("ExpenseJournalEntry")
+  payrolls           Payroll[]
+  loans              Loan[]
+  loanPayments       LoanPayment[]
   refundReplacements RefundReplacement[]
 
   journalEntryApprovals JournalEntryApproval[]
 
-  preparedBy        String             @db.VarChar(100)
-  approvedBy        String?            @db.VarChar(100)
-  postedBy          String?            @db.VarChar(100)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  preparedBy String   @db.VarChar(100)
+  approvedBy String?  @db.VarChar(100)
+  postedBy   String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  auditLogs         AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([journalCode])
   @@index([entryDate])
@@ -1089,19 +1090,19 @@ model JournalEntry {
 }
 
 model JournalEntryApproval {
-  id                Int              @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  journalEntryId    Int
-  journalEntry      JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  journalEntryId Int
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
 
-  stage             Int              // 1, 2 (multi-level approval)
-  approverRole      ApproverRole
-  approverAction    String           @db.VarChar(50) // APPROVED, REJECTED, PENDING
-  rejectionReason   String?          @db.Text
-  approvedAt        DateTime?
+  stage           Int // 1, 2 (multi-level approval)
+  approverRole    ApproverRole
+  approverAction  String       @db.VarChar(50) // APPROVED, REJECTED, PENDING
+  rejectionReason String?      @db.Text
+  approvedAt      DateTime?
 
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([journalEntryId, stage])
   @@index([journalEntryId])
@@ -1109,23 +1110,23 @@ model JournalEntryApproval {
 }
 
 model JournalLineItem {
-  id                Int              @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  journalEntryId    Int
-  journalEntry      JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  journalEntryId Int
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
 
-  accountId         Int
-  account           ChartOfAccount   @relation(fields: [accountId], references: [id])
+  accountId Int
+  account   ChartOfAccount @relation(fields: [accountId], references: [id])
 
-  description       String?          @db.Text
-  debitAmount       Decimal          @db.Decimal(15, 2) @default(0)
-  creditAmount      Decimal          @db.Decimal(15, 2) @default(0)
+  description  String? @db.Text
+  debitAmount  Decimal @default(0) @db.Decimal(15, 2)
+  creditAmount Decimal @default(0) @db.Decimal(15, 2)
 
-  entityType        String?          @db.VarChar(100)
-  entityId          String?          @db.VarChar(100)
+  entityType String? @db.VarChar(100)
+  entityId   String? @db.VarChar(100)
 
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([journalEntryId])
   @@index([accountId])
@@ -1137,30 +1138,30 @@ model JournalLineItem {
 // ============================================
 
 model InstallmentSchedule {
-  id                Int       @id @default(autoincrement())
-  scheduleCode      String    @unique @default(cuid())
+  id           Int    @id @default(autoincrement())
+  scheduleCode String @unique @default(cuid())
 
-  type              String    @db.VarChar(50) // "REVENUE", "EXPENSE"
+  type String @db.VarChar(50) // "REVENUE", "EXPENSE"
 
-  totalAmount       Decimal   @db.Decimal(15, 2)
-  numberOfPayments  Int
-  paymentAmount     Decimal   @db.Decimal(15, 2)
-  frequency         String    @db.VarChar(50)
+  totalAmount      Decimal @db.Decimal(15, 2)
+  numberOfPayments Int
+  paymentAmount    Decimal @db.Decimal(15, 2)
+  frequency        String  @db.VarChar(50)
 
-  startDate         DateTime
-  endDate           DateTime
+  startDate DateTime
+  endDate   DateTime
 
-  status            InstallmentStatus @default(ACTIVE)
-  interestRate      Decimal?  @db.Decimal(5, 2)
-  totalInterest     Decimal?  @db.Decimal(15, 2)
+  status        InstallmentStatus @default(ACTIVE)
+  interestRate  Decimal?          @db.Decimal(5, 2)
+  totalInterest Decimal?          @db.Decimal(15, 2)
 
-  revenues          Revenue[]
-  expenses          Expense[]
-  installments      Installment[]
+  revenues     Revenue[]
+  expenses     Expense[]
+  installments Installment[]
 
-  createdBy         String    @db.VarChar(100)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdBy String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([type])
   @@index([status])
@@ -1168,24 +1169,24 @@ model InstallmentSchedule {
 }
 
 model Installment {
-  id                Int                  @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  scheduleId        Int
-  schedule          InstallmentSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  scheduleId Int
+  schedule   InstallmentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
 
   installmentNumber Int
   dueDate           DateTime
-  amount            Decimal              @db.Decimal(15, 2)
-  paidAmount        Decimal              @db.Decimal(15, 2) @default(0)
+  amount            Decimal   @db.Decimal(15, 2)
+  paidAmount        Decimal   @default(0) @db.Decimal(15, 2)
   paidDate          DateTime?
-  status            String               @db.VarChar(50) @default("PENDING")
+  status            String    @default("PENDING") @db.VarChar(50)
 
-  principalAmount   Decimal?             @db.Decimal(15, 2)
-  interestAmount    Decimal?             @db.Decimal(15, 2)
-  daysOverdue       Int?                 @default(0)
+  principalAmount Decimal? @db.Decimal(15, 2)
+  interestAmount  Decimal? @db.Decimal(15, 2)
+  daysOverdue     Int?     @default(0)
 
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([scheduleId])
   @@index([dueDate])
@@ -1197,37 +1198,37 @@ model Installment {
 // ============================================
 
 model AccountsReceivable {
-  id                Int       @id @default(autoincrement())
-  arCode            String    @unique @default(cuid())
+  id     Int    @id @default(autoincrement())
+  arCode String @unique @default(cuid())
 
-  debtorName        String    @db.VarChar(150)
-  debtorType        String    @db.VarChar(50)
-  debtorContact     String?   @db.VarChar(100)
+  debtorName    String  @db.VarChar(150)
+  debtorType    String  @db.VarChar(50)
+  debtorContact String? @db.VarChar(100)
 
-  totalAmount       Decimal   @db.Decimal(15, 2)
-  paidAmount        Decimal   @db.Decimal(15, 2) @default(0)
-  balanceAmount     Decimal   @db.Decimal(15, 2)
+  totalAmount   Decimal @db.Decimal(15, 2)
+  paidAmount    Decimal @default(0) @db.Decimal(15, 2)
+  balanceAmount Decimal @db.Decimal(15, 2)
 
-  invoiceDate       DateTime  @default(now())
-  dueDate           DateTime
+  invoiceDate DateTime @default(now())
+  dueDate     DateTime
 
-  status            String    @db.VarChar(50) @default("PENDING")
+  status String @default("PENDING") @db.VarChar(50)
 
-  referenceType     String?   @db.VarChar(50)
-  referenceId       String?   @db.VarChar(100)
+  referenceType String? @db.VarChar(50)
+  referenceId   String? @db.VarChar(100)
 
   revenues          Revenue[]
   forfeitedDeposits ForfeitedDeposit[]
 
-  agingCategory     String?   @db.VarChar(50)
-  lastPaymentDate   DateTime?
+  agingCategory   String?   @db.VarChar(50)
+  lastPaymentDate DateTime?
 
-  documentIds       String?   @db.Text
-  remarks           String?   @db.Text
+  documentIds String? @db.Text
+  remarks     String? @db.Text
 
-  recordedBy        String    @db.VarChar(100)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  recordedBy String   @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([debtorName])
   @@index([status])
@@ -1237,37 +1238,37 @@ model AccountsReceivable {
 }
 
 model AccountsPayable {
-  id                Int       @id @default(autoincrement())
-  apCode            String    @unique @default(cuid())
+  id     Int    @id @default(autoincrement())
+  apCode String @unique @default(cuid())
 
-  creditorName      String    @db.VarChar(150)
-  creditorType      String    @db.VarChar(50)
-  creditorContact   String?   @db.VarChar(100)
-  creditorId        String?   @db.VarChar(20)
+  creditorName    String  @db.VarChar(150)
+  creditorType    String  @db.VarChar(50)
+  creditorContact String? @db.VarChar(100)
+  creditorId      String? @db.VarChar(20)
 
-  totalAmount       Decimal   @db.Decimal(15, 2)
-  paidAmount        Decimal   @db.Decimal(15, 2) @default(0)
-  balanceAmount     Decimal   @db.Decimal(15, 2)
+  totalAmount   Decimal @db.Decimal(15, 2)
+  paidAmount    Decimal @default(0) @db.Decimal(15, 2)
+  balanceAmount Decimal @db.Decimal(15, 2)
 
-  invoiceDate       DateTime  @default(now())
-  dueDate           DateTime
+  invoiceDate DateTime @default(now())
+  dueDate     DateTime
 
-  status            String    @db.VarChar(50) @default("PENDING")
+  status String @default("PENDING") @db.VarChar(50)
 
-  referenceType     String?   @db.VarChar(50)
-  referenceId       String?   @db.VarChar(100)
+  referenceType String? @db.VarChar(50)
+  referenceId   String? @db.VarChar(100)
 
-  expenses          Expense[]
+  expenses Expense[]
 
-  agingCategory     String?   @db.VarChar(50)
-  lastPaymentDate   DateTime?
+  agingCategory   String?   @db.VarChar(50)
+  lastPaymentDate DateTime?
 
-  documentIds       String?   @db.Text
-  remarks           String?   @db.Text
+  documentIds String? @db.Text
+  remarks     String? @db.Text
 
-  recordedBy        String    @db.VarChar(100)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  recordedBy String   @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([creditorName])
   @@index([status])
@@ -1281,33 +1282,33 @@ model AccountsPayable {
 // ============================================
 
 model ForfeitedDeposit {
-  id                Int                   @id @default(autoincrement())
-  depositCode       String                @unique @default(cuid())
+  id          Int    @id @default(autoincrement())
+  depositCode String @unique @default(cuid())
 
-  bookingId         String                @db.VarChar(20)
-  bookingType       String                @db.VarChar(50)
+  bookingId   String @db.VarChar(20)
+  bookingType String @db.VarChar(50)
 
-  customerName      String                @db.VarChar(150)
-  customerContact   String?               @db.VarChar(100)
+  customerName    String  @db.VarChar(150)
+  customerContact String? @db.VarChar(100)
 
-  originalDeposit   Decimal               @db.Decimal(15, 2)
-  forfeitedAmount   Decimal               @db.Decimal(15, 2)
-  forfeitedDate     DateTime              @default(now())
+  originalDeposit Decimal  @db.Decimal(15, 2)
+  forfeitedAmount Decimal  @db.Decimal(15, 2)
+  forfeitedDate   DateTime @default(now())
 
-  reason            String                @db.Text
-  status            ForfeitedDepositStatus @default(PENDING)
+  reason String                 @db.Text
+  status ForfeitedDepositStatus @default(PENDING)
 
-  arId              Int?
+  arId               Int?
   accountsReceivable AccountsReceivable? @relation(fields: [arId], references: [id], map: "ForfeitedDeposit_arId_fkey")
 
   convertedRevenueId Int?
-  convertedRevenue  Revenue?            @relation("ForfeitedDepositRevenue", fields: [convertedRevenueId], references: [id], map: "ForfeitedDeposit_convertedRevenueId_fkey")
+  convertedRevenue   Revenue? @relation("ForfeitedDepositRevenue", fields: [convertedRevenueId], references: [id], map: "ForfeitedDeposit_convertedRevenueId_fkey")
 
-  documentIds       String?               @db.Text
+  documentIds String? @db.Text
 
-  recordedBy        String                @db.VarChar(100)
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  recordedBy String   @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([bookingId])
   @@index([forfeitedDate])
@@ -1315,37 +1316,37 @@ model ForfeitedDeposit {
 }
 
 model RenterDamage {
-  id                Int       @id @default(autoincrement())
-  damageCode        String    @unique @default(cuid())
+  id         Int    @id @default(autoincrement())
+  damageCode String @unique @default(cuid())
 
-  rentalId          String    @db.VarChar(20)
-  renterName        String    @db.VarChar(150)
-  renterContact     String?   @db.VarChar(100)
+  rentalId      String  @db.VarChar(20)
+  renterName    String  @db.VarChar(150)
+  renterContact String? @db.VarChar(100)
 
-  busPlateNumber    String?   @db.VarChar(20)
-  bodyNumber        String?   @db.VarChar(20)
+  busPlateNumber String? @db.VarChar(20)
+  bodyNumber     String? @db.VarChar(20)
 
-  damageDescription String    @db.Text
+  damageDescription String   @db.Text
   damageDate        DateTime
 
-  repairCost        Decimal   @db.Decimal(15, 2)
-  amountCharged     Decimal   @db.Decimal(15, 2)
-  amountPaid        Decimal   @db.Decimal(15, 2) @default(0)
-  balanceAmount     Decimal   @db.Decimal(15, 2)
+  repairCost    Decimal @db.Decimal(15, 2)
+  amountCharged Decimal @db.Decimal(15, 2)
+  amountPaid    Decimal @default(0) @db.Decimal(15, 2)
+  balanceAmount Decimal @db.Decimal(15, 2)
 
-  expenseId         Int?
-  revenueId         Int?
+  expenseId Int?
+  revenueId Int?
 
-  status            String    @db.VarChar(50) @default("PENDING")
-  disputedAmount    Decimal?  @db.Decimal(15, 2)
-  paymentRevenueId  Int?
+  status           String   @default("PENDING") @db.VarChar(50)
+  disputedAmount   Decimal? @db.Decimal(15, 2)
+  paymentRevenueId Int?
 
-  documentIds       String?   @db.Text
-  remarks           String?   @db.Text
+  documentIds String? @db.Text
+  remarks     String? @db.Text
 
-  recordedBy        String    @db.VarChar(100)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  recordedBy String   @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([rentalId])
   @@index([status])
@@ -1353,27 +1354,27 @@ model RenterDamage {
 }
 
 model DisposalSale {
-  id                Int       @id @default(autoincrement())
-  disposalCode      String    @unique @default(cuid())
+  id           Int    @id @default(autoincrement())
+  disposalCode String @unique @default(cuid())
 
-  disposalId        String    @db.VarChar(20)
-  disposalType      String    @db.VarChar(50)
+  disposalId   String @db.VarChar(20)
+  disposalType String @db.VarChar(50)
 
-  itemDescription   String    @db.VarChar(255)
+  itemDescription String @db.VarChar(255)
 
-  saleAmount        Decimal   @db.Decimal(15, 2)
-  saleDate          DateTime  @default(now())
-  buyerName         String?   @db.VarChar(150)
-  buyerContact      String?   @db.VarChar(100)
+  saleAmount   Decimal  @db.Decimal(15, 2)
+  saleDate     DateTime @default(now())
+  buyerName    String?  @db.VarChar(150)
+  buyerContact String?  @db.VarChar(100)
 
-  revenueId         Int?
+  revenueId Int?
 
-  documentIds       String?   @db.Text
-  remarks           String?   @db.Text
+  documentIds String? @db.Text
+  remarks     String? @db.Text
 
-  recordedBy        String    @db.VarChar(100)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  recordedBy String   @db.VarChar(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([disposalId])
   @@index([saleDate])
@@ -1384,24 +1385,24 @@ model DisposalSale {
 // ============================================
 
 model SupplierPerformance {
-  id                  Int       @id @default(autoincrement())
-  supplierId          String    @unique @db.VarChar(20)
-  supplierName        String    @db.VarChar(150)
+  id           Int    @id @default(autoincrement())
+  supplierId   String @unique @db.VarChar(20)
+  supplierName String @db.VarChar(150)
 
-  failedRefunds       Int       @default(0)
-  failedReplacements  Int       @default(0)
-  riskLevel           String    @db.VarChar(50) @default("LOW")
+  failedRefunds      Int    @default(0)
+  failedReplacements Int    @default(0)
+  riskLevel          String @default("LOW") @db.VarChar(50)
 
   isBlockedFromOrders Boolean   @default(false)
   blockedSince        DateTime?
   blockedReason       String?   @db.Text
 
-  lastFlaggedAt       DateTime?
-  flaggedBy           String?   @db.VarChar(100)
+  lastFlaggedAt DateTime?
+  flaggedBy     String?   @db.VarChar(100)
 
-  isActive            Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([supplierId])
   @@index([riskLevel])
@@ -1413,62 +1414,62 @@ model SupplierPerformance {
 // ============================================
 
 model AuditLog {
-  id                  Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  userId              String    @db.VarChar(100)
-  userName            String    @db.VarChar(100)
-  userDepartment      String?   @db.VarChar(100)
+  userId         String  @db.VarChar(100)
+  userName       String  @db.VarChar(100)
+  userDepartment String? @db.VarChar(100)
 
-  action              AuditAction
-  module              String    @db.VarChar(100)
-  recordId            Int?
-  recordType          String?   @db.VarChar(100)
+  action     AuditAction
+  module     String      @db.VarChar(100)
+  recordId   Int?
+  recordType String?     @db.VarChar(100)
 
-  beforeData          Json?
-  afterData           Json?
+  beforeData Json?
+  afterData  Json?
 
-  description         String?   @db.Text
-  ipAddress           String?   @db.VarChar(50)
-  userAgent           String?   @db.VarChar(255)
-  sessionId           String?   @db.VarChar(100)
+  description String? @db.Text
+  ipAddress   String? @db.VarChar(50)
+  userAgent   String? @db.VarChar(255)
+  sessionId   String? @db.VarChar(100)
 
-  timestamp           DateTime  @default(now())
+  timestamp DateTime @default(now())
 
-  revenueId           Int?
-  revenue             Revenue?            @relation(fields: [revenueId], references: [id])
+  revenueId Int?
+  revenue   Revenue? @relation(fields: [revenueId], references: [id])
 
-  expenseId           Int?
-  expense             Expense?            @relation(fields: [expenseId], references: [id])
+  expenseId Int?
+  expense   Expense? @relation(fields: [expenseId], references: [id])
 
-  reimbursementId     Int?
-  reimbursement       Reimbursement?      @relation(fields: [reimbursementId], references: [id])
+  reimbursementId Int?
+  reimbursement   Reimbursement? @relation(fields: [reimbursementId], references: [id])
 
   refundReplacementId Int?
-  refundReplacement   RefundReplacement?  @relation(fields: [refundReplacementId], references: [id])
+  refundReplacement   RefundReplacement? @relation(fields: [refundReplacementId], references: [id])
 
-  payrollId           Int?
-  payroll             Payroll?            @relation(fields: [payrollId], references: [id])
+  payrollId Int?
+  payroll   Payroll? @relation(fields: [payrollId], references: [id])
 
-  loanId              Int?
-  loan                Loan?               @relation(fields: [loanId], references: [id])
+  loanId Int?
+  loan   Loan? @relation(fields: [loanId], references: [id])
 
-  loanPaymentId       Int?
-  loanPayment         LoanPayment?        @relation(fields: [loanPaymentId], references: [id])
+  loanPaymentId Int?
+  loanPayment   LoanPayment? @relation(fields: [loanPaymentId], references: [id])
 
-  budgetAllocationId  Int?
-  budgetAllocation    BudgetAllocation?   @relation(fields: [budgetAllocationId], references: [id])
+  budgetAllocationId Int?
+  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
 
-  budgetRequestId     Int?
-  budgetRequest       BudgetRequest?      @relation(fields: [budgetRequestId], references: [id])
+  budgetRequestId Int?
+  budgetRequest   BudgetRequest? @relation(fields: [budgetRequestId], references: [id])
 
-  chartOfAccountId    Int?
-  chartOfAccount      ChartOfAccount?     @relation(fields: [chartOfAccountId], references: [id])
+  chartOfAccountId Int?
+  chartOfAccount   ChartOfAccount? @relation(fields: [chartOfAccountId], references: [id])
 
-  journalEntryId      Int?
-  journalEntry        JournalEntry?       @relation(fields: [journalEntryId], references: [id])
+  journalEntryId Int?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
-  financialReportId   Int?
-  financialReport     FinancialReport?    @relation(fields: [financialReportId], references: [id])
+  financialReportId Int?
+  financialReport   FinancialReport? @relation(fields: [financialReportId], references: [id])
 
   @@index([userId])
   @@index([module])
@@ -1482,16 +1483,16 @@ model AuditLog {
 // ============================================
 
 model SystemConfiguration {
-  id                Int       @id @default(autoincrement())
-  configKey         String    @unique @db.VarChar(100)
-  configValue       String    @db.Text
-  configType        String    @db.VarChar(50) // "STRING", "NUMBER", "BOOLEAN", "JSON"
-  description       String?   @db.Text
+  id          Int     @id @default(autoincrement())
+  configKey   String  @unique @db.VarChar(100)
+  configValue String  @db.Text
+  configType  String  @db.VarChar(50) // "STRING", "NUMBER", "BOOLEAN", "JSON"
+  description String? @db.Text
 
-  createdBy         String    @db.VarChar(100)
-  updatedBy         String?   @db.VarChar(100)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdBy String   @db.VarChar(100)
+  updatedBy String?  @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([configKey])
 }
@@ -1501,35 +1502,35 @@ model SystemConfiguration {
 // ============================================
 
 model FinancialReport {
-  id                Int       @id @default(autoincrement())
-  reportCode        String    @unique @default(cuid())
-  reportType        String    @db.VarChar(100) // REVENUE, EXPENSE, PAYROLL, LOAN, BUDGET, BALANCE_SHEET, INCOME_STATEMENT, CASH_FLOW
-  reportName        String    @db.VarChar(150)
+  id         Int    @id @default(autoincrement())
+  reportCode String @unique @default(cuid())
+  reportType String @db.VarChar(100) // REVENUE, EXPENSE, PAYROLL, LOAN, BUDGET, BALANCE_SHEET, INCOME_STATEMENT, CASH_FLOW
+  reportName String @db.VarChar(150)
 
-  periodStart       DateTime
-  periodEnd         DateTime
-  department        String?   @db.VarChar(100)
-  category          String?   @db.VarChar(100)
-  filters           Json?
+  periodStart DateTime
+  periodEnd   DateTime
+  department  String?  @db.VarChar(100)
+  category    String?  @db.VarChar(100)
+  filters     Json?
 
-  fileUrl           String?   @db.Text
-  fileFormat        String?   @db.VarChar(50)
+  fileUrl    String? @db.Text
+  fileFormat String? @db.VarChar(50)
 
-  status            String    @db.VarChar(50) @default("GENERATED")
+  status String @default("GENERATED") @db.VarChar(50)
 
-  totalRecords      Int?
-  totalAmount       Decimal?  @db.Decimal(15, 2)
+  totalRecords Int?
+  totalAmount  Decimal? @db.Decimal(15, 2)
 
-  templateId        String?   @db.VarChar(100)
-  isScheduled       Boolean   @default(false)
-  scheduleFrequency String?   @db.VarChar(50)
+  templateId        String? @db.VarChar(100)
+  isScheduled       Boolean @default(false)
+  scheduleFrequency String? @db.VarChar(50)
 
-  generatedBy       String    @db.VarChar(100)
-  exportedBy        String?   @db.VarChar(100)
-  generatedAt       DateTime  @default(now())
-  exportedAt        DateTime?
+  generatedBy String    @db.VarChar(100)
+  exportedBy  String?   @db.VarChar(100)
+  generatedAt DateTime  @default(now())
+  exportedAt  DateTime?
 
-  auditLogs         AuditLog[]
+  auditLogs AuditLog[]
 
   @@index([reportType])
   @@index([periodStart, periodEnd])
@@ -1542,18 +1543,18 @@ model FinancialReport {
 // ============================================
 
 model DashboardMetric {
-  id                Int       @id @default(autoincrement())
-  metricKey         String    @unique @db.VarChar(100)
-  metricName        String    @db.VarChar(150)
-  metricValue       Decimal   @db.Decimal(15, 2)
-  metricType        String    @db.VarChar(50)
+  id          Int     @id @default(autoincrement())
+  metricKey   String  @unique @db.VarChar(100)
+  metricName  String  @db.VarChar(150)
+  metricValue Decimal @db.Decimal(15, 2)
+  metricType  String  @db.VarChar(50)
 
-  periodType        String    @db.VarChar(50)
-  calculatedAt      DateTime  @default(now())
+  periodType   String   @db.VarChar(50)
+  calculatedAt DateTime @default(now())
 
-  metadata          Json?
+  metadata Json?
 
-  updatedAt         DateTime  @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@index([metricKey])
   @@index([metricType])
@@ -1566,27 +1567,27 @@ model DashboardMetric {
 // ============================================
 
 model FinanceNotification {
-  id                    Int       @id @default(autoincrement())
-  notificationType      String    @db.VarChar(100)
-  title                 String    @db.VarChar(255)
-  message               String    @db.Text
+  id               Int    @id @default(autoincrement())
+  notificationType String @db.VarChar(100)
+  title            String @db.VarChar(255)
+  message          String @db.Text
 
-  recipientUserId       String    @db.VarChar(100)
-  recipientUserName     String    @db.VarChar(100)
-  recipientDepartment   String?   @db.VarChar(100)
+  recipientUserId     String  @db.VarChar(100)
+  recipientUserName   String  @db.VarChar(100)
+  recipientDepartment String? @db.VarChar(100)
 
-  relatedModule         String?   @db.VarChar(100)
-  relatedRecordId       Int?
+  relatedModule   String? @db.VarChar(100)
+  relatedRecordId Int?
 
-  isRead                Boolean   @default(false)
-  readAt                DateTime?
+  isRead Boolean   @default(false)
+  readAt DateTime?
 
-  priority              String    @db.VarChar(50) @default("NORMAL")
+  priority String @default("NORMAL") @db.VarChar(50)
 
-  expiresAt             DateTime?
-  actionUrl             String?   @db.Text
+  expiresAt DateTime?
+  actionUrl String?   @db.Text
 
-  createdAt             DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([recipientUserId])
   @@index([isRead])
@@ -1600,21 +1601,21 @@ model FinanceNotification {
 // ============================================
 
 model AttachedDocument {
-  id              Int       @id @default(autoincrement())
-  documentId      String    @unique @default(cuid())
-  documentUrl     String    @db.Text
-  documentName    String    @db.VarChar(255)
-  documentType    String    @db.VarChar(50) // INVOICE, RECEIPT, CONTRACT, REFUND_SLIP, APPROVAL, etc.
+  id           Int    @id @default(autoincrement())
+  documentId   String @unique @default(cuid())
+  documentUrl  String @db.Text
+  documentName String @db.VarChar(255)
+  documentType String @db.VarChar(50) // INVOICE, RECEIPT, CONTRACT, REFUND_SLIP, APPROVAL, etc.
 
-  relatedModule   String    @db.VarChar(100) // EXPENSE, REVENUE, PAYROLL, REFUND_REQUEST, etc.
+  relatedModule   String @db.VarChar(100) // EXPENSE, REVENUE, PAYROLL, REFUND_REQUEST, etc.
   relatedRecordId Int
 
-  uploadedBy      String    @db.VarChar(100)
-  uploadedAt      DateTime  @default(now())
-  version         Int       @default(1)
+  uploadedBy String   @db.VarChar(100)
+  uploadedAt DateTime @default(now())
+  version    Int      @default(1)
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([documentId])
   @@index([relatedModule, relatedRecordId])

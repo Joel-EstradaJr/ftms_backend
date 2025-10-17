@@ -71,3 +71,7 @@ next-env.d.ts
 # OCR Service
 ocr_service/
 ocr_service
+
+
+# Docs
+/docs/
