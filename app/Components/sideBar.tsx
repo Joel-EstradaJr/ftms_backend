@@ -15,6 +15,9 @@ const Sidebar: React.FC = () => {
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
   const { getUrl } = useNavigationUrl();
 
+  // Detect user role from pathname
+  const userRole = pathname.startsWith('/admin') ? 'admin' : 'staff';
+
   const staticRoutes: { [key: string]: string } = {
     "/dashboard": "dashboard",
     "/revenue": "revenue",
@@ -25,10 +28,10 @@ const Sidebar: React.FC = () => {
     "/loan-management/loanRequest": "loan-request",
     "/loan-management/loanPayment": "loan-payment",
     "/report": "report",
-    "/JEV": "JEV",
     "/audit": "audit",
     "/budget-management/budgetAllocation": "budgetAllocation",
     "/budget-management/budgetApproval": "budgetApproval",
+    "/budget-management/budgetRequest": "budget-request",
     "/jev/chart-of-accounts": "chart-of-accounts",
     "/jev/journal-entries": "journal-entries",
   };
@@ -41,15 +44,12 @@ const Sidebar: React.FC = () => {
   };
 
   useEffect(() => {
-    // Normalize pathname to check against static routes
     const normalizedPath = getNormalizedPath(pathname);
     
-    // Check static routes first
     const staticMatch = staticRoutes[normalizedPath];
     if (staticMatch) {
       setActiveItem(staticMatch);
       
-      // Auto-open relevant submenus based on active item
       if (["expense", "reimbursement"].includes(staticMatch)) {
         setOpenSubMenu("expense-management");
       } else if (["budget-request", "budgetAllocation", "budgetApproval"].includes(staticMatch)) {
@@ -58,14 +58,12 @@ const Sidebar: React.FC = () => {
         setOpenSubMenu("purchase-management");
       } else if (["loan-request", "loan-payment"].includes(staticMatch)) {
         setOpenSubMenu("loan-management");
-      }
-      else if (["chart-of-accounts", "journal-entries"].includes(staticMatch)) {
+      } else if (["chart-of-accounts", "journal-entries"].includes(staticMatch)) {
         setOpenSubMenu("jev-management");
       }
-        return;
-      }
+      return;
+    }
 
-    // Check microservice routes
     if (pathname.startsWith('/microservice/budget-request-management')) {
       setActiveItem('budget-request');
       setOpenSubMenu("budget-management");
@@ -78,11 +76,9 @@ const Sidebar: React.FC = () => {
       return;
     }
 
-    // Generic microservice route detection
     for (const service of MICROSERVICES) {
       if (pathname.startsWith(`/microservice/${service.id}`)) {
         setActiveItem(service.id);
-        // Auto-open relevant submenu based on service category
         if (service.category === 'Financial') {
           setOpenSubMenu("budget-management");
         } else if (service.category === 'Purchase') {
@@ -92,7 +88,6 @@ const Sidebar: React.FC = () => {
       }
     }
 
-    // Reset if no match found
     setActiveItem(null);
   }, [pathname]);
 
@@ -108,6 +103,7 @@ const Sidebar: React.FC = () => {
         </div>
 
         <div className="nav-links">
+          {/* Dashboard - Both roles */}
           <Link
             href={getUrl("/dashboard")}
             className={`nav-item ${activeItem === "dashboard" ? "active" : ""}`}
@@ -117,6 +113,7 @@ const Sidebar: React.FC = () => {
             <span>Dashboard</span>
           </Link>
 
+          {/* Revenue Management - Both roles */}
           <Link
             href={getUrl("/revenue")}
             className={`nav-item ${activeItem === "revenue" ? "active" : ""}`}
@@ -126,7 +123,7 @@ const Sidebar: React.FC = () => {
             <span>Revenue Management</span>
           </Link>
 
-          {/* Expenses Submenu */}
+          {/* Expenses Submenu - Both roles */}
           <div
             className={`nav-item module ${
               ["expense", "reimbursement"].includes(activeItem!) ? "active" : ""
@@ -161,7 +158,7 @@ const Sidebar: React.FC = () => {
             </div>
           )}
 
-          {/* Loan Submenu */}
+          {/* Loan Submenu - Both roles */}
           <div
             className={`nav-item module ${
               ["loan-request", "loan-payment"].includes(activeItem!) ? "active" : ""
@@ -196,6 +193,7 @@ const Sidebar: React.FC = () => {
             </div>
           )}
 
+          {/* Payroll - Both roles */}
           <Link
             href={getUrl("/financial-management/payroll")}
             className={`nav-item ${activeItem === "payroll" ? "active" : ""}`}
@@ -223,31 +221,40 @@ const Sidebar: React.FC = () => {
 
           {openSubMenu === "budget-management" && (
             <div className="sub-menu active">
+              {/* Budget Request - Both roles */}
               <Link
-                href={getUrl("/microservice/budget-request-management/budget-management/adminBudgetRequest")}
+                href={getUrl("/budget-management/budgetRequest")}
                 className={`sub-item ${activeItem === "budget-request" ? "active" : ""}`}
                 onClick={() => setActiveItem("budget-request")}
               >
-                <span>Budget Request 'microservice'</span>
+                Budget Request
               </Link>
-              <Link
-                href={getUrl("/budget-management/budgetAllocation")}
-                className={`sub-item ${activeItem === "budgetAllocation" ? "active" : ""}`}
-                onClick={() => setActiveItem("budgetAllocation")}
-              >
-                Budget Allocation
-              </Link>
-              <Link
-                href={getUrl("/budget-management/budgetApproval")}
-                className={`sub-item ${activeItem === "budgetApproval" ? "active" : ""}`}
-                onClick={() => setActiveItem("budgetApproval")}
-              >
-                Budget Approval
-              </Link>
+              
+              {/* Budget Allocation - Admin only */}
+              {userRole === 'admin' && (
+                <Link
+                  href={getUrl("/budget-management/budgetAllocation")}
+                  className={`sub-item ${activeItem === "budgetAllocation" ? "active" : ""}`}
+                  onClick={() => setActiveItem("budgetAllocation")}
+                >
+                  Budget Allocation
+                </Link>
+              )}
+              
+              {/* Budget Approval - Admin only */}
+              {userRole === 'admin' && (
+                <Link
+                  href={getUrl("/budget-management/budgetApproval")}
+                  className={`sub-item ${activeItem === "budgetApproval" ? "active" : ""}`}
+                  onClick={() => setActiveItem("budgetApproval")}
+                >
+                  Budget Approval
+                </Link>
+              )}
             </div>
           )}
 
-          {/* Purchase Management Submenu */}
+          {/* Purchase Management Submenu - Both roles */}
           <div
             className={`nav-item module ${
               ["purchase-request", "purchaseApproval"].includes(activeItem!) ? "active" : ""
@@ -270,7 +277,7 @@ const Sidebar: React.FC = () => {
                 className={`sub-item ${activeItem === "purchase-request" ? "active" : ""}`}
                 onClick={() => setActiveItem("purchase-request")}
               >
-                <span>Purchase Request 'microservice'</span>
+                Purchase Request
               </Link>
               <Link
                 href={getUrl("/purchase-request-approval")}
@@ -282,6 +289,7 @@ const Sidebar: React.FC = () => {
             </div>
           )}
 
+          {/* Financial Reports - Both roles */}
           <Link
             href={getUrl("/report")}
             className={`nav-item ${activeItem === "report" ? "active" : ""}`}
@@ -291,49 +299,56 @@ const Sidebar: React.FC = () => {
             <span>Financial Reports</span>
           </Link>
 
-          {/* JEV Submenu */}
-          <div
-            className={`nav-item module ${
-              ["chart-of-accounts", "journal-entries"].includes(activeItem!) ? "active" : ""
-            }`}
-            onClick={() => toggleSubMenu("jev-management")}
-          >
-            <i className="ri-book-2-line"></i>
-            <span>JEV</span>
-            <i
-              className={`dropdown-arrow ri-arrow-down-s-line ${
-                openSubMenu === "jev-management" ? "rotate" : ""
-              }`}
-            />
-          </div>
+          {/* JEV - Admin only */}
+          {userRole === 'admin' && (
+            <>
+              <div
+                className={`nav-item module ${
+                  ["chart-of-accounts", "journal-entries"].includes(activeItem!) ? "active" : ""
+                }`}
+                onClick={() => toggleSubMenu("jev-management")}
+              >
+                <i className="ri-book-2-line"></i>
+                <span>JEV</span>
+                <i
+                  className={`dropdown-arrow ri-arrow-down-s-line ${
+                    openSubMenu === "jev-management" ? "rotate" : ""
+                  }`}
+                />
+              </div>
 
-          {openSubMenu === "jev-management" && (
-            <div className="sub-menu active">
-              <Link
-                href={getUrl("/jev/chart-of-accounts")}
-                className={`sub-item ${activeItem === "chart-of-accounts" ? "active" : ""}`}
-                onClick={() => setActiveItem("chart-of-accounts")}
-              >
-                Chart of Accounts
-              </Link>
-              <Link
-                href={getUrl("/jev/journal-entries")}
-                className={`sub-item ${activeItem === "journal-entries" ? "active" : ""}`}
-                onClick={() => setActiveItem("journal-entries")}
-              >
-                Journal Entries
-              </Link>
-            </div>
+              {openSubMenu === "jev-management" && (
+                <div className="sub-menu active">
+                  <Link
+                    href={getUrl("/jev/chart-of-accounts")}
+                    className={`sub-item ${activeItem === "chart-of-accounts" ? "active" : ""}`}
+                    onClick={() => setActiveItem("chart-of-accounts")}
+                  >
+                    Chart of Accounts
+                  </Link>
+                  <Link
+                    href={getUrl("/jev/journal-entries")}
+                    className={`sub-item ${activeItem === "journal-entries" ? "active" : ""}`}
+                    onClick={() => setActiveItem("journal-entries")}
+                  >
+                    Journal Entries
+                  </Link>
+                </div>
+              )}
+            </>
           )}
 
-          <Link
-            href={getUrl("/audit")}
-            className={`nav-item ${activeItem === "audit" ? "active" : ""}`}
-            onClick={() => setActiveItem("audit")}
-          >
-            <i className="ri-booklet-line" />
-            <span>Audit Logs</span>
-          </Link>
+          {/* Audit Logs - Admin only */}
+          {userRole === 'admin' && (
+            <Link
+              href={getUrl("/audit")}
+              className={`nav-item ${activeItem === "audit" ? "active" : ""}`}
+              onClick={() => setActiveItem("audit")}
+            >
+              <i className="ri-booklet-line" />
+              <span>Audit Logs</span>
+            </Link>
+          )}
         </div>
 
         <div className="logout">
