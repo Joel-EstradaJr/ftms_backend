@@ -4,7 +4,7 @@
 This document lists ALL tasks needed to fully align the Revenue module with the revised Prisma schema, organized by priority and dependency.
 
 ---
-
+<!-- 
 ## 🔴 PHASE 1: BACKEND API FOUNDATION (Critical Path - Must Complete First)
 
 ### 1.1 API Routes - Core CRUD Operations
@@ -272,7 +272,7 @@ This document lists ALL tasks needed to fully align the Revenue module with the 
 
 ### 1.4 API Testing
  -->
-#### Task 1.4.1: API Endpoint Testing
+<!-- #### Task 1.4.1: API Endpoint Testing
 **Status**: Not started  
 **Dependencies**: Tasks 1.1.1, 1.1.2, 1.1.3 completed  
 **Estimated Time**: 4-6 hours
@@ -315,7 +315,7 @@ This document lists ALL tasks needed to fully align the Revenue module with the 
 - Validation errors handled properly
 - Edge cases covered
 
----
+--- --> -->
 
 ## 🟡 PHASE 2: FRONTEND UI COMPONENTS (High Priority - Depends on Backend)
 

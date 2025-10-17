@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateRevenueData } from '@/lib/admin/revenues/validation';
+import { generateRevenueCode } from '@/lib/idGenerator';
 import type { RevenueFormData } from '@/app/types/revenue';
 import { getClientIp } from '@/lib/shared/auditLogger';
 
@@ -73,17 +74,44 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Search by revenueCode or description
+    // Search by revenueCode, description, source name, or payment method name
     const search = searchParams.get('search');
     if (search) {
       where.OR = [
         { revenueCode: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
+        { 
+          source: { 
+            name: { contains: search, mode: 'insensitive' } 
+          } 
+        },
+        { 
+          paymentMethod: { 
+            methodName: { contains: search, mode: 'insensitive' } 
+          } 
+        },
       ];
     }
 
-    // Sort by transactionDate (default: desc)
-    const sortOrder = searchParams.get('sort') === 'asc' ? 'asc' : 'desc';
+    // Sorting - support multiple columns with default to transactionDate desc
+    const sortBy = searchParams.get('sortBy') || 'transactionDate';
+    const sortOrder = searchParams.get('order') === 'asc' ? 'asc' : 'desc';
+    
+    // Build orderBy based on sortBy parameter
+    let orderBy: any = {};
+    
+    switch (sortBy) {
+      case 'revenueCode':
+        orderBy = { revenueCode: sortOrder };
+        break;
+      case 'amount':
+        orderBy = { amount: sortOrder };
+        break;
+      case 'transactionDate':
+      default:
+        orderBy = { transactionDate: sortOrder };
+        break;
+    }
 
     // Fetch revenues with relations
     const [revenues, totalCount] = await Promise.all([
@@ -91,7 +119,7 @@ export async function GET(req: NextRequest) {
         where,
         skip,
         take: limit,
-        orderBy: { transactionDate: sortOrder },
+        orderBy,
         include: {
           source: true,
           paymentMethod: true,
@@ -330,6 +358,11 @@ export async function POST(req: NextRequest) {
         revenueData.installmentScheduleId = data.installmentScheduleId;
       }
     }
+
+    // Generate revenue code based on transaction date
+    const transactionDate = data.transactionDate ? new Date(data.transactionDate) : new Date();
+    const revenueCode = await generateRevenueCode(transactionDate);
+    revenueData.revenueCode = revenueCode;
 
     // Create the revenue record
     const revenue = await prisma.revenue.create({

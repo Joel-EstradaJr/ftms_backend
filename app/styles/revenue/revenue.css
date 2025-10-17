@@ -164,3 +164,107 @@ button {
     width: 100% !important;
   }
 }
+
+/* ============================================================
+   Status Badges - Added for Admin Revenue List Page (Task 2.1.1)
+   ============================================================ */
+
+/* ---------- Base Badge Styling ---------- */
+.statusBadge {
+  display: inline-block !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-size: 0.85em !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+}
+
+/* ---------- AR Status Badges ---------- */
+.badge-ar-paid {
+  background-color: #13CE66 !important;
+  color: white !important;
+}
+
+.badge-ar-partial {
+  background-color: #FFC82C !important;
+  color: #333 !important;
+}
+
+.badge-ar-pending {
+  background-color: #E0E0E0 !important;
+  color: #666 !important;
+}
+
+/* ---------- Journal Entry Status Badges ---------- */
+.badge-je-draft {
+  background-color: #B0BEC5 !important;
+  color: white !important;
+}
+
+.badge-je-posted {
+  background-color: #5C6BC0 !important;
+  color: white !important;
+}
+
+.badge-je-approved {
+  background-color: #66BB6A !important;
+  color: white !important;
+}
+
+.badge-je-void {
+  background-color: #EF5350 !important;
+  color: white !important;
+}
+
+/* ---------- Installment Badge ---------- */
+.badge-installment {
+  background-color: #42A5F5 !important;
+  color: white !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+}
+
+/* ---------- External Type Badge ---------- */
+.badge-external-type {
+  background-color: #78909C !important;
+  color: white !important;
+}
+
+/* ---------- Legacy Badge Support (from old implementation) ---------- */
+.badge-ar {
+  background-color: #FF9800 !important;
+  color: white !important;
+}
+
+.badge-overdue {
+  background-color: #F44336 !important;
+  color: white !important;
+  animation: pulse 2s infinite !important;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* ---------- Flags Cell Container ---------- */
+.flagsCell {
+  display: flex !important;
+  gap: 0.25rem !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+}
+
+.flag {
+  padding: 3px 6px !important;
+  border-radius: 3px !important;
+  font-size: 0.75em !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+}
+

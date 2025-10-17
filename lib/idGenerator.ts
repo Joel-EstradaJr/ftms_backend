@@ -32,6 +32,22 @@ export async function generateId(prefix: TablePrefix) {
   })
 }
 
+export async function generateRevenueCode(date?: Date) {
+  const targetDate = date || new Date()
+  const dateStr = targetDate.toISOString().slice(0, 10).replace(/-/g, '')
+  
+  return await prisma.$transaction(async (tx) => {
+    const dailyKey = `REV-${dateStr}`
+    const sequence = await tx.sequence.upsert({
+      where: { name: dailyKey },
+      update: { value: { increment: 1 } },
+      create: { name: dailyKey, value: 1 },
+    })
+    
+    return `REV-${dateStr}-${String(sequence.value).padStart(4, '0')}`
+  })
+}
+
 export async function generateExportId() {
   const today = new Date()
   const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')

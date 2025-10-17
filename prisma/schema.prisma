@@ -493,6 +493,7 @@ model Revenue {
   @@index([sourceId])
   @@index([transactionDate])
   @@index([revenueCode])
+  @@index([paymentMethodId])
   @@index([arStatus, arDueDate])
 }
 
@@ -1620,6 +1621,17 @@ model AttachedDocument {
   @@index([documentId])
   @@index([relatedModule, relatedRecordId])
   @@index([documentType])
+}
+
+// ============================================
+// SEQUENCE GENERATOR (ID Code Generation)
+// ============================================
+
+model Sequence {
+  name  String @id @db.VarChar(50)
+  value Int    @default(1)
+
+  @@index([name])
 }
 
 // ============================================

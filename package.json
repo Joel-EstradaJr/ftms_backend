@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@faker-js/faker": "^10.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/axios": "^0.9.36",
     "@types/node": "20.17.52",
@@ -68,6 +69,6 @@
     "typescript": "^5.8.3"
   },
   "prisma": {
-    "seed": "tsx prisma/seed_globals.ts"
+    "seed": "tsx prisma/seed_enums.ts && tsx prisma/seed_core_data.ts"
   }
 }
