@@ -1,15 +1,8 @@
-
-
 /* ----- FILTER STYLING ----- */
-.filter {
-    flex: 1 !important;
-    display: flex !important;
-    gap: 15px !important;
+.filter-dropdown-container {
     position: relative !important;
     display: inline-block !important;
-    margin-left: 0.5rem !important;
 }
-
 
 /* ----- FILTER BUTTON STYLING ----- */
 .filter-btn {
@@ -28,6 +21,7 @@
     font-weight: 500 !important;
     transition: background-color 0.2s !important;
     cursor: pointer !important;
+    white-space: nowrap !important;
 }
 
 .filter-btn:hover {
@@ -52,7 +46,6 @@
     justify-content: center !important;
     border: 2px solid var(--primary-color) !important;
 }
-
 
 /* ----- FILTER DROPDOWN STYLING ----- */
 .filter-dropdown {
@@ -177,7 +170,6 @@
     background: var(--primary-color) !important;
 }
 
-
 /* ----- FILTER DROPDOWN STYLING: DATE RANGE ----- */
 .date-range-inputs {
     display: flex !important;
@@ -260,7 +252,6 @@
     border-color: var(--primary-color) !important;
 }
 
-
 /* ----- FILTER DROPDOWN STYLING: CHECKBOX & RADIO ----- */
 .filter-options {
     display: flex !important;
@@ -286,7 +277,6 @@
     color: var(--primary-color) !important;
     border-color: var(--primary-color) !important;
 }
-
 
 /* ----- FILTER DROPDOWN STYLING: ACTION BUTTONS ----- */
 .filter-actions {

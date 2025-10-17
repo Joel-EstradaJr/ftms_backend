@@ -28,11 +28,18 @@ button {
   height: var(--search-input-height) !important;
 }
 
-/* ---------- Search Bar and Filter Container ---------- */
+/* ---------- Search and Filter Container ---------- */
+.search-filter-container {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
 .revenue_searchBar {
   display: flex !important;
   align-items: center !important;
   width: auto !important;
+  min-width: 300px !important;
   padding: var(--search-input-padding-right) !important;
   height: var(--search-input-height) !important;
   border: 1px solid var(--border-color) !important;
@@ -52,9 +59,9 @@ button {
   box-shadow: none !important;
 }
 
-/* Filter button positioning next to search bar */
-.filter {
-  margin-left: 0.5rem !important;
+/* Filter button - remove margins as it's now in flex container */
+.search-filter-container .filter-dropdown-container {
+  margin-left: 0 !important;
 }
 
 /* ---------- Import / Export ---------- */

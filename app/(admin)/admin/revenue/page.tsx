@@ -18,7 +18,7 @@ import PaginationComponent from "../../../Components/pagination";
 import RevenueFilter from "../../../Components/RevenueFilter";
 import Swal from 'sweetalert2';
 import { showSuccess, showError } from '../../../utility/Alerts';
-import { formatDate } from '../../../utility/dateFormatter';
+import { formatDate, formatMoney } from '../../../utils/formatting';
 
 // TypeScript interfaces
 interface RevenueSource {
@@ -331,9 +331,10 @@ const AdminRevenuePage = () => {
         <div className="title"> 
           <h1>Revenue Records</h1> 
         </div>
-        
-        <div className="settings">
-          {/* Search bar */}
+            
+      <div className="settings">
+        {/* Search bar with Filter button inline */}
+        <div className="search-filter-container">
           <div className="revenue_searchBar">
             <i className="ri-search-line" />
             <input
@@ -344,28 +345,29 @@ const AdminRevenuePage = () => {
               onChange={(e) => setSearchInput(e.target.value)}
             /> 
           </div>
-
-          <div className="filters">
-            {/* Filter Dropdown */}
-            <RevenueFilter
-              sources={revenueSources.map(source => ({
-                id: source.id.toString(),
-                label: source.name
-              }))}
-              paymentMethods={paymentMethods.map(method => ({
-                id: method.id.toString(),
-                label: method.methodName
-              }))}
-              onApply={handleFilterApply}
-              initialValues={activeFilters}
-            />
-
-            {/* Add Revenue Button */}
-            <button onClick={handleAdd} id='addRevenue'>
-              <i className="ri-add-line" /> Add Revenue
-            </button>
-          </div>
+          
+          {/* Filter button right next to search bar */}
+          <RevenueFilter
+            sources={revenueSources.map(source => ({
+              id: source.id.toString(),
+              label: source.name
+            }))}
+            paymentMethods={paymentMethods.map(method => ({
+              id: method.id.toString(),
+              label: method.methodName
+            }))}
+            onApply={handleFilterApply}
+            initialValues={activeFilters}
+          />
         </div>
+        
+        {/* Add Revenue Button on the right */}
+        <div className="filters">
+          <button onClick={handleAdd} id='addRevenue'>
+            <i className="ri-add-line" /> Add Revenue
+          </button>
+        </div>
+      </div>
 
         <div className="table-wrapper">
           <div className="tableContainer">
@@ -423,7 +425,7 @@ const AdminRevenuePage = () => {
                         <td>{item.revenueCode}</td>
                         <td>{formatDate(item.transactionDate)}</td>
                         <td>{item.source.name}</td>
-                        <td>₱{item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td>{formatMoney(item.amount)}</td>
                         <td>{item.paymentMethod.methodName}</td>
                         <td className="actionButtons">
                           <div className="actionButtonsContainer">
