@@ -1,3 +1,10 @@
+// ============================================
+// FINANCE DEPARTMENT - PRISMA SCHEMA
+// Integrated Capstone Project - Bus Transportation Company
+// FULLY ALIGNED with Purchase Integration Process & Original Instructions
+// DYNAMIC ENUM TABLES FOR FLEXIBILITY
+// ============================================
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,693 +14,1613 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Sequence {
-  name  String @id
-  value Int    @default(1)
+// ============================================
+// ENUMS (Stable, Operational Workflows Only)
+// ============================================
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  DISBURSED
 }
 
-model ExpenseRecord {
-  expense_id        String              @id
-  assignment_id     String?
-  bus_trip_id       String?
-  total_amount      Decimal             @db.Decimal(20, 4)
-  created_at        DateTime            @default(now())
-  updated_at        DateTime?
-  created_by        String
-  expense_date      DateTime
-  is_deleted        Boolean             @default(false)
-  category_id       String
-  source_id         String?
-  payment_method_id String
-  payment_method    GlobalPaymentMethod @relation(fields: [payment_method_id], references: [id])
-  payment_status_id String
-  payment_status    GlobalPaymentStatus @relation(fields: [payment_status_id], references: [id])
-  category          GlobalCategory      @relation(fields: [category_id], references: [id])
-  source            GlobalSource?       @relation(fields: [source_id], references: [id])
-  reimbursements    Reimbursement[]
-
-  @@unique([category_id, assignment_id, expense_date], name: "unique_expense_assignment")
-  @@unique([category_id, assignment_id, bus_trip_id, expense_date], name: "unique_expense_assignment_trip")
-  @@unique([category_id, source_id, total_amount, expense_date], name: "unique_expense_other")
+enum PayrollFrequency {
+  WEEKLY
+  SEMI_MONTHLY
+  MONTHLY
 }
 
-model RevenueRecord {
-  revenue_id          String               @id
-  assignment_id       String?
-  bus_trip_id         String?
-  // Amounts
-  principal_amount    Decimal              @default(0) @db.Decimal(20, 4)
-  total_amount        Decimal              @db.Decimal(20, 4)
-  outstanding_balance Decimal              @default(0) @db.Decimal(20, 4)
-  created_by          String               @default("ftms_user")
-  created_at          DateTime             @default(now())
-  updated_at          DateTime             @updatedAt
-  updated_by          String               @default("ftms_user")
-  is_deleted          Boolean              @default(false)
-  deleted_at          DateTime?
-  deleted_by          String?              @default("ftms_user")
-  collection_date     DateTime             @default(now())
-  category_id         String
-  source_id           String?
-  // Payment info and remarks
-  payment_method_id   String?
-  payment_status_id   String
-  remarks             String?              @db.VarChar(500)
-  // Accounts Receivable (AR) fields
-  is_receivable       Boolean              @default(false)
-  due_date            DateTime?
-  payer_name          String?              @db.VarChar(255)
-  interest_rate       Decimal              @default(0) @db.Decimal(10, 4)
-  schedule_type       ScheduleType         @default(NONE)
-  // New FK to global schedule type (migration phase 1)
-  schedule_type_id    String?
-  scheduleType        GlobalScheduleType?  @relation(name: "ScheduleTypeToRevenueRecord", fields: [schedule_type_id], references: [id])
-  category            GlobalCategory       @relation(fields: [category_id], references: [id])
-  source              GlobalSource?        @relation(fields: [source_id], references: [id])
-  payment_method      GlobalPaymentMethod? @relation(fields: [payment_method_id], references: [id])
-  payment_status      GlobalPaymentStatus  @relation(fields: [payment_status_id], references: [id])
-  loans               Loan[]
-  installments        RevenueInstallment[]
-  payments            RevenuePayment[]
-  // Relations to BusTripCache (cache of operations bus trips)
-  // Mapping clarification:
-  // - RevenueRecord.assignment_id -> BusTripCache.assignment_id (PK)
-  // - RevenueRecord.bus_trip_id   -> BusTripCache.bus_trip_id (unique)
-  busTripByAssignment BusTripCache?       @relation("RevenueToBusTripByAssignment", fields: [assignment_id], references: [assignment_id], onDelete: SetNull, onUpdate: Cascade)
-  busTripByTripId     BusTripCache?       @relation("RevenueToBusTripByTripId", fields: [bus_trip_id], references: [bus_trip_id], onDelete: SetNull, onUpdate: Cascade)
-
-  // Ensure only one revenue per assignment+BusTrip
-  @@unique([assignment_id, bus_trip_id], name: "unique_revenue_trip_assignment")
-  @@unique([category_id, source_id, total_amount, collection_date], name: "unique_revenue_other")
-  @@index([assignment_id])
-  @@index([bus_trip_id])
-  @@index([payment_status_id])
-  @@index([payment_method_id])
+enum LoanStatus {
+  PENDING
+  APPROVED
+  RELEASED
+  FULLY_PAID
+  DEFAULTED
 }
 
-// Generic attachments for multiple modules
-model Attachment {
-  id            String   @id @default(uuid())
-  module_name   String // e.g., revenue, expense, loan, payroll
-  record_id     String // PK value of the referenced module record
-  // Local filesystem path (legacy). Optional when using cloud storage like Google Drive.
-  path          String?
-  // Google Drive file id (if stored in Drive)
-  file_id       String?
-  original_name String
-  mime_type     String
-  size_bytes    Int
-  uploaded_at   DateTime @default(now())
-  is_deleted    Boolean  @default(false)
-
-  @@index([module_name, record_id])
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  APPROVED
+  VOID
 }
 
-// Persisted OAuth2 tokens for Google APIs (Drive)
-model GoogleOAuthToken {
-  id            String    @id // e.g., "drive"
-  access_token  String?
-  refresh_token String
-  scope         String?
-  token_type    String?
-  expiry_date   DateTime?
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  EXPORT
+  VIEW
+  REVERSE
 }
 
-// Installments for Accounts Receivable revenues
-model RevenueInstallment {
-  id                 String            @id @default(uuid())
-  revenue_id         String
-  installment_number Int
-  due_date           DateTime
-  amount_due         Decimal           @db.Decimal(20, 4)
-  amount_paid        Decimal           @default(0) @db.Decimal(20, 4)
-  status             InstallmentStatus @default(PENDING)
-  // New FK to global installment status (migration phase 1)
-  installment_status_id String?
-  installmentStatus     GlobalInstallmentStatus? @relation(name: "InstallmentStatusToRevenueInstallment", fields: [installment_status_id], references: [id])
-  payment_status_id  String
-  payment_method_id  String?
-  paid_date          DateTime?
-  created_at         DateTime          @default(now())
-  updated_at         DateTime          @updatedAt
-
-  revenue        RevenueRecord        @relation(fields: [revenue_id], references: [revenue_id], onDelete: Cascade)
-  payment_status GlobalPaymentStatus  @relation(fields: [payment_status_id], references: [id])
-  payment_method GlobalPaymentMethod? @relation(fields: [payment_method_id], references: [id])
-  payments       RevenuePayment[]
-
-  @@unique([revenue_id, installment_number])
-  @@index([revenue_id])
-  @@index([installment_status_id])
-}
-
-// Payments against Revenues and optional Installments
-model RevenuePayment {
-  id                String   @id @default(uuid())
-  revenue_id        String
-  installment_id    String?
-  amount            Decimal  @db.Decimal(20, 4)
-  payment_status_id String
-  payment_method_id String
-  paid_date         DateTime @default(now())
-  reference_number  String?
-  remarks           String?
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-
-  revenue        RevenueRecord       @relation(fields: [revenue_id], references: [revenue_id], onDelete: Cascade)
-  installment    RevenueInstallment? @relation(fields: [installment_id], references: [id], onDelete: SetNull)
-  payment_status GlobalPaymentStatus @relation(fields: [payment_status_id], references: [id])
-  payment_method GlobalPaymentMethod @relation(fields: [payment_method_id], references: [id])
-
-  @@index([revenue_id])
-  @@index([installment_id])
-}
-
-model AuditLog {
-  log_id         String   @id @default(uuid())
-  action         String
-  table_affected String
-  record_id      String
-  performed_by   String
-  timestamp      DateTime @default(now())
-  ip_address     String?
-  details        Json?
-}
-
-model AssignmentCache {
-  assignment_id       String   @id
-  bus_route           String
-  bus_type            String
-  date_assigned       DateTime
-  trip_fuel_expense   Decimal  @db.Decimal(20, 4)
-  trip_revenue        Decimal  @db.Decimal(20, 4)
-  is_revenue_recorded Boolean  @default(false)
-  assignment_type     String
-  last_updated        DateTime @default(now())
-  is_expense_recorded Boolean  @default(false)
-  assignment_value    Decimal  @db.Decimal(20, 4)
-  bus_plate_number    String
-  payment_method      String
-  conductor_id        String
-  driver_id           String
-}
-
-// Cache of HR Employees
-model EmployeeCache {
-  // Employee number from HR system (e.g., EMP-0001)
-  employee_number String   @id
-  first_name      String
-  middle_name     String?
-  last_name       String
-  phone           String?
-  position        String
-  department_id   Int
-  department      String
-  // Timestamps
-  last_synced_at  DateTime @default(now())
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
-  @@index([department_id])
-  @@index([department])
-}
-
-// Cache of HR Payroll records (flattened + JSON details)
-model PayrollCache {
-  // One row per employeeNumber in the upstream payload
-  employee_number  String   @id
-  first_name       String
-  middle_name      String?
-  last_name        String
-  suffix           String?
-  employee_status  String
-  hire_date        DateTime
-  termination_date DateTime?
-  basic_rate       Decimal  @db.Decimal(20, 4)
-  position_name    String
-  department_name  String
-  // Keep arrays as JSON blobs for flexibility
-  attendances      Json?
-  benefits         Json?
-  deductions       Json?
-  // Timestamps
-  last_synced_at   DateTime @default(now())
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  @@index([department_name])
-  @@index([employee_status])
-}
-
-// Cache of Operations Bus Trips
-model BusTripCache {
-  // Use assignment_id as the stable primary key
-  assignment_id       String   @id
-  bus_trip_id         String
-  bus_route           String
-  is_revenue_recorded Boolean  @default(false)
-  is_expense_recorded Boolean  @default(false)
-  date_assigned       DateTime
-  trip_fuel_expense   Decimal  @db.Decimal(20, 4)
-  trip_revenue        Decimal  @db.Decimal(20, 4)
-  assignment_type     String
-  assignment_value    Decimal  @db.Decimal(20, 4)
-  payment_method      String
-  driver_name         String
-  conductor_name      String
-  bus_plate_number    String
-  bus_type            String
-  body_number         String
-  // Timestamps
-  last_synced_at      DateTime @default(now())
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-
-  @@unique([bus_trip_id])
-  @@index([date_assigned])
-  @@index([is_revenue_recorded])
-  // Back-relations for RevenueRecord
-  revenuesByAssignment RevenueRecord[] @relation("RevenueToBusTripByAssignment")
-  revenuesByTripId     RevenueRecord[] @relation("RevenueToBusTripByTripId")
-}
-
-model Reimbursement {
-  reimbursement_id  String               @id @default(uuid())
-  expense_id        String
-  employee_id       String
-  employee_name     String
-  job_title         String?
-  amount            Decimal              @db.Decimal(20, 4)
-  requested_date    DateTime             @default(now())
-  approved_by       String?
-  approved_date     DateTime?
-  rejection_reason  String?
-  paid_by           String?
-  paid_date         DateTime?
-  payment_reference String?
-  payment_method_id String?
-  created_by        String
-  created_at        DateTime             @default(now())
-  updated_by        String?
-  updated_at        DateTime?
-  is_deleted        Boolean              @default(false)
-  cancelled_by      String?
-  cancelled_date    DateTime?
-  status            ReimbursementStatus
-  // New FK to global reimbursement status (migration phase 1)
-  reimbursement_status_id String?
-  reimbursement_status    GlobalReimbursementStatus? @relation(name: "ReimbursementStatusToReimbursement", fields: [reimbursement_status_id], references: [id])
-  remarks           String?
-  expense           ExpenseRecord        @relation(fields: [expense_id], references: [expense_id])
-  payment_method    GlobalPaymentMethod? @relation(fields: [payment_method_id], references: [id])
-
-  @@unique([expense_id, employee_id])
-  @@index([reimbursement_status_id])
-}
-
-model GlobalSource {
-  id           String          @id @default(uuid())
-  name         String          @unique
-  is_active    Boolean         @default(true)
-  is_deleted   Boolean         @default(false)
-  created_at   DateTime        @default(now())
-  updated_at   DateTime?
-  expenses     ExpenseRecord[]
-  revenues     RevenueRecord[]
-  module_links ModuleSource[]
-}
-
-model GlobalCategory {
-  id           String           @id @default(uuid())
-  name         String           @unique
-  is_active    Boolean          @default(true)
-  is_deleted   Boolean          @default(false)
-  created_at   DateTime         @default(now())
-  updated_at   DateTime?
-  expenses     ExpenseRecord[]
-  revenues     RevenueRecord[]
-  module_links ModuleCategory[]
-}
-
-model GlobalTerms {
-  id           String        @id @default(uuid())
-  name         String        @unique
-  is_active    Boolean       @default(true)
-  is_deleted   Boolean       @default(false)
-  created_at   DateTime      @default(now())
-  updated_at   DateTime?
-  module_links ModuleTerms[]
-}
-
-model GlobalPaymentMethod {
-  id                   String                @id @default(uuid())
-  name                 String                @unique
-  is_active            Boolean               @default(true)
-  is_deleted           Boolean               @default(false)
-  created_at           DateTime              @default(now())
-  updated_at           DateTime?
-  expenses             ExpenseRecord[]
-  revenues             RevenueRecord[]
-  reimbursements       Reimbursement[]
-  revenue_installments RevenueInstallment[]
-  revenue_payments     RevenuePayment[]
-  module_links         ModulePaymentMethod[]
-}
-
-model GlobalPaymentStatus {
-  id                   String               @id @default(uuid())
-  name                 String               @unique
-  applicable_modules   String[]
-  is_active            Boolean              @default(true)
-  is_deleted           Boolean              @default(false)
-  created_at           DateTime             @default(now())
-  updated_at           DateTime?
-  expenses             ExpenseRecord[]
-  revenues             RevenueRecord[]
-  revenue_installments RevenueInstallment[]
-  revenue_payments     RevenuePayment[]
-}
-
-model ModuleCategory {
-  id          String         @id @default(uuid())
-  module_name String
-  category_id String
-  category    GlobalCategory @relation(fields: [category_id], references: [id], onDelete: Cascade)
-  created_at  DateTime       @default(now())
-  updated_at  DateTime?
-
-  @@unique([module_name, category_id])
-  @@index([module_name])
-  @@index([category_id])
-}
-
-model ModuleSource {
-  id          String       @id @default(uuid())
-  module_name String
-  source_id   String
-  source      GlobalSource @relation(fields: [source_id], references: [id], onDelete: Cascade)
-  created_at  DateTime     @default(now())
-  updated_at  DateTime?
-
-  @@unique([module_name, source_id])
-  @@index([module_name])
-  @@index([source_id])
-}
-
-model ModuleTerms {
-  id          String      @id @default(uuid())
-  module_name String
-  terms_id    String
-  terms       GlobalTerms @relation(fields: [terms_id], references: [id], onDelete: Cascade)
-  created_at  DateTime    @default(now())
-  updated_at  DateTime?
-
-  @@unique([module_name, terms_id])
-  @@index([module_name])
-  @@index([terms_id])
-}
-
-model ModulePaymentMethod {
-  id                String              @id @default(uuid())
-  module_name       String
-  payment_method_id String
-  payment_method    GlobalPaymentMethod @relation(fields: [payment_method_id], references: [id], onDelete: Cascade)
-  created_at        DateTime            @default(now())
-  updated_at        DateTime?
-
-  @@unique([module_name, payment_method_id])
-  @@index([module_name])
-  @@index([payment_method_id])
-}
-
-model PayrollFrequencyConfig {
-  id                String    @id @default(uuid())
-  employee_number   String    @unique
-  payroll_frequency Frequency
-  // New FK to global frequency (migration phase 1)
-  frequency_id      String?
-  frequency         GlobalFrequency? @relation(name: "GlobalFrequencyToPayrollFrequencyConfig", fields: [frequency_id], references: [id])
-  effective_date    DateTime
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
-}
-
-model PayrollConfiguration {
-  id                   String   @id @default(uuid())
-  company_id           String
-  default_work_days    Int      @default(22)
-  weekend_work_allowed Boolean  @default(false)
-  holiday_work_rate    Decimal  @default(1.5) @db.Decimal(5, 2)
-  overtime_rate        Decimal  @default(1.25) @db.Decimal(5, 2)
-  created_at           DateTime @default(now())
-}
-
-model PayrollRecord {
-  payroll_id              String        @id @default(uuid())
-  employee_number         String
-  employee_name           String
-  first_name              String
-  middle_name             String?
-  last_name               String
-  suffix                  String?
-  employee_status         String
-  hire_date               DateTime
-  termination_date        DateTime?
-  job_title               String
-  department              String
-  payroll_period          Frequency
-  // New FKs to global frequency/status (migration phase 1)
-  payroll_period_id       String?
-  payrollPeriod           GlobalFrequency? @relation(name: "GlobalFrequencyToPayrollRecord", fields: [payroll_period_id], references: [id])
-  payroll_start_date      DateTime
-  payroll_end_date        DateTime
-  basic_rate              Decimal       @db.Decimal(20, 4)
-  days_worked             Int           @default(0)
-  basic_pay               Decimal       @default(0) @db.Decimal(20, 4)
-  overtime_regular        Decimal       @default(0) @db.Decimal(20, 4)
-  overtime_holiday        Decimal       @default(0) @db.Decimal(20, 4)
-  service_incentive_leave Decimal       @default(0) @db.Decimal(20, 4)
-  holiday_pay             Decimal       @default(0) @db.Decimal(20, 4)
-  thirteenth_month_pay    Decimal       @default(0) @db.Decimal(20, 4)
-  revenue_benefit         Decimal       @default(0) @db.Decimal(20, 4)
-  safety_benefit          Decimal       @default(0) @db.Decimal(20, 4)
-  additional_benefits     Decimal       @default(0) @db.Decimal(20, 4)
-  sss_deduction           Decimal       @default(0) @db.Decimal(20, 4)
-  philhealth_deduction    Decimal       @default(0) @db.Decimal(20, 4)
-  pag_ibig_deduction      Decimal       @default(0) @db.Decimal(20, 4)
-  cash_advance            Decimal       @default(0) @db.Decimal(20, 4)
-  damage_shortage         Decimal       @default(0) @db.Decimal(20, 4)
-  other_deductions        Decimal       @default(0) @db.Decimal(20, 4)
-  gross_total_earnings    Decimal       @default(0) @db.Decimal(20, 4)
-  total_deductions        Decimal       @default(0) @db.Decimal(20, 4)
-  net_pay                 Decimal       @default(0) @db.Decimal(20, 4)
-  status                  PayrollStatus @default(PENDING)
-  payroll_status_id       String?
-  payrollStatus           GlobalPayrollStatus? @relation(name: "GlobalPayrollStatusToPayrollRecord", fields: [payroll_status_id], references: [id])
-  date_released           DateTime?
-  created_by              String
-  created_at              DateTime      @default(now())
-  updated_by              String?
-  updated_at              DateTime?
-  is_deleted              Boolean       @default(false)
-  calculation_notes       String?
-  deleted_at              DateTime?
-  deleted_by              String?
-  hr_data_snapshot        Json?
-  processed_benefits      Json?
-  processed_deductions    Json?
-
-  @@unique([employee_number, payroll_start_date, payroll_end_date])
-  @@index([payroll_start_date, payroll_end_date])
-  @@index([employee_number, is_deleted])
-  @@index([payroll_period_id])
-  @@index([payroll_status_id])
+enum InstallmentStatus {
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+  CANCELLED
 }
 
 enum ReimbursementStatus {
   PENDING
   APPROVED
   REJECTED
-  PAID
-  CANCELLED
+  DISBURSED
 }
 
-enum PayrollStatus {
-  DRAFT
+enum RefundReplacementType {
+  REFUND
+  REPLACEMENT
+  FAILED
+}
+
+enum RefundReplacementStatus {
   PENDING
-  VALIDATED
-  PAID
+  PROCESSING
+  TO_BE_REFUNDED
+  REFUNDED
+  TO_BE_REPLACED
+  REPLACED
+  REJECTED
+  FAILED
+  CLOSED
 }
 
-enum Frequency {
-  WEEKLY
-  SEMI_MONTHLY
-  MONTHLY
-}
-
-// --- Revenue AR Enums ---
-enum InstallmentStatus {
+enum ForfeitedDepositStatus {
   PENDING
-  PARTIAL
-  PAID
-  OVERPAID
-  LATE
+  APPROVED
+  CONVERTED_TO_REVENUE
+  REFUNDED
 }
 
-enum ScheduleType {
+enum ApproverRole {
+  OWNER
+  FINANCE_ADMIN
+}
+
+enum ExpenseReservationStatus {
   NONE
-  DAILY
-  WEEKLY
-  SEMI_MONTHLY
-  MONTHLY
+  RESERVED
+  VALIDATED
+  POSTED
 }
 
-// --- Global reference tables (to deprecate enums gradually) ---
-model GlobalInstallmentStatus {
-  id         String                 @id @default(uuid())
-  name       String                 @unique
-  is_active  Boolean                @default(true)
-  is_deleted Boolean                @default(false)
-  created_at DateTime               @default(now())
-  updated_at DateTime?
-  // back-relations
-  revenue_installments RevenueInstallment[] @relation("InstallmentStatusToRevenueInstallment")
-  module_links ModuleInstallmentStatus[]
+enum ReimbursementPaymentMethodType {
+  CASH
+  GCASH
+  PAYMAYA
 }
 
-model ModuleInstallmentStatus {
-  id                      String                   @id @default(uuid())
-  module_name             String
-  installment_status_id   String
-  installment_status      GlobalInstallmentStatus  @relation(fields: [installment_status_id], references: [id], onDelete: Cascade)
-  created_at              DateTime                 @default(now())
-  updated_at              DateTime?
+// ============================================
+// DYNAMIC CONFIGURATION TABLES
+// ============================================
 
-  @@unique([module_name, installment_status_id])
-  @@index([module_name])
-  @@index([installment_status_id])
+model PaymentMethod {
+  id              Int       @id @default(autoincrement())
+  methodCode      String    @unique @db.VarChar(20)
+  methodName      String    @db.VarChar(100)
+  description     String?   @db.Text
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  revenues        Revenue[]
+  expenses        Expense[]
+  loanPayments    LoanPayment[]
+  payrollItems    PayrollItem[]
+  reimbursements  Reimbursement[]
+  refundReplacements RefundReplacement[]
+
+  @@index([methodCode])
+  @@index([isActive])
 }
 
-model GlobalScheduleType {
-  id         String             @id @default(uuid())
-  name       String             @unique
-  is_active  Boolean            @default(true)
-  is_deleted Boolean            @default(false)
-  created_at DateTime           @default(now())
-  updated_at DateTime?
-  // back-relations
-  revenues RevenueRecord[] @relation("ScheduleTypeToRevenueRecord")
-  module_links ModuleScheduleType[]
+model BudgetPeriodType {
+  id              Int       @id @default(autoincrement())
+  periodCode      String    @unique @db.VarChar(20)
+  periodName      String    @db.VarChar(100)
+  description     String?   @db.Text
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  budgetAllocations BudgetAllocation[]
+
+  @@index([periodCode])
+  @@index([isActive])
 }
 
-model ModuleScheduleType {
-  id                String             @id @default(uuid())
-  module_name       String
-  schedule_type_id  String
-  schedule_type     GlobalScheduleType @relation(fields: [schedule_type_id], references: [id], onDelete: Cascade)
-  created_at        DateTime           @default(now())
-  updated_at        DateTime?
+model LoanPaymentFrequencyType {
+  id              Int       @id @default(autoincrement())
+  frequencyCode   String    @unique @db.VarChar(20)
+  frequencyName   String    @db.VarChar(100)
+  daysInterval    Int?      // e.g., 7 for WEEKLY, 14 for BI-WEEKLY
+  description     String?   @db.Text
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  @@unique([module_name, schedule_type_id])
-  @@index([module_name])
-  @@index([schedule_type_id])
+  // Relations
+  loans           Loan[]
+
+  @@index([frequencyCode])
+  @@index([isActive])
 }
 
-model GlobalPayrollStatus {
-  id           String                @id @default(uuid())
-  name         String                @unique
-  is_active    Boolean               @default(true)
-  is_deleted   Boolean               @default(false)
-  created_at   DateTime              @default(now())
-  updated_at   DateTime?
-  // back-relations
-  payroll_records PayrollRecord[] @relation("GlobalPayrollStatusToPayrollRecord")
-  module_links ModulePayrollStatus[]
+model AccountType {
+  id              Int       @id @default(autoincrement())
+  typeCode        String    @unique @db.VarChar(20)
+  typeName        String    @db.VarChar(100)
+  description     String?   @db.Text
+  normalBalance   String    @db.VarChar(10) // DEBIT or CREDIT
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  chartOfAccounts ChartOfAccount[]
+
+  @@index([typeCode])
+  @@index([isActive])
 }
 
-model ModulePayrollStatus {
-  id                 String              @id @default(uuid())
-  module_name        String
-  payroll_status_id  String
-  payroll_status     GlobalPayrollStatus @relation(fields: [payroll_status_id], references: [id], onDelete: Cascade)
-  created_at         DateTime            @default(now())
-  updated_at         DateTime?
+// ============================================
+// DYNAMIC ENUM TABLES (Configurable)
+// ============================================
 
-  @@unique([module_name, payroll_status_id])
-  @@index([module_name])
-  @@index([payroll_status_id])
+model ExpenseCategory {
+  id            Int       @id @default(autoincrement())
+  categoryCode  String    @unique @db.VarChar(20)
+  name          String    @db.VarChar(100)
+  description   String?   @db.Text
+  department    String?   @db.VarChar(100)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  expenses              Expense[]
+  budgetAllocations     BudgetAllocation[]
+
+  @@index([categoryCode])
+  @@index([department])
+  @@index([isActive])
 }
 
-model GlobalFrequency {
-  id           String             @id @default(uuid())
-  name         String             @unique
-  is_active    Boolean            @default(true)
-  is_deleted   Boolean            @default(false)
-  created_at   DateTime           @default(now())
-  updated_at   DateTime?
-  // back-relations
-  payroll_frequency_configs PayrollFrequencyConfig[] @relation("GlobalFrequencyToPayrollFrequencyConfig")
-  payroll_records           PayrollRecord[]          @relation("GlobalFrequencyToPayrollRecord")
-  module_links ModuleFrequency[]
+model RevenueSource {
+  id            Int       @id @default(autoincrement())
+  sourceCode    String    @unique @db.VarChar(20)
+  name          String    @db.VarChar(100)
+  description   String?   @db.Text
+  isActive      Boolean   @default(true)
+  accountCode   String?   @db.VarChar(20)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  revenues      Revenue[]
+
+  @@index([sourceCode])
+  @@index([isActive])
 }
 
-model ModuleFrequency {
-  id            String          @id @default(uuid())
-  module_name   String
-  frequency_id  String
-  frequency     GlobalFrequency @relation(fields: [frequency_id], references: [id], onDelete: Cascade)
-  created_at    DateTime        @default(now())
-  updated_at    DateTime?
+model BudgetRequestType {
+  id            Int       @id @default(autoincrement())
+  typeCode      String    @unique @db.VarChar(20)
+  name          String    @db.VarChar(100)
+  description   String?   @db.Text
+  priority      Int       @default(1)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  @@unique([module_name, frequency_id])
-  @@index([module_name])
-  @@index([frequency_id])
+  budgetRequests BudgetRequest[]
+
+  @@index([typeCode])
+  @@index([priority])
+  @@index([isActive])
 }
 
-model GlobalReimbursementStatus {
-  id           String                     @id @default(uuid())
-  name         String                     @unique
-  is_active    Boolean                    @default(true)
-  is_deleted   Boolean                    @default(false)
-  created_at   DateTime                   @default(now())
-  updated_at   DateTime?
-  // back-relations
-  reimbursements Reimbursement[] @relation("ReimbursementStatusToReimbursement")
-  module_links ModuleReimbursementStatus[]
+model BudgetRequestStatus {
+  id            Int       @id @default(autoincrement())
+  statusCode    String    @unique @db.VarChar(20)
+  name          String    @db.VarChar(100)
+  description   String?   @db.Text
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  budgetRequests BudgetRequest[]
+
+  @@index([statusCode])
+  @@index([isActive])
 }
 
-model ModuleReimbursementStatus {
-  id                        String                   @id @default(uuid())
-  module_name               String
-  reimbursement_status_id   String
-  reimbursement_status      GlobalReimbursementStatus @relation(fields: [reimbursement_status_id], references: [id], onDelete: Cascade)
-  created_at                DateTime                 @default(now())
-  updated_at                DateTime?
+// ============================================
+// APPROVAL AUTHORITY
+// ============================================
 
-  @@unique([module_name, reimbursement_status_id])
-  @@index([module_name])
-  @@index([reimbursement_status_id])
+model ApprovalAuthority {
+  id                 Int          @id @default(autoincrement())
+  role               ApproverRole
+  approvalType       String       @db.VarChar(100) // "PURCHASE_REQUEST", "BUDGET_REQUEST", "JOURNAL_ENTRY", "REFUND_REQUEST"
+  minThreshold       Decimal?     @db.Decimal(15, 2)
+  maxThreshold       Decimal?     @db.Decimal(15, 2)
+  isActive           Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  createdBy          String       @db.VarChar(100)
+
+  @@unique([role, approvalType, minThreshold, maxThreshold])
+  @@index([role])
+  @@index([approvalType])
+  @@index([isActive])
 }
 
-// --- Loans (Quota shortfall) ---
-enum EmployeeType {
-  driver
-  conductor
+// ============================================
+// CACHE MODELS (External System Data)
+// ============================================
+
+model EmployeeCache {
+  id             Int      @id @default(autoincrement())
+  employeeNumber String   @unique @db.VarChar(20)
+  firstName      String   @db.VarChar(100)
+  middleName     String?  @db.VarChar(100)
+  lastName       String   @db.VarChar(100)
+  phone          String?  @db.VarChar(20)
+  position       String   @db.VarChar(100)
+  departmentId   Int
+  department     String   @db.VarChar(100)
+  lastSynced     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([employeeNumber])
+  @@index([department])
 }
+
+model PayrollCache {
+  id               Int      @id @default(autoincrement())
+  employeeNumber   String   @db.VarChar(20)
+  firstName        String   @db.VarChar(100)
+  middleName       String?  @db.VarChar(100)
+  lastName         String   @db.VarChar(100)
+  suffix           String?  @db.VarChar(20)
+  employeeStatus   String   @db.VarChar(50)
+  hiredate         DateTime?
+  terminationDate  DateTime?
+  basicRate        Decimal  @db.Decimal(15, 2)
+  positionName     String   @db.VarChar(100)
+  departmentName   String   @db.VarChar(100)
+  attendanceData   Json?    // Array: [{"date": "2025-10-13T14:04:14.590Z", "status": "Present"}]
+  benefitsData     Json?    // Array: [{"value": 750, "frequency": "Monthly", "effectiveDate": "2025-08-15T14:04:14.590Z", "endDate": null, "isActive": true, "name": "Housing Allowance"}]
+  deductionsData   Json?    // Array: [{"type": "Uniform Deduction", "value": 200, "frequency": "Monthly", "effectiveDate": "2025-07-16T14:04:14.590Z", "endDate": null, "isActive": true}]
+  lastSynced       DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([employeeNumber])
+  @@index([departmentName])
+  @@index([employeeStatus])
+}
+
+model BusTripCache {
+  id                      Int      @id @default(autoincrement())
+  assignmentId            String   @unique @db.VarChar(20)
+  busTripId               String   @db.VarChar(20)
+  busRoute                String   @db.VarChar(100)
+  isRevenueRecorded       Boolean  @default(false)
+  isExpenseRecorded       Boolean  @default(false)
+  dateAssigned            DateTime
+  tripFuelExpense         Decimal  @db.Decimal(15, 2)
+  tripRevenue             Decimal  @db.Decimal(15, 2)
+  assignmentType          String   @db.VarChar(50) // "Percentage", "Boundary"
+  assignmentValue         Decimal  @db.Decimal(15, 4)
+  paymentMethod           String   @db.VarChar(50)
+  driverName              String   @db.VarChar(100)
+  conductorName           String   @db.VarChar(100)
+  driverEmployeeNumber    String?  @db.VarChar(20)
+  conductorEmployeeNumber String?  @db.VarChar(20)
+  busPlateNumber          String   @db.VarChar(20)
+  busType                 String   @db.VarChar(50)
+  bodyNumber              String   @db.VarChar(20)
+  routeCode               String?  @db.VarChar(20)
+  tripStatus              String?  @db.VarChar(50) @default("COMPLETED")
+  lastSynced              DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  revenueRecords  Revenue[]
+  expenseRecords  Expense[]
+
+  @@index([assignmentId])
+  @@index([busTripId])
+  @@index([dateAssigned])
+  @@index([driverEmployeeNumber, conductorEmployeeNumber])
+}
+
+// ============================================
+// INVENTORY INTEGRATION CACHE
+// ============================================
+
+model InventoryPurchaseRequestSync {
+  id              Int       @id @default(autoincrement())
+  invPrId         String    @unique @db.VarChar(20)
+  finPrId         String?   @db.VarChar(20)
+
+  categoryId      Int?
+  categoryName    String?   @db.VarChar(100)
+  estimatedAmount Decimal   @db.Decimal(15, 2)
+  priority        String?   @db.VarChar(20)
+  autoTrigger     Boolean   @default(false)
+  reorderOfInvPrId String?  @db.VarChar(20)
+
+  syncStatus      String    @db.VarChar(50) @default("PENDING")
+  lastSyncedAt    DateTime  @default(now())
+  syncNotes       String?   @db.Text
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([invPrId])
+  @@index([syncStatus])
+}
+
+model InventoryOrderSync {
+  id              Int       @id @default(autoincrement())
+  invPoId         String    @unique @db.VarChar(20)
+  finOrderId      Int?
+  invPrId         String    @db.VarChar(20)
+
+  supplierId      String?   @db.VarChar(20)
+  supplierName    String?   @db.VarChar(150)
+  totalAmount     Decimal   @db.Decimal(15, 2)
+  actualAmount    Decimal?  @db.Decimal(15, 2)
+
+  poStatus        String?   @db.VarChar(50)
+  priceMismatchFlag Boolean  @default(false)
+  orderDate       DateTime
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate DateTime?
+
+  syncStatus      String    @db.VarChar(50) @default("PENDING")
+  lastSyncedAt    DateTime  @default(now())
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([invPoId])
+  @@index([syncStatus])
+}
+
+model InventoryDeliverySync {
+  id              Int       @id @default(autoincrement())
+  invDrId         String    @unique @db.VarChar(20)
+  finDeliveryId   Int?
+  invPoId         String    @db.VarChar(20)
+
+  receivedQuantity Int
+  defectiveQuantity Int      @default(0)
+  missingQuantity  Int       @default(0)
+  deliveryDate    DateTime
+  inspectionStatus String?   @db.VarChar(50)
+  invoiceNumber   String?   @db.VarChar(50)
+  invoiceAmount   Decimal?  @db.Decimal(15, 2)
+
+  syncStatus      String    @db.VarChar(50) @default("PENDING")
+  lastSyncedAt    DateTime  @default(now())
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([invDrId])
+  @@index([invPoId])
+  @@index([syncStatus])
+}
+
+// ============================================
+// REVENUE MANAGEMENT
+// ============================================
+
+model Revenue {
+  id                    Int            @id @default(autoincrement())
+  revenueCode           String         @unique @default(cuid())
+  sourceId              Int
+  source                RevenueSource  @relation(fields: [sourceId], references: [id])
+  description           String         @db.Text
+  amount                Decimal        @db.Decimal(15, 2)
+  transactionDate       DateTime       @default(now())
+  paymentMethodId       Int
+  paymentMethod         PaymentMethod  @relation(fields: [paymentMethodId], references: [id])
+
+  busTripCacheId        Int?
+  busTripCache          BusTripCache?  @relation(fields: [busTripCacheId], references: [id])
+
+  externalRefId         String?        @db.VarChar(20)
+  externalRefType       String?        @db.VarChar(50) // "RENTAL", "DISPOSAL", "FORFEITED_DEPOSIT"
+
+  loanPaymentId         Int?           @unique
+  loanPayment           LoanPayment?   @relation(fields: [loanPaymentId], references: [id])
+
+  isInstallment         Boolean        @default(false)
+  installmentScheduleId Int?
+  installmentSchedule   InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
+
+  isAccountsReceivable  Boolean        @default(false)
+  arDueDate             DateTime?
+  arPaidDate            DateTime?
+  arStatus              String?        @db.VarChar(50) @default("PENDING")
+  arId                  Int?
+  accountsReceivable    AccountsReceivable? @relation(fields: [arId], references: [id])
+
+  documentIds           String?        @db.Text
+
+  journalEntryId        Int?
+  journalEntry          JournalEntry?  @relation("RevenueJournalEntry", fields: [journalEntryId], references: [id])
+
+  forfeitedDeposits     ForfeitedDeposit[] @relation("ForfeitedDepositRevenue")
+
+  createdBy             String         @db.VarChar(100)
+  approvedBy            String?        @db.VarChar(100)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  auditLogs             AuditLog[]
+
+  @@index([sourceId])
+  @@index([transactionDate])
+  @@index([revenueCode])
+  @@index([arStatus, arDueDate])
+}
+
+// ============================================
+// EXPENSE MANAGEMENT
+// ============================================
+
+model Expense {
+  id                      Int               @id @default(autoincrement())
+  expenseCode             String            @unique @default(cuid())
+  categoryId              Int
+  category                ExpenseCategory   @relation(fields: [categoryId], references: [id])
+  description             String            @db.Text
+  amount                  Decimal           @db.Decimal(15, 2)
+  transactionDate         DateTime          @default(now())
+  paymentMethodId         Int
+  paymentMethod           PaymentMethod     @relation(fields: [paymentMethodId], references: [id])
+
+  busTripCacheId          Int?
+  busTripCache            BusTripCache?     @relation(fields: [busTripCacheId], references: [id])
+
+  externalRefId           String?           @db.VarChar(20)
+  externalRefType         String?           @db.VarChar(50)
+
+  vendorName              String?           @db.VarChar(150)
+  vendorId                String?           @db.VarChar(20)
+
+  isReimbursement         Boolean           @default(false)
+  reimbursements          Reimbursement[]
+
+  isPayable               Boolean           @default(false)
+  payableDueDate          DateTime?
+  payablePaidDate         DateTime?
+  payableStatus           String?           @db.VarChar(50) @default("PENDING")
+  apId                    Int?
+  accountsPayable         AccountsPayable?  @relation(fields: [apId], references: [id])
+
+  isInstallment           Boolean           @default(false)
+  installmentScheduleId   Int?
+  installmentSchedule     InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
+
+  refundReplacements      RefundReplacement[]
+
+  documentIds             String?           @db.Text
+
+  budgetAllocationId      Int?
+  budgetAllocation        BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
+
+  journalEntryId          Int?
+  journalEntry            JournalEntry?     @relation("ExpenseJournalEntry", fields: [journalEntryId], references: [id])
+
+  // PURCHASE INTEGRATION FIELDS
+  purchaseRequestId       String?           @db.VarChar(20)
+  inventoryOrderId        String?           @db.VarChar(20)
+  inventoryDeliveryId     String?           @db.VarChar(20)
+
+  reservationStatus       ExpenseReservationStatus @default(NONE)
+  amountReserved          Decimal?          @db.Decimal(15, 2)
+  threeWayMatchStatus     String?           @db.VarChar(50) @default("PENDING")
+  threeWayMatchNotes      String?           @db.Text
+
+  priceDecision           String?           @db.VarChar(50)
+  decisionMadeBy          String?           @db.VarChar(100)
+  decisionDate            DateTime?
+  decisionReason          String?           @db.Text
+
+  isReversal              Boolean           @default(false)
+  reversalOfId            Int?
+  reversalReason          String?           @db.Text
+
+  isTaxable               Boolean           @default(true)
+  taxExemptionReason      String?           @db.Text
+
+  createdBy               String            @db.VarChar(100)
+  approvedBy              String?           @db.VarChar(100)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  auditLogs               AuditLog[]
+
+  @@index([categoryId])
+  @@index([transactionDate])
+  @@index([expenseCode])
+  @@index([vendorId])
+  @@index([payableStatus, payableDueDate])
+  @@index([reservationStatus])
+  @@index([purchaseRequestId])
+}
+
+// ============================================
+// ORDER MANAGEMENT (Finance-tracked)
+// ============================================
+
+model Order {
+  id                  Int       @id @default(autoincrement())
+  orderCode           String    @unique @default(cuid())
+
+  inventoryPoId       String    @db.VarChar(20)
+  purchaseRequestId   String    @db.VarChar(20)
+
+  supplierId          String    @db.VarChar(20)
+  supplierName        String    @db.VarChar(150)
+
+  status              String    @db.VarChar(50) @default("PENDING")
+  orderDate           DateTime  @default(now())
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+
+  orderAmount         Decimal   @db.Decimal(15, 2)
+  actualAmount        Decimal?  @db.Decimal(15, 2)
+
+  priceMatchFlag      Boolean   @default(false)
+  actualQty           Int?
+  newUnitPrice        Decimal?  @db.Decimal(15, 2)
+
+  deliveries          Delivery[]
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([inventoryPoId])
+  @@index([purchaseRequestId])
+  @@index([status])
+}
+
+model Delivery {
+  id                  Int       @id @default(autoincrement())
+  deliveryCode        String    @unique @default(cuid())
+
+  orderId             Int
+  order               Order     @relation(fields: [orderId], references: [id])
+
+  inventoryDrId       String?   @db.VarChar(20)
+
+  receivedQty         Int
+  defectiveQty        Int       @default(0)
+  missingQty          Int       @default(0)
+  receivedDate        DateTime
+  inspectionStatus    String?   @db.VarChar(50)
+  inspectionFindings  String?   @db.Text
+
+  invoiceNumber       String?   @db.VarChar(50)
+  invoiceAmount       Decimal?  @db.Decimal(15, 2)
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([inventoryDrId])
+}
+
+// ============================================
+// REIMBURSEMENT MANAGEMENT
+// ============================================
+
+model Reimbursement {
+  id                Int                          @id @default(autoincrement())
+  reimbursementCode String                       @unique @default(cuid())
+
+  expenseId         Int
+  expense           Expense                      @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  employeeNumber    String                       @db.VarChar(20)
+  employeeName      String                       @db.VarChar(100)
+  department        String?                      @db.VarChar(100)
+
+  claimedAmount     Decimal                      @db.Decimal(15, 2)
+  approvedAmount    Decimal?                     @db.Decimal(15, 2)
+  status            ReimbursementStatus          @default(PENDING)
+  paymentMethodType ReimbursementPaymentMethodType?
+  paymentMethodId   Int?
+  paymentMethod     PaymentMethod?               @relation(fields: [paymentMethodId], references: [id])
+  disbursementDate  DateTime?
+
+  documentIds       String?                      @db.Text
+  remarks           String?                      @db.Text
+
+  createdBy         String                       @db.VarChar(100)
+  approvedBy        String?                      @db.VarChar(100)
+  disbursedBy       String?                      @db.VarChar(100)
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  auditLogs         AuditLog[]
+
+  @@index([employeeNumber])
+  @@index([status])
+  @@index([expenseId])
+  @@index([department])
+}
+
+// ============================================
+// REFUND & REPLACEMENT MANAGEMENT
+// ============================================
+
+model RefundReplacement {
+  id                  Int                      @id @default(autoincrement())
+  refundCode          String                   @unique @default(cuid())
+
+  expenseId           Int
+  expense             Expense                  @relation(fields: [expenseId], references: [id])
+
+  inventoryRefundId   String?                  @db.VarChar(20)
+  inventoryPoId       String                   @db.VarChar(20)
+
+  type                RefundReplacementType
+  status              RefundReplacementStatus  @default(PENDING)
+
+  refundAmount        Decimal?                 @db.Decimal(15, 2)
+  refundMethodId      Int?
+  refundMethod        PaymentMethod?           @relation(fields: [refundMethodId], references: [id])
+  refundDate          DateTime?
+
+  replacementItems    String?                  @db.Text
+  replacementDate     DateTime?
+  replacementAttempts Int                      @default(0)
+  maxReplacementAttempts Int                   @default(2)
+
+  supplierName        String                   @db.VarChar(150)
+  supplierId          String?                  @db.VarChar(20)
+  supplierRiskFlag    Boolean                  @default(false)
+
+  reason              String                   @db.Text
+  remarks             String?                  @db.Text
+
+  itemId              String?                  @db.VarChar(20)
+  itemName            String?                  @db.VarChar(150)
+
+  documentIds         String?                  @db.Text
+
+  journalEntryId      Int?
+  journalEntry        JournalEntry?            @relation(fields: [journalEntryId], references: [id])
+
+  // Rollback tracking
+  previousStatus      String?                  @db.VarChar(50)
+  rollbackPermission  String                   @db.VarChar(50) @default("ADMIN_ONLY")
+  isRolledBack        Boolean                  @default(false)
+  rolledBackBy        String?                  @db.VarChar(100)
+  rolledBackAt        DateTime?
+  rolledBackReason    String?                  @db.Text
+
+  createdBy           String                   @db.VarChar(100)
+  approvedBy          String?                  @db.VarChar(100)
+  processedBy         String?                  @db.VarChar(100)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  auditLogs           AuditLog[]
+
+  @@index([inventoryPoId])
+  @@index([status])
+  @@index([type])
+  @@index([supplierId])
+  @@index([inventoryRefundId])
+}
+
+// ============================================
+// EMPLOYEE FINANCIALS - PAYROLL
+// ============================================
+
+model Payroll {
+  id                Int              @id @default(autoincrement())
+  payrollCode       String           @unique @default(cuid())
+  payrollPeriod     String           @db.VarChar(50)
+  frequency         PayrollFrequency
+  periodStart       DateTime
+  periodEnd         DateTime
+  grossAmount       Decimal?         @db.Decimal(15, 2)
+  totalDeductions   Decimal?         @db.Decimal(15, 2)
+  netAmount         Decimal?         @db.Decimal(15, 2)
+  totalAmount       Decimal          @db.Decimal(15, 2)
+  status            PayrollStatus    @default(DRAFT)
+
+  payrollItems      PayrollItem[]
+
+  documentIds       String?          @db.Text
+
+  journalEntryId    Int?
+  journalEntry      JournalEntry?    @relation(fields: [journalEntryId], references: [id])
+
+  budgetAllocationId Int?
+  budgetAllocation  BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
+
+  createdBy         String           @db.VarChar(100)
+  approvedBy        String?          @db.VarChar(100)
+  disbursedBy       String?          @db.VarChar(100)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  auditLogs         AuditLog[]
+
+  @@index([payrollPeriod])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+}
+
+model PayrollItem {
+  id                Int           @id @default(autoincrement())
+
+  payrollId         Int
+  payroll           Payroll       @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+
+  employeeNumber    String        @db.VarChar(20)
+  employeeName      String        @db.VarChar(100)
+  position          String        @db.VarChar(100)
+  department        String        @db.VarChar(100)
+
+  basicSalary       Decimal       @db.Decimal(15, 2)
+  overtimePay       Decimal       @db.Decimal(15, 2) @default(0)
+  benefits          Decimal       @db.Decimal(15, 2) @default(0)
+  allowances        Decimal       @db.Decimal(15, 2) @default(0)
+  grossPay          Decimal       @db.Decimal(15, 2)
+  deductions        Decimal       @db.Decimal(15, 2) @default(0)
+  netPay            Decimal       @db.Decimal(15, 2)
+
+  paymentMethodId   Int?
+  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  disbursementDate  DateTime?
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([employeeNumber])
+  @@index([payrollId])
+  @@index([department])
+}
+
+// ============================================
+// EMPLOYEE FINANCIALS - LOANS
+// ============================================
 
 model Loan {
-  id            String       @id @default(uuid())
-  revenue_id    String
-  employee_type EmployeeType
-  amount        Decimal      @db.Decimal(20, 4)
-  created_at    DateTime     @default(now())
-  updated_at    DateTime     @updatedAt
+  id                    Int                     @id @default(autoincrement())
+  loanCode              String                  @unique @default(cuid())
 
-  revenue RevenueRecord @relation(fields: [revenue_id], references: [revenue_id])
+  employeeNumber        String                  @db.VarChar(20)
+  employeeName          String                  @db.VarChar(100)
+  department            String?                 @db.VarChar(100)
 
-  @@unique([revenue_id, employee_type], name: "revenue_id_employee_type")
-  @@index([revenue_id])
+  principalAmount       Decimal                 @db.Decimal(15, 2)
+  interestRate          Decimal?                @db.Decimal(5, 2)
+  totalAmount           Decimal                 @db.Decimal(15, 2)
+  balanceAmount         Decimal                 @db.Decimal(15, 2)
+
+  loanType              String?                 @db.VarChar(50) @default("PERSONAL")
+  collateral            String?                 @db.Text
+
+  paymentFrequencyId    Int
+  paymentFrequency      LoanPaymentFrequencyType @relation(fields: [paymentFrequencyId], references: [id])
+  numberOfPayments      Int
+  paymentAmount         Decimal                 @db.Decimal(15, 2)
+
+  applicationDate       DateTime                @default(now())
+  approvalDate          DateTime?
+  releaseDate           DateTime?
+  startDate             DateTime?
+  endDate               DateTime?
+
+  status                LoanStatus              @default(PENDING)
+  isStaffRequest        Boolean                 @default(false)
+
+  documentIds           String?                 @db.Text
+  remarks               String?                 @db.Text
+
+  loanPayments          LoanPayment[]
+
+  journalEntryId        Int?
+  journalEntry          JournalEntry?           @relation(fields: [journalEntryId], references: [id])
+
+  budgetAllocationId    Int?
+  budgetAllocation      BudgetAllocation?       @relation(fields: [budgetAllocationId], references: [id])
+
+  createdBy             String                  @db.VarChar(100)
+  approvedBy            String?                 @db.VarChar(100)
+  releasedBy            String?                 @db.VarChar(100)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  auditLogs             AuditLog[]
+
+  @@index([employeeNumber])
+  @@index([status])
+  @@index([loanCode])
+  @@index([department])
 }
+
+model LoanPayment {
+  id                Int           @id @default(autoincrement())
+  paymentCode       String        @unique @default(cuid())
+
+  loanId            Int
+  loan              Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  paymentAmount     Decimal       @db.Decimal(15, 2)
+  principalPaid     Decimal       @db.Decimal(15, 2)
+  interestPaid      Decimal       @db.Decimal(15, 2)
+  paymentDate       DateTime      @default(now())
+  paymentMethodId   Int
+  paymentMethod     PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+
+  dueDate           DateTime?
+  isOverdue         Boolean       @default(false)
+  daysOverdue       Int?          @default(0)
+
+  remarks           String?       @db.Text
+  documentIds       String?       @db.Text
+
+  revenue           Revenue?
+
+  journalEntryId    Int?
+  journalEntry      JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  recordedBy        String        @db.VarChar(100)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  auditLogs         AuditLog[]
+
+  @@index([loanId])
+  @@index([paymentDate])
+  @@index([dueDate])
+}
+
+// ============================================
+// BUDGET MANAGEMENT
+// ============================================
+
+model BudgetAllocation {
+  id                  Int                @id @default(autoincrement())
+  budgetCode          String             @unique @default(cuid())
+
+  department          String             @db.VarChar(100)
+  category            String             @db.VarChar(100)
+
+  expenseCategoryId   Int?
+  expenseCategory     ExpenseCategory?   @relation(fields: [expenseCategoryId], references: [id])
+
+  periodTypeId        Int
+  periodType          BudgetPeriodType   @relation(fields: [periodTypeId], references: [id])
+  periodStart         DateTime
+  periodEnd           DateTime
+
+  allocatedAmount     Decimal            @db.Decimal(15, 2)
+  consumedAmount      Decimal            @db.Decimal(15, 2) @default(0)
+  reservedAmount      Decimal            @db.Decimal(15, 2) @default(0)
+  releasedAmount      Decimal            @db.Decimal(15, 2) @default(0)
+  availableAmount     Decimal            @db.Decimal(15, 2)
+  minAmount           Decimal?           @db.Decimal(15, 2)
+  maxAmount           Decimal?           @db.Decimal(15, 2)
+  allowOverflow       Boolean            @default(false)
+
+  previousAllocation  Decimal?           @db.Decimal(15, 2)
+  varianceAmount      Decimal?           @db.Decimal(15, 2)
+  variancePercent     Decimal?           @db.Decimal(5, 2)
+
+  isActive            Boolean            @default(true)
+  remarks             String?            @db.Text
+
+  expenses            Expense[]
+  payrolls            Payroll[]
+  loans               Loan[]
+  budgetRequests      BudgetRequest[]
+
+  createdBy           String             @db.VarChar(100)
+  approvedBy          String?            @db.VarChar(100)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  auditLogs           AuditLog[]
+
+  @@index([department])
+  @@index([category])
+  @@index([periodStart, periodEnd])
+  @@index([isActive])
+}
+
+model BudgetRequest {
+  id                  Int                   @id @default(autoincrement())
+  requestCode         String                @unique @default(cuid())
+
+  budgetAllocationId  Int?
+  budgetAllocation    BudgetAllocation?     @relation(fields: [budgetAllocationId], references: [id])
+
+  department          String                @db.VarChar(100)
+  category            String                @db.VarChar(100)
+  requestTypeId       Int
+  requestType         BudgetRequestType     @relation(fields: [requestTypeId], references: [id])
+  requestedAmount     Decimal               @db.Decimal(15, 2)
+  approvedAmount      Decimal?              @db.Decimal(15, 2)
+  justification       String                @db.Text
+
+  statusId            Int
+  status              BudgetRequestStatus   @relation(fields: [statusId], references: [id])
+
+  priority            String?               @db.VarChar(50) @default("NORMAL")
+  requiredByDate      DateTime?
+  approvalDeadline    DateTime?
+  expeditedReview     Boolean               @default(false)
+
+  inventoryPrId       String?               @db.VarChar(20)
+
+  documentIds         String?               @db.Text
+  remarks             String?               @db.Text
+
+  requestedBy         String                @db.VarChar(100)
+  reviewedBy          String?               @db.VarChar(100)
+  approvedBy          String?               @db.VarChar(100)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  auditLogs           AuditLog[]
+
+  @@index([department])
+  @@index([statusId])
+  @@index([requestCode])
+  @@index([requiredByDate])
+  @@index([expeditedReview])
+  @@index([inventoryPrId])
+}
+
+// ============================================
+// JOURNAL ENTRY VOUCHER
+// ============================================
+
+model ChartOfAccount {
+  id                Int            @id @default(autoincrement())
+  accountCode       String         @unique @db.VarChar(20)
+  accountName       String         @db.VarChar(150)
+  accountTypeId     Int
+  accountType       AccountType    @relation(fields: [accountTypeId], references: [id])
+  parentAccountId   Int?
+  parentAccount     ChartOfAccount? @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts     ChartOfAccount[] @relation("AccountHierarchy")
+
+  description       String?        @db.Text
+  isActive          Boolean        @default(true)
+  normalBalance     String         @db.VarChar(10) @default("DEBIT")
+  isSystemAccount   Boolean        @default(false)
+  level             Int            @default(1)
+  balanceSheetSection String?       @db.VarChar(100)
+
+  journalLineItems  JournalLineItem[]
+
+  createdBy         String         @db.VarChar(100)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  auditLogs         AuditLog[]
+
+  @@index([accountCode])
+  @@index([accountTypeId])
+  @@index([parentAccountId])
+  @@index([isActive])
+}
+
+model JournalEntry {
+  id                Int                @id @default(autoincrement())
+  journalCode       String             @unique @default(cuid())
+  entryDate         DateTime           @default(now())
+  description       String             @db.Text
+
+  sourceModule      String?            @db.VarChar(100)
+  sourceRefId       String?            @db.VarChar(100)
+
+  status            JournalEntryStatus @default(DRAFT)
+  fiscalPeriod      String?            @db.VarChar(50)
+  isAdjustingEntry  Boolean            @default(false)
+  isReversingEntry  Boolean            @default(false)
+
+  lineItems         JournalLineItem[]
+  documentIds       String?            @db.Text
+  remarks           String?            @db.Text
+
+  revenues          Revenue[]          @relation("RevenueJournalEntry")
+  expenses          Expense[]          @relation("ExpenseJournalEntry")
+  payrolls          Payroll[]
+  loans             Loan[]
+  loanPayments      LoanPayment[]
+  refundReplacements RefundReplacement[]
+
+  journalEntryApprovals JournalEntryApproval[]
+
+  preparedBy        String             @db.VarChar(100)
+  approvedBy        String?            @db.VarChar(100)
+  postedBy          String?            @db.VarChar(100)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  auditLogs         AuditLog[]
+
+  @@index([journalCode])
+  @@index([entryDate])
+  @@index([status])
+  @@index([fiscalPeriod])
+}
+
+model JournalEntryApproval {
+  id                Int              @id @default(autoincrement())
+
+  journalEntryId    Int
+  journalEntry      JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  stage             Int              // 1, 2 (multi-level approval)
+  approverRole      ApproverRole
+  approverAction    String           @db.VarChar(50) // APPROVED, REJECTED, PENDING
+  rejectionReason   String?          @db.Text
+  approvedAt        DateTime?
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([journalEntryId, stage])
+  @@index([journalEntryId])
+  @@index([approverRole])
+}
+
+model JournalLineItem {
+  id                Int              @id @default(autoincrement())
+
+  journalEntryId    Int
+  journalEntry      JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  accountId         Int
+  account           ChartOfAccount   @relation(fields: [accountId], references: [id])
+
+  description       String?          @db.Text
+  debitAmount       Decimal          @db.Decimal(15, 2) @default(0)
+  creditAmount      Decimal          @db.Decimal(15, 2) @default(0)
+
+  entityType        String?          @db.VarChar(100)
+  entityId          String?          @db.VarChar(100)
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@index([entityType, entityId])
+}
+
+// ============================================
+// INSTALLMENT SCHEDULE
+// ============================================
+
+model InstallmentSchedule {
+  id                Int       @id @default(autoincrement())
+  scheduleCode      String    @unique @default(cuid())
+
+  type              String    @db.VarChar(50) // "REVENUE", "EXPENSE"
+
+  totalAmount       Decimal   @db.Decimal(15, 2)
+  numberOfPayments  Int
+  paymentAmount     Decimal   @db.Decimal(15, 2)
+  frequency         String    @db.VarChar(50)
+
+  startDate         DateTime
+  endDate           DateTime
+
+  status            InstallmentStatus @default(ACTIVE)
+  interestRate      Decimal?  @db.Decimal(5, 2)
+  totalInterest     Decimal?  @db.Decimal(15, 2)
+
+  revenues          Revenue[]
+  expenses          Expense[]
+  installments      Installment[]
+
+  createdBy         String    @db.VarChar(100)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model Installment {
+  id                Int                  @id @default(autoincrement())
+
+  scheduleId        Int
+  schedule          InstallmentSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  installmentNumber Int
+  dueDate           DateTime
+  amount            Decimal              @db.Decimal(15, 2)
+  paidAmount        Decimal              @db.Decimal(15, 2) @default(0)
+  paidDate          DateTime?
+  status            String               @db.VarChar(50) @default("PENDING")
+
+  principalAmount   Decimal?             @db.Decimal(15, 2)
+  interestAmount    Decimal?             @db.Decimal(15, 2)
+  daysOverdue       Int?                 @default(0)
+
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([scheduleId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+// ============================================
+// ACCOUNTS RECEIVABLE & PAYABLE
+// ============================================
+
+model AccountsReceivable {
+  id                Int       @id @default(autoincrement())
+  arCode            String    @unique @default(cuid())
+
+  debtorName        String    @db.VarChar(150)
+  debtorType        String    @db.VarChar(50)
+  debtorContact     String?   @db.VarChar(100)
+
+  totalAmount       Decimal   @db.Decimal(15, 2)
+  paidAmount        Decimal   @db.Decimal(15, 2) @default(0)
+  balanceAmount     Decimal   @db.Decimal(15, 2)
+
+  invoiceDate       DateTime  @default(now())
+  dueDate           DateTime
+
+  status            String    @db.VarChar(50) @default("PENDING")
+
+  referenceType     String?   @db.VarChar(50)
+  referenceId       String?   @db.VarChar(100)
+
+  revenues          Revenue[]
+  forfeitedDeposits ForfeitedDeposit[]
+
+  agingCategory     String?   @db.VarChar(50)
+  lastPaymentDate   DateTime?
+
+  documentIds       String?   @db.Text
+  remarks           String?   @db.Text
+
+  recordedBy        String    @db.VarChar(100)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([debtorName])
+  @@index([status])
+  @@index([dueDate])
+  @@index([arCode])
+  @@index([agingCategory])
+}
+
+model AccountsPayable {
+  id                Int       @id @default(autoincrement())
+  apCode            String    @unique @default(cuid())
+
+  creditorName      String    @db.VarChar(150)
+  creditorType      String    @db.VarChar(50)
+  creditorContact   String?   @db.VarChar(100)
+  creditorId        String?   @db.VarChar(20)
+
+  totalAmount       Decimal   @db.Decimal(15, 2)
+  paidAmount        Decimal   @db.Decimal(15, 2) @default(0)
+  balanceAmount     Decimal   @db.Decimal(15, 2)
+
+  invoiceDate       DateTime  @default(now())
+  dueDate           DateTime
+
+  status            String    @db.VarChar(50) @default("PENDING")
+
+  referenceType     String?   @db.VarChar(50)
+  referenceId       String?   @db.VarChar(100)
+
+  expenses          Expense[]
+
+  agingCategory     String?   @db.VarChar(50)
+  lastPaymentDate   DateTime?
+
+  documentIds       String?   @db.Text
+  remarks           String?   @db.Text
+
+  recordedBy        String    @db.VarChar(100)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([creditorName])
+  @@index([status])
+  @@index([dueDate])
+  @@index([apCode])
+  @@index([creditorId])
+}
+
+// ============================================
+// SUPPORTING FINANCIAL MODELS
+// ============================================
+
+model ForfeitedDeposit {
+  id                Int                   @id @default(autoincrement())
+  depositCode       String                @unique @default(cuid())
+
+  bookingId         String                @db.VarChar(20)
+  bookingType       String                @db.VarChar(50)
+
+  customerName      String                @db.VarChar(150)
+  customerContact   String?               @db.VarChar(100)
+
+  originalDeposit   Decimal               @db.Decimal(15, 2)
+  forfeitedAmount   Decimal               @db.Decimal(15, 2)
+  forfeitedDate     DateTime              @default(now())
+
+  reason            String                @db.Text
+  status            ForfeitedDepositStatus @default(PENDING)
+
+  arId              Int?
+  accountsReceivable AccountsReceivable? @relation(fields: [arId], references: [id], map: "ForfeitedDeposit_arId_fkey")
+
+  convertedRevenueId Int?
+  convertedRevenue  Revenue?            @relation("ForfeitedDepositRevenue", fields: [convertedRevenueId], references: [id], map: "ForfeitedDeposit_convertedRevenueId_fkey")
+
+  documentIds       String?               @db.Text
+
+  recordedBy        String                @db.VarChar(100)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([bookingId])
+  @@index([forfeitedDate])
+  @@index([status])
+}
+
+model RenterDamage {
+  id                Int       @id @default(autoincrement())
+  damageCode        String    @unique @default(cuid())
+
+  rentalId          String    @db.VarChar(20)
+  renterName        String    @db.VarChar(150)
+  renterContact     String?   @db.VarChar(100)
+
+  busPlateNumber    String?   @db.VarChar(20)
+  bodyNumber        String?   @db.VarChar(20)
+
+  damageDescription String    @db.Text
+  damageDate        DateTime
+
+  repairCost        Decimal   @db.Decimal(15, 2)
+  amountCharged     Decimal   @db.Decimal(15, 2)
+  amountPaid        Decimal   @db.Decimal(15, 2) @default(0)
+  balanceAmount     Decimal   @db.Decimal(15, 2)
+
+  expenseId         Int?
+  revenueId         Int?
+
+  status            String    @db.VarChar(50) @default("PENDING")
+  disputedAmount    Decimal?  @db.Decimal(15, 2)
+  paymentRevenueId  Int?
+
+  documentIds       String?   @db.Text
+  remarks           String?   @db.Text
+
+  recordedBy        String    @db.VarChar(100)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([rentalId])
+  @@index([status])
+  @@index([damageDate])
+}
+
+model DisposalSale {
+  id                Int       @id @default(autoincrement())
+  disposalCode      String    @unique @default(cuid())
+
+  disposalId        String    @db.VarChar(20)
+  disposalType      String    @db.VarChar(50)
+
+  itemDescription   String    @db.VarChar(255)
+
+  saleAmount        Decimal   @db.Decimal(15, 2)
+  saleDate          DateTime  @default(now())
+  buyerName         String?   @db.VarChar(150)
+  buyerContact      String?   @db.VarChar(100)
+
+  revenueId         Int?
+
+  documentIds       String?   @db.Text
+  remarks           String?   @db.Text
+
+  recordedBy        String    @db.VarChar(100)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([disposalId])
+  @@index([saleDate])
+}
+
+// ============================================
+// SUPPLIER PERFORMANCE
+// ============================================
+
+model SupplierPerformance {
+  id                  Int       @id @default(autoincrement())
+  supplierId          String    @unique @db.VarChar(20)
+  supplierName        String    @db.VarChar(150)
+
+  failedRefunds       Int       @default(0)
+  failedReplacements  Int       @default(0)
+  riskLevel           String    @db.VarChar(50) @default("LOW")
+
+  isBlockedFromOrders Boolean   @default(false)
+  blockedSince        DateTime?
+  blockedReason       String?   @db.Text
+
+  lastFlaggedAt       DateTime?
+  flaggedBy           String?   @db.VarChar(100)
+
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([supplierId])
+  @@index([riskLevel])
+  @@index([isBlockedFromOrders])
+}
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+
+model AuditLog {
+  id                  Int       @id @default(autoincrement())
+
+  userId              String    @db.VarChar(100)
+  userName            String    @db.VarChar(100)
+  userDepartment      String?   @db.VarChar(100)
+
+  action              AuditAction
+  module              String    @db.VarChar(100)
+  recordId            Int?
+  recordType          String?   @db.VarChar(100)
+
+  beforeData          Json?
+  afterData           Json?
+
+  description         String?   @db.Text
+  ipAddress           String?   @db.VarChar(50)
+  userAgent           String?   @db.VarChar(255)
+  sessionId           String?   @db.VarChar(100)
+
+  timestamp           DateTime  @default(now())
+
+  revenueId           Int?
+  revenue             Revenue?            @relation(fields: [revenueId], references: [id])
+
+  expenseId           Int?
+  expense             Expense?            @relation(fields: [expenseId], references: [id])
+
+  reimbursementId     Int?
+  reimbursement       Reimbursement?      @relation(fields: [reimbursementId], references: [id])
+
+  refundReplacementId Int?
+  refundReplacement   RefundReplacement?  @relation(fields: [refundReplacementId], references: [id])
+
+  payrollId           Int?
+  payroll             Payroll?            @relation(fields: [payrollId], references: [id])
+
+  loanId              Int?
+  loan                Loan?               @relation(fields: [loanId], references: [id])
+
+  loanPaymentId       Int?
+  loanPayment         LoanPayment?        @relation(fields: [loanPaymentId], references: [id])
+
+  budgetAllocationId  Int?
+  budgetAllocation    BudgetAllocation?   @relation(fields: [budgetAllocationId], references: [id])
+
+  budgetRequestId     Int?
+  budgetRequest       BudgetRequest?      @relation(fields: [budgetRequestId], references: [id])
+
+  chartOfAccountId    Int?
+  chartOfAccount      ChartOfAccount?     @relation(fields: [chartOfAccountId], references: [id])
+
+  journalEntryId      Int?
+  journalEntry        JournalEntry?       @relation(fields: [journalEntryId], references: [id])
+
+  financialReportId   Int?
+  financialReport     FinancialReport?    @relation(fields: [financialReportId], references: [id])
+
+  @@index([userId])
+  @@index([module])
+  @@index([timestamp])
+  @@index([action])
+  @@index([userDepartment])
+}
+
+// ============================================
+// GLOBAL SETTINGS & CONFIGURATION
+// ============================================
+
+model SystemConfiguration {
+  id                Int       @id @default(autoincrement())
+  configKey         String    @unique @db.VarChar(100)
+  configValue       String    @db.Text
+  configType        String    @db.VarChar(50) // "STRING", "NUMBER", "BOOLEAN", "JSON"
+  description       String?   @db.Text
+
+  createdBy         String    @db.VarChar(100)
+  updatedBy         String?   @db.VarChar(100)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([configKey])
+}
+
+// ============================================
+// FINANCIAL REPORTS METADATA
+// ============================================
+
+model FinancialReport {
+  id                Int       @id @default(autoincrement())
+  reportCode        String    @unique @default(cuid())
+  reportType        String    @db.VarChar(100) // REVENUE, EXPENSE, PAYROLL, LOAN, BUDGET, BALANCE_SHEET, INCOME_STATEMENT, CASH_FLOW
+  reportName        String    @db.VarChar(150)
+
+  periodStart       DateTime
+  periodEnd         DateTime
+  department        String?   @db.VarChar(100)
+  category          String?   @db.VarChar(100)
+  filters           Json?
+
+  fileUrl           String?   @db.Text
+  fileFormat        String?   @db.VarChar(50)
+
+  status            String    @db.VarChar(50) @default("GENERATED")
+
+  totalRecords      Int?
+  totalAmount       Decimal?  @db.Decimal(15, 2)
+
+  templateId        String?   @db.VarChar(100)
+  isScheduled       Boolean   @default(false)
+  scheduleFrequency String?   @db.VarChar(50)
+
+  generatedBy       String    @db.VarChar(100)
+  exportedBy        String?   @db.VarChar(100)
+  generatedAt       DateTime  @default(now())
+  exportedAt        DateTime?
+
+  auditLogs         AuditLog[]
+
+  @@index([reportType])
+  @@index([periodStart, periodEnd])
+  @@index([generatedAt])
+  @@index([isScheduled])
+}
+
+// ============================================
+// DASHBOARD METRICS CACHE
+// ============================================
+
+model DashboardMetric {
+  id                Int       @id @default(autoincrement())
+  metricKey         String    @unique @db.VarChar(100)
+  metricName        String    @db.VarChar(150)
+  metricValue       Decimal   @db.Decimal(15, 2)
+  metricType        String    @db.VarChar(50)
+
+  periodType        String    @db.VarChar(50)
+  calculatedAt      DateTime  @default(now())
+
+  metadata          Json?
+
+  updatedAt         DateTime  @updatedAt
+
+  @@index([metricKey])
+  @@index([metricType])
+  @@index([periodType])
+  @@index([calculatedAt])
+}
+
+// ============================================
+// NOTIFICATIONS & ALERTS
+// ============================================
+
+model FinanceNotification {
+  id                    Int       @id @default(autoincrement())
+  notificationType      String    @db.VarChar(100)
+  title                 String    @db.VarChar(255)
+  message               String    @db.Text
+
+  recipientUserId       String    @db.VarChar(100)
+  recipientUserName     String    @db.VarChar(100)
+  recipientDepartment   String?   @db.VarChar(100)
+
+  relatedModule         String?   @db.VarChar(100)
+  relatedRecordId       Int?
+
+  isRead                Boolean   @default(false)
+  readAt                DateTime?
+
+  priority              String    @db.VarChar(50) @default("NORMAL")
+
+  expiresAt             DateTime?
+  actionUrl             String?   @db.Text
+
+  createdAt             DateTime  @default(now())
+
+  @@index([recipientUserId])
+  @@index([isRead])
+  @@index([notificationType])
+  @@index([createdAt])
+  @@index([recipientDepartment])
+}
+
+// ============================================
+// ATTACHED DOCUMENTS (Version Control)
+// ============================================
+
+model AttachedDocument {
+  id              Int       @id @default(autoincrement())
+  documentId      String    @unique @default(cuid())
+  documentUrl     String    @db.Text
+  documentName    String    @db.VarChar(255)
+  documentType    String    @db.VarChar(50) // INVOICE, RECEIPT, CONTRACT, REFUND_SLIP, APPROVAL, etc.
+
+  relatedModule   String    @db.VarChar(100) // EXPENSE, REVENUE, PAYROLL, REFUND_REQUEST, etc.
+  relatedRecordId Int
+
+  uploadedBy      String    @db.VarChar(100)
+  uploadedAt      DateTime  @default(now())
+  version         Int       @default(1)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([documentId])
+  @@index([relatedModule, relatedRecordId])
+  @@index([documentType])
+}
+
+// ============================================
+// END OF SCHEMA
+// ============================================

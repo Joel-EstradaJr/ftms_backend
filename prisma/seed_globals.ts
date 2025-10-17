@@ -2,251 +2,232 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function clearDynamicGlobals() {
-  // Delete module links first, then global records
-  await prisma.$transaction([
-    prisma.modulePaymentMethod.deleteMany(),
-    prisma.moduleTerms.deleteMany(),
-    prisma.moduleSource.deleteMany(),
-    prisma.moduleCategory.deleteMany(),
-    // Newly added module link tables
-    (prisma as any).moduleReimbursementStatus.deleteMany(),
-    (prisma as any).moduleFrequency.deleteMany(),
-    (prisma as any).modulePayrollStatus.deleteMany(),
-    (prisma as any).moduleScheduleType.deleteMany(),
-    (prisma as any).moduleInstallmentStatus.deleteMany(),
-  ]);
-
-  await prisma.$transaction([
-    prisma.globalPaymentMethod.deleteMany(),
-    prisma.globalTerms.deleteMany(),
-    prisma.globalSource.deleteMany(),
-    prisma.globalCategory.deleteMany(),
-    // Newly added global tables
-    (prisma as any).globalReimbursementStatus.deleteMany(),
-    (prisma as any).globalFrequency.deleteMany(),
-    (prisma as any).globalPayrollStatus.deleteMany(),
-    (prisma as any).globalScheduleType.deleteMany(),
-    (prisma as any).globalInstallmentStatus.deleteMany(),
-  ]);
-}
-
-async function seedCategories() {
-  const expenseCategories = ['Fuel', 'Payroll', 'Equipments', 'Consumables', 'Service', 'Tools'];
-  const revenueCategories = ['Percentage', 'Boundary', 'Bus Rental', 'Advertising', 'Donations'];
-
-  const all = Array.from(new Set([...expenseCategories, ...revenueCategories]));
-  const nameToId = new Map<string, string>();
-
-  for (const name of all) {
-    const cat = await prisma.globalCategory.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
-    });
-    nameToId.set(name, (cat as any).id);
-  }
-
-  const linkData: { module_name: string; category_id: string }[] = [];
-  for (const name of expenseCategories) linkData.push({ module_name: 'expense', category_id: nameToId.get(name)! });
-  for (const name of revenueCategories) linkData.push({ module_name: 'revenue', category_id: nameToId.get(name)! });
-  if (linkData.length) await prisma.moduleCategory.createMany({ data: linkData, skipDuplicates: true });
-
-  return { categories: all, links: linkData };
-}
-
-async function seedSources() {
-  const sources = ['Cash', 'Reimbursement', 'RenterDamage'];
-  const nameToId = new Map<string, string>();
-
-  for (const name of sources) {
-    const src = await prisma.globalSource.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
-    });
-    nameToId.set(name, (src as any).id);
-  }
-
-  const linkData = Array.from(nameToId.values()).map((id) => ({ module_name: 'expense', source_id: id }));
-  if (linkData.length) await prisma.moduleSource.createMany({ data: linkData, skipDuplicates: true });
-
-  return { sources, links: linkData };
-}
-
-async function seedTerms() {
-  const terms = ['Installment', 'Cash', 'Net 15', 'Net 30', 'Net 60', 'Net 90'];
-  const nameToId = new Map<string, string>();
-
-  for (const name of terms) {
-    const t = await prisma.globalTerms.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
-    });
-    nameToId.set(name, t.id);
-  }
-
-  const linkData = Array.from(nameToId.values()).map((id) => ({ module_name: 'expense', terms_id: id }));
-  if (linkData.length) await prisma.moduleTerms.createMany({ data: linkData, skipDuplicates: true });
-
-  return { terms, links: linkData };
+async function clearDynamicEnums() {
+  console.log('Clearing existing dynamic enum data...');
+  // Clear all dynamic enum tables in order (respecting foreign key constraints)
+  await prisma.budgetRequestStatus.deleteMany();
+  await prisma.budgetRequestType.deleteMany();
+  await prisma.revenueSource.deleteMany();
+  await prisma.expenseCategory.deleteMany();
+  await prisma.accountType.deleteMany();
+  await prisma.loanPaymentFrequencyType.deleteMany();
+  await prisma.budgetPeriodType.deleteMany();
+  await prisma.paymentMethod.deleteMany();
+  console.log('Cleared existing data.');
 }
 
 async function seedPaymentMethods() {
-  const methods = ['Cash', 'GCash', 'Credit Card', 'Check'];
-  const nameToId = new Map<string, string>();
+  console.log('Seeding PaymentMethod...');
+  const methods = [
+    { methodCode: 'CASH', methodName: 'Cash', description: 'Physical currency payment' },
+    { methodCode: 'GCASH', methodName: 'GCash', description: 'Digital wallet payment via GCash' },
+    { methodCode: 'PAYMAYA', methodName: 'PayMaya', description: 'Digital wallet payment via PayMaya' },
+    { methodCode: 'BANK_TRANSFER', methodName: 'Bank Transfer', description: 'Direct bank account transfer' },
+    { methodCode: 'CHECK', methodName: 'Check', description: 'Payment via cheque' },
+    { methodCode: 'CREDIT_CARD', methodName: 'Credit Card', description: 'Credit card payment' },
+  ];
 
-  for (const name of methods) {
-    const pm = await prisma.globalPaymentMethod.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
+  for (const method of methods) {
+    await prisma.paymentMethod.upsert({
+      where: { methodCode: method.methodCode },
+      update: { ...method, isActive: true },
+      create: method,
     });
-    nameToId.set(name, pm.id);
   }
-
-  const linkDataExpense = Array.from(nameToId.values()).map((id) => ({ module_name: 'expense', payment_method_id: id }));
-  const linkDataRevenue = Array.from(nameToId.values()).map((id) => ({ module_name: 'revenue', payment_method_id: id }));
-  const linkData = [...linkDataExpense, ...linkDataRevenue];
-  if (linkData.length) await prisma.modulePaymentMethod.createMany({ data: linkData, skipDuplicates: true });
-
-  return { methods, links: linkData };
+  console.log(`✓ PaymentMethod: ${methods.length} records`);
+  return methods.length;
 }
 
-async function seedPaymentStatuses() {
-  const statuses = ['Paid', 'Pending', 'Due', 'Overdue'];
-  const created = [] as string[];
-  for (const name of statuses) {
-    const ps = await prisma.globalPaymentStatus.upsert({
-      where: { name },
-      update: { applicable_modules: ['expense', 'revenue'] },
-      create: { name, applicable_modules: ['expense', 'revenue'] },
+async function seedBudgetPeriodTypes() {
+  console.log('Seeding BudgetPeriodType...');
+  const periods = [
+    { periodCode: 'DAILY', periodName: 'Daily', description: 'Budget allocated per day' },
+    { periodCode: 'WEEKLY', periodName: 'Weekly', description: 'Budget allocated per week (7 days)' },
+    { periodCode: 'BI_WEEKLY', periodName: 'Bi-Weekly', description: 'Budget allocated per 2 weeks (14 days)' },
+    { periodCode: 'SEMI_MONTHLY', periodName: 'Semi-Monthly', description: 'Budget allocated twice per month (15 days)' },
+    { periodCode: 'MONTHLY', periodName: 'Monthly', description: 'Budget allocated per month (30 days)' },
+    { periodCode: 'QUARTERLY', periodName: 'Quarterly', description: 'Budget allocated per quarter (90 days)' },
+    { periodCode: 'YEARLY', periodName: 'Yearly', description: 'Budget allocated per year (365 days)' },
+    { periodCode: 'CUSTOM', periodName: 'Custom', description: 'Budget allocated for custom period (user-defined)' },
+  ];
+
+  for (const period of periods) {
+    await prisma.budgetPeriodType.upsert({
+      where: { periodCode: period.periodCode },
+      update: { ...period, isActive: true },
+      create: period,
     });
-    created.push(ps.id);
   }
-  return { statuses, ids: created };
+  console.log(`✓ BudgetPeriodType: ${periods.length} records`);
+  return periods.length;
 }
 
-async function seedInstallmentStatuses() {
-  const statuses = ['Pending', 'Partial', 'Paid', 'Overpaid', 'Late'];
-  const nameToId = new Map<string, string>();
+async function seedLoanPaymentFrequencyTypes() {
+  console.log('Seeding LoanPaymentFrequencyType...');
+  const frequencies = [
+    { frequencyCode: 'DAILY', frequencyName: 'Daily', description: 'Payment due every day', daysInterval: 1 },
+    { frequencyCode: 'WEEKLY', frequencyName: 'Weekly', description: 'Payment due every week', daysInterval: 7 },
+    { frequencyCode: 'BI_WEEKLY', frequencyName: 'Bi-Weekly', description: 'Payment due every 2 weeks', daysInterval: 14 },
+    { frequencyCode: 'SEMI_MONTHLY', frequencyName: 'Semi-Monthly', description: 'Payment due twice per month', daysInterval: 15 },
+    { frequencyCode: 'MONTHLY', frequencyName: 'Monthly', description: 'Payment due every month', daysInterval: 30 },
+  ];
 
-  for (const name of statuses) {
-    const s = await (prisma as any).globalInstallmentStatus.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
+  for (const freq of frequencies) {
+    await prisma.loanPaymentFrequencyType.upsert({
+      where: { frequencyCode: freq.frequencyCode },
+      update: { ...freq, isActive: true },
+      create: freq,
     });
-    nameToId.set(name, s.id);
   }
-
-  const links = Array.from(nameToId.values()).map((id) => ({ module_name: 'revenue', installment_status_id: id }));
-  if (links.length) await (prisma as any).moduleInstallmentStatus.createMany({ data: links, skipDuplicates: true });
-  return { statuses, links };
+  console.log(`✓ LoanPaymentFrequencyType: ${frequencies.length} records`);
+  return frequencies.length;
 }
 
-async function seedScheduleTypes() {
-  const types = ['None', 'Daily', 'Weekly', 'Semi-monthly', 'Monthly'];
-  const nameToId = new Map<string, string>();
+async function seedAccountTypes() {
+  console.log('Seeding AccountType...');
+  const types = [
+    { typeCode: 'ASSET', typeName: 'Asset', normalBalance: 'DEBIT', description: 'Balance sheet accounts for company resources' },
+    { typeCode: 'LIABILITY', typeName: 'Liability', normalBalance: 'CREDIT', description: 'Balance sheet accounts for company obligations' },
+    { typeCode: 'EQUITY', typeName: 'Equity', normalBalance: 'CREDIT', description: 'Balance sheet accounts for owner\'s stake' },
+    { typeCode: 'REVENUE', typeName: 'Revenue', normalBalance: 'CREDIT', description: 'Income statement accounts for company income' },
+    { typeCode: 'EXPENSE', typeName: 'Expense', normalBalance: 'DEBIT', description: 'Income statement accounts for company costs' },
+  ];
 
-  for (const name of types) {
-    const t = await (prisma as any).globalScheduleType.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
+  for (const type of types) {
+    await prisma.accountType.upsert({
+      where: { typeCode: type.typeCode },
+      update: { ...type, isActive: true },
+      create: type,
     });
-    nameToId.set(name, t.id);
   }
-
-  const links = Array.from(nameToId.values()).map((id) => ({ module_name: 'revenue', schedule_type_id: id }));
-  if (links.length) await (prisma as any).moduleScheduleType.createMany({ data: links, skipDuplicates: true });
-  return { types, links };
+  console.log(`✓ AccountType: ${types.length} records`);
+  return types.length;
 }
 
-async function seedPayrollStatuses() {
-  const statuses = ['Draft', 'Pending', 'Validated', 'Paid'];
-  const nameToId = new Map<string, string>();
-  for (const name of statuses) {
-    const s = await (prisma as any).globalPayrollStatus.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
+async function seedExpenseCategories() {
+  console.log('Seeding ExpenseCategory...');
+  const categories = [
+    { categoryCode: 'PAYROLL', name: 'Payroll', description: 'Employee salaries and wages', department: 'Operations' },
+    { categoryCode: 'FUEL', name: 'Fuel', description: 'Bus fuel and diesel expenses', department: 'Operations' },
+    { categoryCode: 'MAINTENANCE', name: 'Maintenance', description: 'Bus repair and upkeep', department: 'Operations' },
+    { categoryCode: 'UTILITIES', name: 'Utilities', description: 'Electricity, water, communications', department: 'Finance' },
+    { categoryCode: 'OFFICE_SUPPLIES', name: 'Office Supplies', description: 'Stationery and office materials', department: 'Finance' },
+    { categoryCode: 'RENT', name: 'Rent', description: 'Office and facility rental', department: 'Finance' },
+    { categoryCode: 'INSURANCE', name: 'Insurance', description: 'Vehicle and liability insurance', department: 'Finance' },
+    { categoryCode: 'TOLL_FEES', name: 'Toll Fees', description: 'Highway and toll charges', department: 'Operations' },
+    { categoryCode: 'VEHICLE_PARTS', name: 'Vehicle Parts', description: 'Replacement parts for buses', department: 'Operations' },
+    { categoryCode: 'CLEANING', name: 'Cleaning', description: 'Vehicle and facility cleaning', department: 'Operations' },
+  ];
+
+  for (const category of categories) {
+    await prisma.expenseCategory.upsert({
+      where: { categoryCode: category.categoryCode },
+      update: { ...category, isActive: true },
+      create: category,
     });
-    nameToId.set(name, s.id);
   }
-  const links = Array.from(nameToId.values()).map((id) => ({ module_name: 'payroll', payroll_status_id: id }));
-  if (links.length) await (prisma as any).modulePayrollStatus.createMany({ data: links, skipDuplicates: true });
-  return { statuses, links };
+  console.log(`✓ ExpenseCategory: ${categories.length} records`);
+  return categories.length;
 }
 
-async function seedFrequencies() {
-  const frequencies = ['Weekly', 'Semi-monthly', 'Monthly'];
-  const nameToId = new Map<string, string>();
-  for (const name of frequencies) {
-    const f = await (prisma as any).globalFrequency.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
+async function seedRevenueSources() {
+  console.log('Seeding RevenueSource...');
+  const sources = [
+    { sourceCode: 'BUS_TRIP', name: 'Bus Trip Revenue', description: 'Revenue from regular bus operations' },
+    { sourceCode: 'RENTAL', name: 'Bus Rental', description: 'Revenue from bus rental services' },
+    { sourceCode: 'DISPOSAL', name: 'Disposal Sales', description: 'Revenue from asset disposal or scrap sales' },
+    { sourceCode: 'LOAN_REPAYMENT', name: 'Employee Loan Repayment', description: 'Repayment from employee loans' },
+    { sourceCode: 'RENTER_DAMAGE', name: 'Renter Damage Payment', description: 'Penalty/reimbursement for renter damage' },
+    { sourceCode: 'FORFEITED_DEPOSIT', name: 'Forfeited Deposit', description: 'Non-refundable deposits from cancellations' },
+    { sourceCode: 'MISCELLANEOUS', name: 'Miscellaneous', description: 'Other income sources' },
+  ];
+
+  for (const source of sources) {
+    await prisma.revenueSource.upsert({
+      where: { sourceCode: source.sourceCode },
+      update: { ...source, isActive: true },
+      create: source,
     });
-    nameToId.set(name, f.id);
   }
-  const links = Array.from(nameToId.values()).map((id) => ({ module_name: 'payroll', frequency_id: id }));
-  if (links.length) await (prisma as any).moduleFrequency.createMany({ data: links, skipDuplicates: true });
-  return { frequencies, links };
+  console.log(`✓ RevenueSource: ${sources.length} records`);
+  return sources.length;
 }
 
-async function seedReimbursementStatuses() {
-  const statuses = ['Pending', 'Approved', 'Rejected', 'Paid', 'Cancelled'];
-  const nameToId = new Map<string, string>();
-  for (const name of statuses) {
-    const s = await (prisma as any).globalReimbursementStatus.upsert({
-      where: { name },
-      update: { is_active: true, is_deleted: false },
-      create: { name },
+async function seedBudgetRequestTypes() {
+  console.log('Seeding BudgetRequestType...');
+  const types = [
+    { typeCode: 'SHORTAGE', name: 'Budget Shortage', description: 'Request for additional funds due to insufficient budget', priority: 1 },
+    { typeCode: 'URGENT', name: 'Urgent Purchase', description: 'Request for immediate budget allocation for urgent needs', priority: 3 },
+    { typeCode: 'NEW_PROJECT', name: 'New Project', description: 'Request for new project-related budget allocation', priority: 2 },
+    { typeCode: 'SEASONAL', name: 'Seasonal Adjustment', description: 'Request for seasonal budget adjustment', priority: 1 },
+    { typeCode: 'EMERGENCY', name: 'Emergency', description: 'Request for emergency fund allocation', priority: 4 },
+  ];
+
+  for (const type of types) {
+    await prisma.budgetRequestType.upsert({
+      where: { typeCode: type.typeCode },
+      update: { ...type, isActive: true },
+      create: type,
     });
-    nameToId.set(name, s.id);
   }
-  const links = Array.from(nameToId.values()).map((id) => ({ module_name: 'reimbursement', reimbursement_status_id: id }));
-  if (links.length) await (prisma as any).moduleReimbursementStatus.createMany({ data: links, skipDuplicates: true });
-  return { statuses, links };
+  console.log(`✓ BudgetRequestType: ${types.length} records`);
+  return types.length;
+}
+
+async function seedBudgetRequestStatuses() {
+  console.log('Seeding BudgetRequestStatus...');
+  const statuses = [
+    { statusCode: 'PENDING', name: 'Pending', description: 'Awaiting review and approval' },
+    { statusCode: 'APPROVED', name: 'Approved', description: 'Budget request approved and funds reserved' },
+    { statusCode: 'REJECTED', name: 'Rejected', description: 'Budget request denied' },
+    { statusCode: 'REVISED', name: 'Revised', description: 'Budget request revised and resubmitted' },
+  ];
+
+  for (const status of statuses) {
+    await prisma.budgetRequestStatus.upsert({
+      where: { statusCode: status.statusCode },
+      update: { ...status, isActive: true },
+      create: status,
+    });
+  }
+  console.log(`✓ BudgetRequestStatus: ${statuses.length} records`);
+  return statuses.length;
 }
 
 async function main() {
-  await clearDynamicGlobals();
+  console.log('🌱 Starting seed process...\n');
 
-  const [catRes, srcRes, termRes, pmRes, psRes] = await Promise.all([
-    seedCategories(),
-    seedSources(),
-    seedTerms(),
+  await clearDynamicEnums();
+  console.log('');
+
+  const results = await Promise.all([
     seedPaymentMethods(),
-    seedPaymentStatuses(),
+    seedBudgetPeriodTypes(),
+    seedLoanPaymentFrequencyTypes(),
+    seedAccountTypes(),
+    seedExpenseCategories(),
+    seedRevenueSources(),
+    seedBudgetRequestTypes(),
+    seedBudgetRequestStatuses(),
   ]);
 
-  const [instRes, schedRes, pstatRes, freqRes, reimbRes] = await Promise.all([
-    seedInstallmentStatuses(),
-    seedScheduleTypes(),
-    seedPayrollStatuses(),
-    seedFrequencies(),
-    seedReimbursementStatuses(),
-  ]);
-
-  console.log('Seeding completed:');
-  console.log(`  Categories: ${catRes.categories.length}, Links: ${catRes.links.length}`);
-  console.log(`  Sources: ${srcRes.sources.length}, Links: ${srcRes.links.length}`);
-  console.log(`  Terms: ${termRes.terms.length}, Links: ${termRes.links.length}`);
-  console.log(`  Payment Methods: ${pmRes.methods.length}, Links: ${pmRes.links.length}`);
-  console.log(`  Payment Statuses: ${psRes.statuses.length}`);
-  console.log(`  Installment Statuses: ${instRes.statuses.length}, Links: ${instRes.links.length}`);
-  console.log(`  Schedule Types: ${schedRes.types.length}, Links: ${schedRes.links.length}`);
-  console.log(`  Payroll Statuses: ${pstatRes.statuses.length}, Links: ${pstatRes.links.length}`);
-  console.log(`  Frequencies: ${freqRes.frequencies.length}, Links: ${freqRes.links.length}`);
-  console.log(`  Reimbursement Statuses: ${reimbRes.statuses.length}, Links: ${reimbRes.links.length}`);
+  console.log('\n✅ Seeding completed successfully!');
+  console.log('═'.repeat(50));
+  console.log('Summary:');
+  console.log(`  • PaymentMethod: ${results[0]} records`);
+  console.log(`  • BudgetPeriodType: ${results[1]} records`);
+  console.log(`  • LoanPaymentFrequencyType: ${results[2]} records`);
+  console.log(`  • AccountType: ${results[3]} records`);
+  console.log(`  • ExpenseCategory: ${results[4]} records`);
+  console.log(`  • RevenueSource: ${results[5]} records`);
+  console.log(`  • BudgetRequestType: ${results[6]} records`);
+  console.log(`  • BudgetRequestStatus: ${results[7]} records`);
+  console.log('═'.repeat(50));
 }
 
 main()
   .catch((e) => {
-    console.error('Seeding error:', e);
+    console.error('❌ Seeding error:', e);
     process.exit(1);
   })
   .finally(async () => {
