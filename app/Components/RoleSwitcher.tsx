@@ -19,7 +19,15 @@ const RoleSwitcher: React.FC = () => {
     <div className="role-switcher">
       <div className="current-role">
         <span className={`role-badge ${userRole}`}>
-          {userRole === 'admin' ? '👨‍💼 Admin' : '👩‍💻 Staff'}
+          {userRole === 'admin' ? (
+            <>
+              <i className="ri-admin-line"></i> Admin
+            </>
+          ) : (
+            <>
+              <i className="ri-user-line"></i> Staff
+            </>
+          )}
         </span>
       </div>
       
@@ -33,7 +41,7 @@ const RoleSwitcher: React.FC = () => {
         </Link>
         <span className="separator">|</span>
         <Link href="/" className="home-link" title="Back to role selection">
-          🏠 Home
+          Home
         </Link>
       </div>
 
@@ -56,11 +64,11 @@ const RoleSwitcher: React.FC = () => {
         }
 
         .role-badge.admin {
-          background: linear-gradient(45deg, #e53e3e, #c53030);
+          background: var(--primary-color);
         }
 
         .role-badge.staff {
-          background: linear-gradient(45deg, #38a169, #2f855a);
+          background: var(--secondary-color);
         }
 
         .switch-role {
