@@ -310,14 +310,14 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "jev-management" && (
             <div className="sub-menu active">
               <Link
-                href="/jev/chart-of-accounts"
+                href={getUrl("/jev/chart-of-accounts")}
                 className={`sub-item ${activeItem === "chart-of-accounts" ? "active" : ""}`}
                 onClick={() => setActiveItem("chart-of-accounts")}
               >
                 Chart of Accounts
               </Link>
               <Link
-                href="/jev/journal-entries"
+                href={getUrl("/jev/journal-entries")}
                 className={`sub-item ${activeItem === "journal-entries" ? "active" : ""}`}
                 onClick={() => setActiveItem("journal-entries")}
               >

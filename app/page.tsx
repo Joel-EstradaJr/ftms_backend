@@ -12,28 +12,16 @@ export default function Home() {
         </div>
         
         <div className="role-cards">
-          <div className="role-card admin-card">
-            <div className="role-icon">👨‍💼</div>
+          <div className="role-card admin-card" onClick={() => window.location.href = '/admin/dashboard'}>
+            <div className="role-icon"><i className="ri-user-settings-fill"/></div>
             <h2>Administrator</h2>
             <p>Full access to all system features including user management, reports, and system configuration.</p>
-            <button 
-              onClick={() => window.location.href = '/admin/dashboard'}
-              className="role-button admin-button"
-            >
-              Enter as Admin
-            </button>
           </div>
           
-          <div className="role-card staff-card">
-            <div className="role-icon">👩‍💻</div>
+          <div className="role-card staff-card" onClick={() => window.location.href = '/staff/dashboard'}>
+            <div className="role-icon"><i className="ri-nurse-fill"/></div>
             <h2>Staff Member</h2>
             <p>Access to daily operations including transactions, expenses, and basic reporting features.</p>
-            <button 
-              onClick={() => window.location.href = '/staff/dashboard'}
-              className="role-button staff-button"
-            >
-              Enter as Staff
-            </button>
           </div>
         </div>
       </div>
@@ -41,7 +29,7 @@ export default function Home() {
       <style jsx>{`
         .role-selection-page {
           min-height: 100vh;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: var(--primary-color);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -84,6 +72,7 @@ export default function Home() {
           grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
           gap: 30px;
           margin-top: 40px;
+          cursor: pointer;
         }
         
         .role-card {
@@ -100,11 +89,11 @@ export default function Home() {
         }
         
         .admin-card:hover {
-          border-color: #e53e3e;
+          border-color: var(--primary-color);
         }
         
         .staff-card:hover {
-          border-color: #38a169;
+          border-color: var(--secondary-color);
         }
         
         .role-icon {
@@ -136,21 +125,21 @@ export default function Home() {
         }
         
         .admin-button {
-          background: #e53e3e;
+          background:  var(--primary-color);
           color: white;
         }
         
         .admin-button:hover {
-          background: #c53030;
+          background: var(--primary-hover-color);
         }
         
         .staff-button {
-          background: #38a169;
+          background: var(--secondary-color);
           color: white;
         }
         
         .staff-button:hover {
-          background: #2f855a;
+          background: var(--secondary-hover-color);
         }
         
         @media (max-width: 768px) {
