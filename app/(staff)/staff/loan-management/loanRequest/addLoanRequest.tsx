@@ -271,7 +271,7 @@ const AddLoanRequestModal: React.FC<AddLoanRequestProps> = ({
       }
       
       // Calculate payment date based on schedule type
-      let paymentDate = new Date(debouncedStartDate);
+      const paymentDate = new Date(debouncedStartDate);
       if (paymentScheduleType === PaymentScheduleType.DAILY) {
         paymentDate.setDate(paymentDate.getDate() + i);
       } else if (paymentScheduleType === PaymentScheduleType.WEEKLY) {

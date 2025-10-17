@@ -1,0 +1,10 @@
+/* ==================== EDIT ACCOUNT MODAL STYLES ==================== */
+
+/* Inherits from addAccount.css */
+@import './addAccount.css';
+
+.editAccountModal {
+  max-width: 800px !important;
+}
+
+/* Override specific styles for edit modal if needed */

@@ -1,0 +1,221 @@
+/* ==================== VIEW ACCOUNT MODAL STYLES ==================== */
+
+.viewAccountModal {
+  max-width: 1000px !important;
+}
+
+.viewAccountContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Account Header Section */
+.account-header-section {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+  border-radius: 8px;
+  color: #FFFFFF;
+}
+
+.account-code-display h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  color: #FFFFFF;
+}
+
+.account-code-display h3 {
+  font-size: 1.25rem;
+  font-weight: 400;
+  margin: 0 0 1rem 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.account-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.account-badges .chip {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.account-balance-display {
+  text-align: right;
+}
+
+.balance-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-bottom: 0.5rem;
+}
+
+.balance-amount {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.balance-amount.negative {
+  color: #ffcccc !important;
+}
+
+/* Details Grid */
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.detail-section {
+  background-color: var(--modal-content-background-color);
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.detail-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--border-color);
+  color: var(--primary-color);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--table-row-border-bottom);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row.full-width {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.detail-label {
+  color: var(--secondary-text-color);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  color: var(--primary-text-color);
+  font-weight: 600;
+  text-align: right;
+}
+
+.detail-row.full-width .detail-value {
+  text-align: left;
+  font-weight: 400;
+}
+
+/* Transactions Section */
+.transactions-section {
+  background-color: var(--modal-content-background-color);
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.transactions-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--border-color);
+  color: var(--primary-color);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.transactions-table {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.transactions-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.transactions-table th {
+  background-color: var(--table-header-color);
+  padding: 0.75rem;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.transactions-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--table-row-border-bottom);
+  font-size: 0.9rem;
+}
+
+.transactions-table tr:last-child td {
+  border-bottom: none;
+}
+
+.debit-amount {
+  color: var(--info-color);
+  font-weight: 600;
+}
+
+.credit-amount {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.view-all-link {
+  text-align: center;
+  padding-top: 0.5rem;
+}
+
+.view-all-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.view-all-link a:hover {
+  color: var(--primary-hover-color);
+  text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .account-header-section {
+    grid-template-columns: 1fr;
+  }
+
+  .account-balance-display {
+    text-align: left;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+}

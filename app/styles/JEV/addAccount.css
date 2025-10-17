@@ -1,0 +1,209 @@
+/* ==================== ADD/EDIT ACCOUNT MODAL STYLES ==================== */
+
+.addAccountModal,
+.editAccountModal {
+  max-width: 800px !important;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.formField.full-width {
+  grid-column: 1 / -1;
+}
+
+.formField label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--primary-text-color);
+}
+
+.formField input,
+.formField select,
+.formField textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: var(--modal-content-background-color);
+  color: var(--primary-text-color);
+  transition: border-color 0.3s ease;
+}
+
+.formField input:focus,
+.formField select:focus,
+.formField textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.formField input:disabled,
+.formField select:disabled,
+.formField textarea:disabled {
+  background-color: var(--disabled-bg-color);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.formField textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.formField small {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.85em;
+}
+
+/* Info Box */
+.info-box {
+  background-color: #E6F7FF;
+  border-left: 4px solid var(--info-color);
+  padding: 1rem;
+  margin-top: 1.5rem;
+  border-radius: 4px;
+}
+
+.info-box h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem 0;
+  color: var(--info-color);
+  font-size: 1rem;
+}
+
+.info-box ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.info-box li {
+  margin-bottom: 0.5rem;
+  font-size: 0.9em;
+  color: var(--primary-text-color);
+}
+
+/* Warning Box */
+.warning-box {
+  display: flex;
+  gap: 1rem;
+  background-color: #FFF7E6;
+  border-left: 4px solid var(--warning-color);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+}
+
+.warning-box i {
+  font-size: 1.5rem;
+  color: var(--warning-color);
+}
+
+.warning-box p {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--primary-text-color);
+}
+
+.warning-box p + p {
+  margin-top: 0.5rem;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Modal Buttons */
+.modalButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.cancelButton,
+.addButton {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cancelButton {
+  background-color: var(--secondary-bg-color);
+  color: var(--primary-text-color);
+}
+
+.cancelButton:hover {
+  background-color: var(--secondary-hover-color);
+}
+
+.addButton {
+  background-color: var(--primary-color);
+  color: var(--button-font-color);
+}
+
+.addButton:hover {
+  background-color: var(--primary-hover-color);
+}
+
+.addButton:disabled,
+.cancelButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .addAccountModal,
+  .editAccountModal {
+    max-width: 95% !important;
+    margin: 1rem;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+
+  .modalButtons {
+    flex-direction: column-reverse;
+  }
+
+  .cancelButton,
+  .addButton {
+    width: 100%;
+    justify-content: center;
+  }
+}

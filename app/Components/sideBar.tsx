@@ -21,15 +21,16 @@ const Sidebar: React.FC = () => {
     "/expense": "expense",
     "/reimbursement": "reimbursement",
     "/financial-management/payroll": "payroll",
-    "/purchase-request-approval": "purchaseApproval", // Added missing route
+    "/purchase-request-approval": "purchaseApproval",
     "/loan-management/loanRequest": "loan-request",
     "/loan-management/loanPayment": "loan-payment",
     "/report": "report",
     "/JEV": "JEV",
     "/audit": "audit",
-    // Budget Management routes
     "/budget-management/budgetAllocation": "budgetAllocation",
     "/budget-management/budgetApproval": "budgetApproval",
+    "/jev/chart-of-accounts": "chart-of-accounts",
+    "/jev/journal-entries": "journal-entries",
   };
 
   // Function to normalize pathname for comparison (remove role prefix)
@@ -57,6 +58,9 @@ const Sidebar: React.FC = () => {
         setOpenSubMenu("purchase-management");
       } else if (["loan-request", "loan-payment"].includes(staticMatch)) {
         setOpenSubMenu("loan-management");
+      }
+      else if (["chart-of-accounts", "journal-entries"].includes(staticMatch)) {
+        setOpenSubMenu("jev-management");
       }
         return;
       }
@@ -287,14 +291,40 @@ const Sidebar: React.FC = () => {
             <span>Financial Reports</span>
           </Link>
 
-          <Link
-            href={getUrl("/JEV")}
-            className={`nav-item ${activeItem === "JEV" ? "active" : ""}`}
-            onClick={() => setActiveItem("JEV")}
+          {/* JEV Submenu */}
+          <div
+            className={`nav-item module ${
+              ["chart-of-accounts", "journal-entries"].includes(activeItem!) ? "active" : ""
+            }`}
+            onClick={() => toggleSubMenu("jev-management")}
           >
             <i className="ri-book-2-line"></i>
             <span>JEV</span>
-          </Link>
+            <i
+              className={`dropdown-arrow ri-arrow-down-s-line ${
+                openSubMenu === "jev-management" ? "rotate" : ""
+              }`}
+            />
+          </div>
+
+          {openSubMenu === "jev-management" && (
+            <div className="sub-menu active">
+              <Link
+                href="/jev/chart-of-accounts"
+                className={`sub-item ${activeItem === "chart-of-accounts" ? "active" : ""}`}
+                onClick={() => setActiveItem("chart-of-accounts")}
+              >
+                Chart of Accounts
+              </Link>
+              <Link
+                href="/jev/journal-entries"
+                className={`sub-item ${activeItem === "journal-entries" ? "active" : ""}`}
+                onClick={() => setActiveItem("journal-entries")}
+              >
+                Journal Entries
+              </Link>
+            </div>
+          )}
 
           <Link
             href={getUrl("/audit")}
