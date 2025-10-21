@@ -13,9 +13,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import "../../../styles/revenue/revenue.css";
-import "../../../styles/components/table.css";
-import "../../../styles/components/chips.css";
+import "../../../../styles/revenue/revenue.css";
+import "../../../../styles/components/table.css";
+import "../../../../styles/components/chips.css";
 import PaginationComponent from "../../../../Components/pagination";
 import RevenueFilter from "../../../../Components/RevenueFilter";
 import Swal from 'sweetalert2';

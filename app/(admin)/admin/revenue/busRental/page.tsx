@@ -13,9 +13,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import "../../../styles/revenue/revenue.css";
-import "../../../styles/components/table.css";
-import "../../../styles/components/chips.css";
+import "../../../../styles/revenue/revenue.css";
+import "../../../../styles/revenue/busRevenue.css";
+import "../../../../styles/revenue/viewBusRental.css";
+import "../../../../styles/components/table.css";
+import "../../../../styles/components/chips.css";
 import PaginationComponent from "../../../../Components/pagination";
 import RevenueFilter from "../../../../Components/RevenueFilter";
 import Swal from 'sweetalert2';
@@ -23,6 +25,7 @@ import { showSuccess, showError } from '../../../../utils/Alerts';
 import { formatDate, formatMoney } from '../../../../utils/formatting';
 import Loading from '../../../../Components/loading';
 import ErrorDisplay from '../../../../Components/errordisplay';
+import ViewBusRentalModal from './viewBusRentalModal';
 
 // TypeScript interfaces
 interface RevenueSource {
@@ -117,6 +120,10 @@ const AdminBusRentalPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Modal states
+  const [selectedRecord, setSelectedRecord] = useState<BusRentalRecord | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+
   // Fetch filter options (revenue sources and payment methods)
   const fetchFilterOptions = async () => {
     try {
@@ -141,28 +148,81 @@ const AdminBusRentalPage = () => {
   // Fetch analytics data
   const fetchAnalytics = async () => {
     try {
-      // Fetch rental analytics (this would need a dedicated API endpoint)
-      // For now, calculate from the revenue data
-      const analyticsResponse = await fetch('/api/admin/revenue/rental-analytics');
-      if (analyticsResponse.ok) {
-        const analyticsData = await analyticsResponse.json();
+      // Build query parameters same as fetchData but without pagination
+      const params = new URLSearchParams({
+        sortBy: sortBy,
+        order: sortOrder,
+        sourceFilter: 'RENTAL',
+      });
+
+      // Add search parameter if exists
+      if (search) {
+        params.append('search', search);
+      }
+
+      // Add filter parameters
+      if (activeFilters.sources && Array.isArray(activeFilters.sources) && activeFilters.sources.length > 0) {
+        params.append('sources', activeFilters.sources.join(','));
+      }
+
+      if (activeFilters.paymentMethods && Array.isArray(activeFilters.paymentMethods) && activeFilters.paymentMethods.length > 0) {
+        params.append('paymentMethods', activeFilters.paymentMethods.join(','));
+      }
+
+      if (activeFilters.dateRange && typeof activeFilters.dateRange === 'object') {
+        const dateRange = activeFilters.dateRange as { from: string; to: string };
+        if (dateRange.from) {
+          params.append('dateFrom', dateRange.from);
+        }
+        if (dateRange.to) {
+          params.append('dateTo', dateRange.to);
+        }
+      }
+
+      if (activeFilters.amountRange && typeof activeFilters.amountRange === 'object') {
+        const amountRange = activeFilters.amountRange as { from: string; to: string };
+        if (amountRange.from) {
+          params.append('amountFrom', amountRange.from);
+        }
+        if (amountRange.to) {
+          params.append('amountTo', amountRange.to);
+        }
+      }
+
+      // Fetch analytics from API
+      const response = await fetch(`/api/admin/revenue/analytics?${params.toString()}`);
+
+      if (response.ok) {
+        const analyticsData = await response.json();
         setAnalytics(analyticsData);
       } else {
-        // Fallback: calculate basic analytics from current data
+        // Fallback to local calculation from current page data if API fails
         const totalRevenue = data.reduce((sum, record) => sum + record.amount, 0);
-        const activeRentals = data.filter(record => record.status === 'ACTIVE').length;
+        const activeRentals = data.filter(record => record.status?.toUpperCase() === 'ACTIVE').length;
         const averageRentalAmount = data.length > 0 ? totalRevenue / data.length : 0;
 
         setAnalytics({
           totalRevenue,
           activeRentals,
-          availableBuses: 25, // Placeholder - would need actual fleet data
-          monthlyRevenue: totalRevenue * 0.3, // Estimate
+          availableBuses: 25, // Placeholder - would need actual fleet data from API
+          monthlyRevenue: totalRevenue * 0.3, // Estimate based on current data
           averageRentalAmount
         });
       }
     } catch (err) {
       console.error('Error fetching analytics:', err);
+      // Fallback to local calculation
+      const totalRevenue = data.reduce((sum, record) => sum + record.amount, 0);
+      const activeRentals = data.filter(record => record.status?.toUpperCase() === 'ACTIVE').length;
+      const averageRentalAmount = data.length > 0 ? totalRevenue / data.length : 0;
+
+      setAnalytics({
+        totalRevenue,
+        activeRentals,
+        availableBuses: 25,
+        monthlyRevenue: totalRevenue * 0.3,
+        averageRentalAmount
+      });
     }
   };
 
@@ -257,12 +317,10 @@ const AdminBusRentalPage = () => {
     fetchData();
   }, [currentPage, pageSize, search, sortBy, sortOrder, activeFilters]);
 
-  // Fetch analytics when data changes
+  // Fetch analytics when filters change
   useEffect(() => {
-    if (!loading) {
-      fetchAnalytics();
-    }
-  }, [data, loading]);
+    fetchAnalytics();
+  }, [search, activeFilters, sortBy, sortOrder]);
 
   // Sort handler
   const handleSort = (field: "revenueCode" | "transactionDate" | "amount") => {
@@ -296,12 +354,11 @@ const AdminBusRentalPage = () => {
 
   // Action handlers
   const handleView = (id: number) => {
-    Swal.fire({
-      title: 'View Rental',
-      html: `<p>Viewing rental record: <strong>ID ${id}</strong></p><p><em>View modal to be implemented</em></p>`,
-      icon: 'info',
-      confirmButtonColor: '#961C1E',
-    });
+    const record = data.find(item => item.id === id);
+    if (record) {
+      setSelectedRecord(record);
+      setShowViewModal(true);
+    }
   };
 
   const handleEdit = (id: number) => {
@@ -389,65 +446,28 @@ const AdminBusRentalPage = () => {
         </div>
 
         {/* Analytics Cards */}
-        <div className="analytics-grid" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem',
-          marginBottom: '2rem'
-        }}>
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
+        <div className="analytics-grid">
+          <div className="analytics-card total-revenue">
             <h3>Total Revenue</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.totalRevenue)}
-            </p>
+            <p>{formatMoney(analytics.totalRevenue)}</p>
             <small>This month</small>
           </div>
 
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
+          <div className="analytics-card active-rentals">
             <h3>Active Rentals</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {analytics.activeRentals}
-            </p>
+            <p>{analytics.activeRentals}</p>
             <small>Buses currently rented</small>
           </div>
 
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
+          <div className="analytics-card available-buses">
             <h3>Available Buses</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {analytics.availableBuses}
-            </p>
+            <p>{analytics.availableBuses}</p>
             <small>Ready for rental</small>
           </div>
 
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
+          <div className="analytics-card avg-rental">
             <h3>Avg. Rental Amount</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.averageRentalAmount)}
-            </p>
+            <p>{formatMoney(analytics.averageRentalAmount)}</p>
             <small>Per rental</small>
           </div>
         </div>
@@ -480,13 +500,6 @@ const AdminBusRentalPage = () => {
               initialValues={activeFilters}
             />
           </div>
-
-          {/* Add Rental Button on the right */}
-          <div className="filters">
-            <button onClick={handleAdd} id='addRental'>
-              <i className="ri-add-line" /> Add Rental
-            </button>
-          </div>
         </div>
 
         <div className="table-wrapper">
@@ -494,14 +507,6 @@ const AdminBusRentalPage = () => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>No.</th>
-                  <th
-                    onClick={() => handleSort("revenueCode")}
-                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                    title="Click to sort by Rental Code"
-                  >
-                    Rental Code{getSortIndicator("revenueCode")}
-                  </th>
                   <th
                     onClick={() => handleSort("transactionDate")}
                     style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -520,7 +525,6 @@ const AdminBusRentalPage = () => {
                   </th>
                   <th>Payment Method</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -542,9 +546,7 @@ const AdminBusRentalPage = () => {
                     const rowNumber = (currentPage - 1) * pageSize + index + 1;
 
                     return (
-                      <tr key={item.id}>
-                        <td>{rowNumber}</td>
-                        <td>{item.revenueCode}</td>
+                      <tr key={item.id} onClick={() => handleView(item.id)} title="View Rental">
                         <td>{formatDate(item.transactionDate)}</td>
                         <td>{item.renterName || 'N/A'}</td>
                         <td>
@@ -557,38 +559,8 @@ const AdminBusRentalPage = () => {
                         <td>{item.paymentMethod.methodName}</td>
                         <td>
                           <span className={`chip ${item.status?.toLowerCase() || 'completed'}`}>
-                            {item.status || 'COMPLETED'}
+                            {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase() : 'Completed'}
                           </span>
-                        </td>
-                        <td className="actionButtons">
-                          <div className="actionButtonsContainer">
-                            {/* View button */}
-                            <button
-                              className="viewBtn"
-                              onClick={() => handleView(item.id)}
-                              title="View Rental"
-                            >
-                              <i className="ri-eye-line" />
-                            </button>
-
-                            {/* Edit button */}
-                            <button
-                              className="editBtn"
-                              onClick={() => handleEdit(item.id)}
-                              title="Edit Rental"
-                            >
-                              <i className="ri-edit-2-line" />
-                            </button>
-
-                            {/* Delete button */}
-                            <button
-                              className="deleteBtn"
-                              onClick={() => handleDelete(item.id)}
-                              title="Delete Rental"
-                            >
-                              <i className="ri-delete-bin-line" />
-                            </button>
-                          </div>
                         </td>
                       </tr>
                     );
@@ -608,6 +580,17 @@ const AdminBusRentalPage = () => {
         />
 
       </div>
+
+      {/* View Bus Rental Modal */}
+      {showViewModal && selectedRecord && (
+        <ViewBusRentalModal
+          record={selectedRecord}
+          onClose={() => {
+            setShowViewModal(false);
+            setSelectedRecord(null);
+          }}
+        />
+      )}
     </div>
   );
 };
