@@ -10,6 +10,7 @@
     border-radius: 12px !important;
     font-size: 12px !important;
     display: inline-block !important;
+    text-align: center !important;
 }
 
 /* ============================================================
@@ -24,7 +25,8 @@
 .chip.disbursed,
 .chip.up-to-date,
 .chip.paid-in-full,
-.chip.paid {
+.chip.paid,
+.chip.posted {
     background-color: var(--success-chip-bg-color);
     color: var(--success-chip-text-color);
 }
@@ -77,6 +79,7 @@
    ============================================================ */
 .chip.Active,
 .chip.Draft,
+.chip.draft,
 .chip.normal {
     background-color: var(--info-chip-bg-color);
     color: var(--info-chip-text-color);
@@ -126,4 +129,36 @@
 .chip.refund-processing {
     background-color: #e91e63;
     color: white;
+}
+
+/* ============================================================
+   JEV STATUS & ENTRY TYPES
+   ============================================================ */
+/* Status: Reversed */
+.chip.reversed {
+    background-color: #F5F5F5;
+    color: #616161;
+}
+
+/* Entry Types */
+.chip.manual,
+.chip.auto_manual {
+    background-color: var(--info-chip-bg-color);
+    color: var(--info-chip-text-color);
+}
+
+.chip.auto_revenue,
+.chip.auto_expense,
+.chip.auto_payroll,
+.chip.auto_loan,
+.chip.auto_purchase,
+.chip.auto_refund {
+    background-color: var(--warning-chip-bg-color);
+    color: var(--warning-chip-text-color);
+}
+
+.chip.adjustment,
+.chip.closing {
+    background-color: #D6E4FF;
+    color: #0050B3;
 }

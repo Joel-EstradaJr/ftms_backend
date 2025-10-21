@@ -1,0 +1,506 @@
+/* ==================== JEV (Journal Entry Voucher) Styles ==================== */
+/* Unified styling for JEV components in records-reports */
+
+#exportJEV {
+  height: var(--page-button-height) !important;
+  width: var(--page-button-width) !important;
+  font-size: var(--page-button-font-size) !important;
+  border-radius: var(--page-button-border-radius) !important;
+  cursor: pointer !important;
+  border: none !important;
+  background-color: var(--secondary-color) !important;
+  color: var(--button-font-color) !important;
+  transition: background-color 0.3s !important;
+}
+
+#exportJEV:hover {
+  background-color: var(--secondary-hover-color) !important;
+}/* ---------- Main JEV Page Styles ---------- */
+
+
+.jev-filters {
+  margin-bottom: 1.5rem;
+}
+
+/* JEV Table Styles */
+.jev-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.jev-table th,
+.jev-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--table-border-color, #eee);
+}
+
+.jev-table th {
+  background-color: var(--table-header-color, #f8f9fa);
+  font-weight: 600;
+  color: var(--primary-text-color, #333);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.jev-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.jev-row:hover {
+  background-color: var(--table-hover-color, #f5f5f5);
+}
+
+.jev-number {
+  font-weight: 600;
+  color: var(--primary-color, #007bff);
+}
+
+.jev-description {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jev-amount {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+/* Status and Type Badges */
+.jev-type,
+.jev-status {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* Entry Type Colors */
+.jev-type-manual { background-color: #e3f2fd; color: #1976d2; }
+.jev-type-auto_revenue { background-color: #e8f5e8; color: #2e7d32; }
+.jev-type-auto_expense { background-color: #ffebee; color: #c62828; }
+.jev-type-auto_payroll { background-color: #f3e5f5; color: #7b1fa2; }
+.jev-type-auto_loan { background-color: #e0f2f1; color: #00695c; }
+.jev-type-auto_purchase { background-color: #fff3e0; color: #ef6c00; }
+.jev-type-auto_refund { background-color: #fce4ec; color: #ad1457; }
+.jev-type-adjustment { background-color: #f9fbe7; color: #827717; }
+.jev-type-closing { background-color: #efebe9; color: #4e342e; }
+
+/* Status Colors */
+.jev-status-draft { background-color: #fff3e0; color: #ef6c00; }
+.jev-status-posted { background-color: #e8f5e8; color: #2e7d32; }
+.jev-status-reversed { background-color: #ffebee; color: #c62828; }
+
+/* Balance Indicator */
+.jev-balance {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.jev-balance.balanced {
+  color: #2e7d32;
+}
+
+.jev-balance.unbalanced {
+  color: #c62828;
+}
+
+/* ---------- JEV Filter Styles ---------- */
+.jev-filter-container {
+  background: var(--card-background, #ffffff);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.jev-filter-header {
+  background: var(--table-header-color, #f8f9fa);
+  padding: 0;
+}
+
+.jev-filter-toggle {
+  width: 100%;
+  padding: 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--primary-text-color, #333);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 0.2s;
+}
+
+.jev-filter-toggle:hover {
+  background-color: var(--table-hover-color, #f5f5f5);
+}
+
+.jev-filter-toggle i {
+  margin-right: 0.5rem;
+}
+
+.jev-filter-content {
+  padding: 1rem;
+  border-top: 1px solid var(--border-color, #ddd);
+}
+
+.jev-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.jev-filter-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  flex: 1;
+}
+
+.jev-filter-field label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--primary-text-color, #333);
+}
+
+.jev-filter-input,
+.jev-filter-select {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: var(--input-background, #ffffff);
+  color: var(--primary-text-color, #333);
+  transition: border-color 0.2s;
+}
+
+.jev-filter-input:focus,
+.jev-filter-select:focus {
+  outline: none;
+  border-color: var(--primary-color, #007bff);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.jev-filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #ddd);
+}
+
+.jev-filter-apply,
+.jev-filter-clear {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.jev-filter-apply {
+  background: var(--primary-color, #007bff);
+  color: white;
+}
+
+.jev-filter-apply:hover {
+  background: var(--primary-hover-color, #0056b3);
+}
+
+.jev-filter-clear {
+  background: var(--secondary-color, #6c757d);
+  color: white;
+}
+
+.jev-filter-clear:hover {
+  background: var(--secondary-hover-color, #545b62);
+}
+
+/* ---------- JEV View Modal Styles ---------- */
+.jev-view-modal {
+  max-width: 1200px;
+  width: 95vw;
+}
+
+.jev-modal-content {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.jev-header-section {
+  margin-bottom: 2rem;
+}
+
+.jev-header-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.jev-header-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jev-header-item label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted, #666);
+}
+
+.jev-header-item span {
+  font-size: 0.95rem;
+  color: var(--primary-text-color, #333);
+}
+
+.jev-description-section {
+  margin-bottom: 1.5rem;
+}
+
+.jev-description-section label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted, #666);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.jev-description-section p {
+  font-size: 0.95rem;
+  color: var(--primary-text-color, #333);
+  line-height: 1.5;
+  margin: 0;
+  padding: 0.75rem;
+  background: var(--background-light, #f8f9fa);
+  border-radius: 4px;
+  border-left: 4px solid var(--primary-color, #007bff);
+}
+
+/* Journal Lines Table */
+.jev-lines-section h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-text-color, #333);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border-color, #ddd);
+}
+
+.jev-lines-table-container {
+  /* Avoid horizontal scroll; keep content compact inside */
+  overflow-x: visible;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  margin-bottom: 2rem;
+}
+
+.jev-lines-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.jev-lines-table th,
+.jev-lines-table td {
+  padding: 0.5rem; /* compact */
+  text-align: left;
+  border-bottom: 1px solid var(--table-border-color, #eee);
+}
+
+.jev-lines-table th {
+  background: var(--table-header-color, #f8f9fa);
+  font-weight: 600;
+  color: var(--primary-text-color, #333);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.jev-line-number {
+  text-align: center;
+  font-weight: 500;
+}
+
+.jev-lines-table th:nth-child(1),
+.jev-lines-table td:nth-child(1) {
+  width: 70px !important;
+  min-width: 70px !important;
+  max-width: 70px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Give more space to Account Name (col 2) and Description (col 3) */
+.jev-lines-table th:nth-child(2),
+.jev-lines-table td:nth-child(2) {
+  min-width: 150px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jev-lines-table th:nth-child(3),
+.jev-lines-table td:nth-child(3) {
+  min-width: 200px;
+  /* allow wrapping to avoid horizontal scroll if needed */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Debit (col 4) and Credit (col 5) compact fixed width and right-aligned */
+.jev-lines-table th:nth-child(4),
+.jev-lines-table td:nth-child(4),
+.jev-lines-table th:nth-child(5),
+.jev-lines-table td:nth-child(5) {
+  width: 120px;
+  min-width: 120px;
+  text-align: right;
+}
+
+.jev-account-code {
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+  color: var(--primary-color, #007bff);
+}
+
+.jev-account-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jev-line-description {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jev-amount {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.jev-amount.debit {
+  color: var(--expense-color, #dc3545);
+}
+
+.jev-amount.credit {
+  color: var(--revenue-color, #28a745);
+}
+
+.jev-totals-row {
+  background: var(--table-header-color, #f8f9fa);
+  font-weight: bold;
+}
+
+.jev-totals-label {
+  text-align: right;
+  font-weight: bold;
+  color: var(--primary-text-color, #333);
+}
+
+.jev-total-debit,
+.jev-total-credit {
+  font-weight: bold;
+  font-size: 1rem;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* Audit Section */
+.jev-audit-section h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-text-color, #333);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border-color, #ddd);
+}
+
+.jev-audit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.jev-audit-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jev-audit-item label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.jev-audit-item span {
+  font-size: 0.9rem;
+  color: var(--primary-text-color, #333);
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 768px) {
+  .jev-header-grid,
+  .jev-audit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .jev-filter-row {
+    flex-direction: column;
+  }
+
+  .jev-filter-field {
+    min-width: auto;
+  }
+
+  .jev-lines-table-container {
+    font-size: 0.8rem;
+  }
+
+  .jev-lines-table th,
+  .jev-lines-table td {
+    padding: 0.5rem;
+  }
+}
+
+/* TODO: Backend Development Notes
+ * 1. Implement /api/admin/jev endpoint for fetching journal entries with filtering and pagination
+ * 2. Add proper database schema for journal_entries and journal_entry_lines tables
+ * 3. Implement balance validation logic for debit/credit amounts
+ * 4. Add audit logging for JEV operations
+ * 5. Create API endpoints for posting/reversing journal entries
+ * 6. Add validation for account codes and chart of accounts integration
+ * 7. Implement proper error handling and status codes
+ * 8. Add caching for frequently accessed JEV data
+ */

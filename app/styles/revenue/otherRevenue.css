@@ -39,15 +39,16 @@
 }
 
 .analytics-card.total-revenue {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-color);
 }
 
 .analytics-card.transactions {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: var(--secondary-color);
+  color: var(--primary-text-color);
 }
 
 .analytics-card.top-sources {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  background: var(--info-color);
   display: flex;
   flex-direction: column;
 }
@@ -74,7 +75,7 @@
   overflow-y: auto;
   max-height: 80px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.3) transparent;
+  scrollbar-color: rgba(255,255,255,0.5) transparent;
 }
 
 .top-sources-container::-webkit-scrollbar {
@@ -86,7 +87,7 @@
 }
 
 .top-sources-container::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.5);
   border-radius: 3px;
 }
 
@@ -96,7 +97,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.2rem 0;
-  border-bottom: 1px solid rgba(255,255,255,0.2);
+  border-bottom: 1px solid rgba(255,255,255,0.3);
 }
 
 .top-sources-item:last-child {
