@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect } from "react";
 import "../../../../styles/revenue/revenue.css";
+import "../../../../styles/revenue/otherRevenue.css";
 import "../../../../styles/components/table.css";
 import "../../../../styles/components/chips.css";
 import PaginationComponent from "../../../../Components/pagination";
@@ -23,6 +24,7 @@ import { showSuccess, showError } from '../../../../utils/Alerts';
 import { formatDate, formatMoney } from '../../../../utils/formatting';
 import Loading from '../../../../Components/loading';
 import ErrorDisplay from '../../../../Components/errordisplay';
+import OtherRevenueModal, { OtherRevenueData } from './otherRevenueModal';
 
 // TypeScript interfaces
 interface RevenueSource {
@@ -62,12 +64,11 @@ interface PaginationMeta {
 
 interface RevenueAnalytics {
   totalRevenue: number;
-  disposalRevenue: number;
-  forfeitedDepositRevenue: number;
-  loanRepaymentRevenue: number;
-  renterDamageRevenue: number;
-  otherRevenue: number;
   transactionCount: number;
+  topSources: Array<{
+    sourceName: string;
+    amount: number;
+  }>;
 }
 
 const AdminOtherRevenuePage = () => {
@@ -75,12 +76,8 @@ const AdminOtherRevenuePage = () => {
   const [data, setData] = useState<OtherRevenueRecord[]>([]);
   const [analytics, setAnalytics] = useState<RevenueAnalytics>({
     totalRevenue: 0,
-    disposalRevenue: 0,
-    forfeitedDepositRevenue: 0,
-    loanRepaymentRevenue: 0,
-    renterDamageRevenue: 0,
-    otherRevenue: 0,
-    transactionCount: 0
+    transactionCount: 0,
+    topSources: []
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +112,13 @@ const AdminOtherRevenuePage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  // UI states
+  const [showAnalytics, setShowAnalytics] = useState(true);
+
+  // Modal states
+  const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<OtherRevenueRecord | null>(null);
+
   // Fetch filter options (revenue sources and payment methods)
   const fetchFilterOptions = async () => {
     try {
@@ -141,30 +145,23 @@ const AdminOtherRevenuePage = () => {
     try {
       // Calculate analytics from current data
       const totalRevenue = data.reduce((sum, record) => sum + record.amount, 0);
-      const disposalRevenue = data
-        .filter(record => record.externalRefType === 'DISPOSAL')
-        .reduce((sum, record) => sum + record.amount, 0);
-      const forfeitedDepositRevenue = data
-        .filter(record => record.externalRefType === 'FORFEITED_DEPOSIT')
-        .reduce((sum, record) => sum + record.amount, 0);
-      const loanRepaymentRevenue = data
-        .filter(record => record.externalRefType === 'LOAN_REPAYMENT')
-        .reduce((sum, record) => sum + record.amount, 0);
-      const renterDamageRevenue = data
-        .filter(record => record.externalRefType === 'RENTER_DAMAGE')
-        .reduce((sum, record) => sum + record.amount, 0);
-      const otherRevenue = data
-        .filter(record => !['DISPOSAL', 'FORFEITED_DEPOSIT', 'LOAN_REPAYMENT', 'RENTER_DAMAGE'].includes(record.externalRefType))
-        .reduce((sum, record) => sum + record.amount, 0);
+
+      // Calculate top sources
+      const sourceMap = new Map<string, number>();
+      data.forEach(record => {
+        const sourceName = record.source.name;
+        const currentAmount = sourceMap.get(sourceName) || 0;
+        sourceMap.set(sourceName, currentAmount + record.amount);
+      });
+
+      const topSources = Array.from(sourceMap.entries())
+        .map(([sourceName, amount]) => ({ sourceName, amount }))
+        .sort((a, b) => b.amount - a.amount); // Sort by amount descending
 
       setAnalytics({
         totalRevenue,
-        disposalRevenue,
-        forfeitedDepositRevenue,
-        loanRepaymentRevenue,
-        renterDamageRevenue,
-        otherRevenue,
-        transactionCount: data.length
+        transactionCount: data.length,
+        topSources
       });
     } catch (err) {
       console.error('Error calculating analytics:', err);
@@ -300,22 +297,25 @@ const AdminOtherRevenuePage = () => {
   };
 
   // Action handlers
+  const handleAdd = () => {
+    setSelectedRecord(null);
+    setModalMode('add');
+  };
+
   const handleView = (id: number) => {
-    Swal.fire({
-      title: 'View Revenue',
-      html: `<p>Viewing revenue record: <strong>ID ${id}</strong></p><p><em>View modal to be implemented</em></p>`,
-      icon: 'info',
-      confirmButtonColor: '#961C1E',
-    });
+    const record = data.find(item => item.id === id);
+    if (record) {
+      setSelectedRecord(record);
+      setModalMode('view');
+    }
   };
 
   const handleEdit = (id: number) => {
-    Swal.fire({
-      title: 'Edit Revenue',
-      html: `<p>Editing revenue record: <strong>ID ${id}</strong></p><p><em>Edit modal to be implemented</em></p>`,
-      icon: 'info',
-      confirmButtonColor: '#FEB71F',
-    });
+    const record = data.find(item => item.id === id);
+    if (record) {
+      setSelectedRecord(record);
+      setModalMode('edit');
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -350,15 +350,6 @@ const AdminOtherRevenuePage = () => {
     }
   };
 
-  const handleAdd = () => {
-    Swal.fire({
-      title: 'Add Other Revenue',
-      html: '<p><em>Add revenue modal to be implemented</em></p>',
-      icon: 'info',
-      confirmButtonColor: '#961C1E',
-    });
-  };
-
   // Loading state
   if (loading && data.length === 0) {
     return (
@@ -391,121 +382,55 @@ const AdminOtherRevenuePage = () => {
       <div className="elements">
         <div className="title">
           <h1>Other Revenue Records</h1>
+          <button
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            className="analytics-toggle-btn"
+            title={showAnalytics ? "Hide Analytics" : "Show Analytics"}
+          >
+            <i className={showAnalytics ? "ri-eye-line" : "ri-eye-off-line"} />
+          </button>
         </div>
 
-        {/* Analytics Cards */}
-        <div className="analytics-grid" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem',
-          marginBottom: '2rem'
-        }}>
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3>Total Revenue</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.totalRevenue)}
-            </p>
-            <small>Other revenue sources</small>
-          </div>
+        {showAnalytics && (
+          <>
+            {/* Analytics Cards */}
+            <div className="analytics-grid">
+              <div className="analytics-card total-revenue">
+                <h3>Total Revenue</h3>
+                <p>
+                  {formatMoney(analytics.totalRevenue)}
+                </p>
+                <small>Other revenue sources</small>
+              </div>
 
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3>Disposal Sales</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.disposalRevenue)}
-            </p>
-            <small>Asset disposal revenue</small>
-          </div>
+              <div className="analytics-card transactions">
+                <h3>Transactions</h3>
+                <p>
+                  {analytics.transactionCount}
+                </p>
+                <small>Total records</small>
+              </div>
 
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3>Forfeited Deposits</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.forfeitedDepositRevenue)}
-            </p>
-            <small>Converted to revenue</small>
-          </div>
-
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3>Transactions</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {analytics.transactionCount}
-            </p>
-            <small>Total records</small>
-          </div>
-        </div>
-
-        {/* Additional Analytics Row */}
-        <div className="analytics-grid" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem',
-          marginBottom: '2rem'
-        }}>
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3>Loan Repayments</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.loanRepaymentRevenue)}
-            </p>
-            <small>Loan repayment revenue</small>
-          </div>
-
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3>Renter Damages</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.renterDamageRevenue)}
-            </p>
-            <small>Damage charges</small>
-          </div>
-
-          <div className="analytics-card" style={{
-            background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3>Other Revenue</h3>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0.5rem 0' }}>
-              {formatMoney(analytics.otherRevenue)}
-            </p>
-            <small>Miscellaneous sources</small>
-          </div>
-        </div>
+              <div className="analytics-card top-sources">
+                <h3>Top Revenue Sources</h3>
+                <div className="top-sources-container">
+                  {analytics.topSources.length === 0 ? (
+                    <div className="no-data-message">
+                      No data available
+                    </div>
+                  ) : (
+                    analytics.topSources.map((source, index) => (
+                      <div key={source.sourceName} className="top-sources-item">
+                        <span className="source-name">{source.sourceName}</span>
+                        <span className="source-amount">{formatMoney(source.amount)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="settings">
           {/* Search bar with Filter button inline */}
@@ -551,15 +476,8 @@ const AdminOtherRevenuePage = () => {
                 <tr>
                   <th>No.</th>
                   <th
-                    onClick={() => handleSort("revenueCode")}
-                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                    title="Click to sort by Revenue Code"
-                  >
-                    Revenue Code{getSortIndicator("revenueCode")}
-                  </th>
-                  <th
                     onClick={() => handleSort("transactionDate")}
-                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    className="sortable-header"
                     title="Click to sort by Transaction Date"
                   >
                     Transaction Date{getSortIndicator("transactionDate")}
@@ -568,7 +486,7 @@ const AdminOtherRevenuePage = () => {
                   <th>Description</th>
                   <th
                     onClick={() => handleSort("amount")}
-                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    className="sortable-header"
                     title="Click to sort by Amount"
                   >
                     Amount{getSortIndicator("amount")}
@@ -580,13 +498,13 @@ const AdminOtherRevenuePage = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>
+                    <td colSpan={8} className="loading-cell">
                       Loading...
                     </td>
                   </tr>
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>
+                    <td colSpan={8} className="empty-cell">
                       No other revenue records found.
                     </td>
                   </tr>
@@ -596,9 +514,8 @@ const AdminOtherRevenuePage = () => {
                     const rowNumber = (currentPage - 1) * pageSize + index + 1;
 
                     return (
-                      <tr key={item.id}>
+                      <tr key={item.id} onClick={() => handleView(item.id)} title="View Record">
                         <td>{rowNumber}</td>
-                        <td>{item.revenueCode}</td>
                         <td>{formatDate(item.transactionDate)}</td>
                         <td>{item.source.name}</td>
                         <td>{item.description || 'N/A'}</td>
@@ -606,15 +523,6 @@ const AdminOtherRevenuePage = () => {
                         <td>{item.paymentMethod.methodName}</td>
                         <td className="actionButtons">
                           <div className="actionButtonsContainer">
-                            {/* View button */}
-                            <button
-                              className="viewBtn"
-                              onClick={() => handleView(item.id)}
-                              title="View Record"
-                            >
-                              <i className="ri-eye-line" />
-                            </button>
-
                             {/* Edit button */}
                             <button
                               className="editBtn"
@@ -652,6 +560,71 @@ const AdminOtherRevenuePage = () => {
         />
 
       </div>
+
+      {/* Other Revenue Modal */}
+      {modalMode && (
+        <OtherRevenueModal
+          mode={modalMode}
+          existingData={selectedRecord ? {
+            id: selectedRecord.id,
+            revenueCode: selectedRecord.revenueCode,
+            sourceName: selectedRecord.source.name, // Changed from sourceId to sourceName
+            description: selectedRecord.description,
+            amount: selectedRecord.amount,
+            transactionDate: selectedRecord.transactionDate,
+            paymentMethodId: selectedRecord.paymentMethodId,
+            externalRefType: selectedRecord.externalRefType,
+            externalRefId: selectedRecord.externalRefId,
+            createdBy: 'admin', // Default value since not in record
+          } : null}
+          onClose={() => {
+            setModalMode(null);
+            setSelectedRecord(null);
+          }}
+          onSubmit={async (data: OtherRevenueData) => {
+            try {
+              const method = modalMode === 'add' ? 'POST' : 'PUT';
+              const url = modalMode === 'add' 
+                ? '/api/admin/revenue?userId=admin' 
+                : `/api/admin/revenue/${selectedRecord?.id}?userId=admin`;
+
+              // TODO: Backend needs to handle sourceName instead of sourceId
+              // The API should either:
+              // 1. Accept sourceName and resolve to existing sourceId, or
+              // 2. Create new revenue source if it doesn't exist
+              const payload = {
+                ...data,
+                // For now, try to find existing source or use the name directly
+                sourceId: revenueSources.find(s => s.name === data.sourceName)?.id || 0,
+                sourceName: data.sourceName // Include both for backward compatibility
+              };
+
+              const response = await fetch(url, {
+                method,
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+              });
+
+              if (!response.ok) {
+                throw new Error(`Failed to ${modalMode} revenue`);
+              }
+
+              showSuccess(`Revenue record ${modalMode === 'add' ? 'added' : 'updated'} successfully`, modalMode === 'add' ? 'Added' : 'Updated');
+              fetchData(); // Refresh data
+              setModalMode(null);
+              setSelectedRecord(null);
+            } catch (err) {
+              console.error(`Error ${modalMode}ing revenue:`, err);
+              showError(`Failed to ${modalMode} revenue record`, 'Error');
+            }
+          }}
+          revenueSources={revenueSources}
+          paymentMethods={paymentMethods}
+          currentUser="admin"
+        />
+      )}
     </div>
   );
 };

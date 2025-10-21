@@ -1,0 +1,153 @@
+/* ---------- otherRevenue.css ---------- */
+/* Styling for Other Revenue page components */
+
+/* Analytics Toggle Button */
+.analytics-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  width: 1rem;
+  height: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analytics-toggle-btn:hover {
+  background-color: var(--table-header-color);
+}
+
+/* Analytics Grid */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Analytics Cards */
+.analytics-card {
+  color: white;
+  padding: 1rem;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.analytics-card.total-revenue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.analytics-card.transactions {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.analytics-card.top-sources {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Analytics Card Content */
+.analytics-card h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.analytics-card p {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0.25rem 0;
+}
+
+.analytics-card small {
+  font-size: 0.8rem;
+}
+
+/* Top Sources Container */
+.top-sources-container {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 80px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+.top-sources-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.top-sources-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.top-sources-container::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 3px;
+}
+
+/* Top Sources Item */
+.top-sources-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+.top-sources-item:last-child {
+  border-bottom: none;
+}
+
+.top-sources-item .source-name {
+  font-size: 0.8rem;
+  flex: 1;
+}
+
+.top-sources-item .source-amount {
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+/* No Data Message */
+.no-data-message {
+  text-align: center;
+  color: rgba(255,255,255,0.8);
+  font-size: 0.8rem;
+}
+
+/* Sortable Table Headers */
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Table Cell States */
+.loading-cell,
+.empty-cell {
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Search and Filter Container */
+.search-filter-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+/* TODO: Backend Development Notes
+ * 1. Implement /api/admin/revenue endpoint with proper filtering, sorting, and pagination
+ * 2. Add search functionality across revenueCode, description, and source names
+ * 3. Implement filter endpoints for revenue sources and payment methods
+ * 4. Create analytics calculation endpoint for real-time data aggregation
+ * 5. Add validation for revenue CRUD operations (amount ranges, date constraints)
+ * 6. Implement proper error handling and status codes for API responses
+ * 7. Add audit logging for all revenue modifications
+ * 8. Consider implementing caching for frequently accessed analytics data
+ */
