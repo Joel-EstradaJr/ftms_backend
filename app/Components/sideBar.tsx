@@ -15,6 +15,13 @@ const Sidebar: React.FC = () => {
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
   const { getUrl } = useNavigationUrl();
 
+  // --- Audit link helpers (derive from MICROSERVICES if available) ---
+  // Find audit microservice entry if configured
+  const auditService = MICROSERVICES.find(s => s.id === 'audit' || s.name?.toLowerCase() === 'audit');
+  const auditHref = auditService ? getUrl(`/microservice/${auditService.id}${auditService.routes?.[0]?.path || ''}`) : getUrl('/audit');
+  const auditActiveKey = auditService ? auditService.id : 'audit';
+  const auditIconClass = auditService?.icon || 'ri-booklet-line';
+
   // Detect user role from pathname
   const userRole = pathname.startsWith('/admin') ? 'admin' : 'staff';
 
@@ -341,14 +348,14 @@ const Sidebar: React.FC = () => {
           {/* Audit Logs - Admin only */}
           {userRole === 'admin' && (
             <Link
-              href={getUrl("/audit")}
-              className={`nav-item ${activeItem === "audit" ? "active" : ""}`}
-              onClick={() => setActiveItem("audit")}
+              href={auditHref}
+              className={`nav-item ${activeItem === auditActiveKey ? "active" : ""}`}
+              onClick={() => setActiveItem(auditActiveKey)}
             >
-              <i className="ri-booklet-line" />
+              <i className={auditIconClass} />
               <span>Audit Logs</span>
             </Link>
-          )}
+            )}
         </div>
 
         <div className="logout">

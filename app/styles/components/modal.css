@@ -75,19 +75,26 @@
 }
 
 .closeButton {
-  background: none !important;
-  border: none !important;
-  font-size: 1.5rem !important;
-  cursor: pointer !important;
-  color: var(--secondary-text-color) !important;
-  padding: 0.5rem !important;
-  border-radius: 4px !important;
-  transition: color 0.2s ease !important;
+	width: 30px !important;
+	height: 30px !important;
+	border: none !important;
+	cursor: pointer !important;
+  padding: 0 0 !important;
+	border-radius: 50% !important;
+	position: absolute !important;
+	top: 0px !important;
+  outline:none !important;
+	right: 0px !important;
+	font-size: 20px !important;
+	color: var(--primary-text-color) !important;
+	transition: all 0.3s ease-in-out !important;
+  justify-content: center !important;
+  align-items: center !important;
+  display: flex !important;
 }
 
 .closeButton:hover {
-  color: var(--primary-text-color) !important;
-  background-color: var(--hover-background-color, rgba(0,0,0,0.1)) !important;
+	background-color: var(--table-header-color) !important;
 }
 
 /* Date / Time stamp */
@@ -117,6 +124,13 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
   max-height: calc(80vh - 150px) !important;
+  margin-bottom: var(--modal-content-margin-bottom) !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.modalContent::-webkit-scrollbar {
+  display: none !important;
 }
 
 /* ---------- Form Structure ---------- */

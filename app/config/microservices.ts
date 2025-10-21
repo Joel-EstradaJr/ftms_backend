@@ -33,6 +33,22 @@ export const MICROSERVICES: MicroserviceConfig[] = [
         description: 'Manage purchase requests'
       }
     ]
+  },
+  {
+    id: 'audit',
+    name: 'Audit',
+    url: 'http://localhost:3003',
+    port: 3003,
+    icon: 'ri-booklet-line',
+    category: 'Financial',
+    healthCheck: '/api/health',
+    routes: [
+      {
+        path: '/audit',
+        name: 'Audit',
+        description: 'Shows Audit Logs'
+      }
+    ]
   }
   // Future microservices will be added here
 ];
