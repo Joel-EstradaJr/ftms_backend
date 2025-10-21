@@ -3,15 +3,11 @@
 import React, { useState, useMemo } from "react";
 import PaginationComponent from "../../../../Components/pagination";
 import Loading from "../../../../Components/loading";
+import ErrorDisplay from "../../../../Components/errordisplay";
 import FilterDropdown, { FilterSection } from "../../../../Components/filter";
-import { showSuccess, showError, showConfirmation } from "../../../../utility/Alerts";
-import { formatDate } from '../../../../utility/dateFormatter';
-import {
-  calculateNextPaymentDate,
-  calculatePaymentProgress,
-  getPaymentStatus
-} from '../../../../utility/paymentCalculations';
-
+import { showSuccess, showError, showConfirmation } from "../../../../utils/Alerts";
+import { formatDate } from '../../../../utils/formatting';;
+import { calculateNextPaymentDate, calculatePaymentProgress, getPaymentStatus } from '../../../../utils/paymentCalculations';
 import ViewLoanPaymentModal from "./viewLoanPayment";
 import AddPaymentModal from "./addPayment";
 import PaymentHistory from "./paymentHistory";
@@ -20,7 +16,7 @@ import PaymentSchedule from "./paymentSchedule";
 import AuditLoanPayment from "./auditLoanPayment";
 
 //@ts-ignore
-import "../../../../styles/loan-management/loanRequest.css";
+import "../../../../styles/loan-management/loanPayment.css";
 //@ts-ignore
 import "../../../../styles/components/table.css";
 //@ts-ignore
@@ -221,6 +217,8 @@ const LoanPaymentPage = () => {
 
   const [loanPayments, setLoanPayments] = useState<LoanForPaymentPage[]>(sampleLoanPaymentData);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -554,6 +552,23 @@ const LoanPaymentPage = () => {
     );
   };
 
+  if (errorCode) {
+    return (
+      <div className="card">
+        <h1 className="title">Audit Logs</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+            //refresh logic here
+          }}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="card">
@@ -571,22 +586,25 @@ const LoanPaymentPage = () => {
         </div>
         
         <div className="settings">
-          <div className="loan_searchBar">
-            <i className="ri-search-line" />
-            <input
-              className="searchInput"
-              type="text"
-              placeholder="Search by employee, loan ID, employee number..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+          <div className="search-filter-container">
+            <div className="loan_searchBar">
+              <i className="ri-search-line" />
+              <input
+                className="searchInput"
+                type="text"
+                placeholder="Search by employee, loan ID, employee number..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            
+            <FilterDropdown
+              sections={filterSections}
+              onApply={handleApplyFilters}
             />
           </div>
-          
-          <FilterDropdown
-            sections={filterSections}
-            onApply={handleApplyFilters}
-          />
-          
+
+
           <div className="filters">
             <button 
               onClick={() => setShowPaymentHistoryModal(true)} 
@@ -597,21 +615,8 @@ const LoanPaymentPage = () => {
                 width: '180px'
               }}
             >
-              <i className="ri-file-list-3-line" /> Payment Overview
+              <i className="ri-file-list-3-line" /> Overview
             </button>
-            
-            <button 
-              onClick={() => setShowPaymentScheduleModal(true)} 
-              id="paymentSchedule"
-              style={{
-                backgroundColor: '#2D8EFF',
-                color: 'white',
-                width: '180px'
-              }}
-            >
-              <i className="ri-calendar-check-line" /> Payment Schedule
-            </button>
-            
             <button onClick={handleExport} id="export">
               <i className="ri-receipt-line" /> Export CSV
             </button>

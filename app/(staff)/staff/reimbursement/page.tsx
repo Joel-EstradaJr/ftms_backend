@@ -4,10 +4,11 @@ import '../../../styles/components/table.css';
 import "../../../styles/reimbursement/reimbursement.css";
 import PaginationComponent from "../../../Components/pagination";
 import Loading from '../../../Components/loading';
-import { showSuccess, showError, showConfirmation } from '../../../utility/Alerts';
+import ErrorDisplay from '../../../Components/ErrorDisplay';
+import { showSuccess, showError, showConfirmation } from '../../../utils/Alerts';
 import ViewReimbursement from "./viewReimbursement";
 import styles from '../../../styles/components/ExportConfirmationModal.module.css';
-import { formatDateTime } from '../../../utility/dateFormatter';
+import { formatDateTime } from '../../../utils/formatting';;
 
 type ExpenseRecord = {
   expense_id: string;
@@ -135,6 +136,7 @@ const ReimbursementPage = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const today = new Date().toISOString().split('T')[0];
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFilter, setDateFilter] = useState(""); // Tracks the selected filter
@@ -413,6 +415,23 @@ const filteredReimbursements = reimbursements.filter(reimbursement => {
       showError('Failed to reject reimbursement', 'Error');
     }
   };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Reimbursement Management</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to load reimbursement data."
+          onRetry={() => {
+            setError(null);
+            setLoading(true);
+            // fetchReimbursements would be called here
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

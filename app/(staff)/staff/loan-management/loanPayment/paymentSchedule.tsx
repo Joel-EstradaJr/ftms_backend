@@ -6,7 +6,7 @@ import '../../../../styles/loan-management/paymentSchedule.css';
 import {
   showPaymentConfirmation,
   showPaymentSuccess
-} from '@/app/utility/Alerts';
+} from '@/app/utils/Alerts';
 
 interface PaymentScheduleProps {
   show: boolean;

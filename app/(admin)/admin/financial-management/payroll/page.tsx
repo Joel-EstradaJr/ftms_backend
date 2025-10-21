@@ -7,8 +7,9 @@ import "../../../../styles/components/table.css";
 import "../../../../styles/components/chips.css";
 import PaginationComponent from "../../../../Components/pagination";
 import Loading from '../../../../Components/loading';
+import ErrorDisplay from '../../../../Components/errordisplay';
 import Swal from 'sweetalert2';
-import { showSuccess } from '../../../../utility/Alerts';
+import { showSuccess } from '../../../../utils/Alerts';
 import ViewPayrollModal from "./viewPayroll";
 import { endOfMonth, format, getDaysInMonth } from 'date-fns';
 
@@ -110,6 +111,7 @@ const PayrollPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -458,16 +460,19 @@ const PayrollPage = () => {
     );
   }
 
-  if (error) {
+  if (errorCode) {
     return (
       <div className="card">
         <h1 className="title">Payroll Management</h1>
-        <div style={{ textAlign: 'center', padding: '2rem', color: 'red' }}>
-          <p>{error}</p>
-          <button onClick={handleRetry} style={{ marginTop: '1rem' }}>
-            Retry
-          </button>
-        </div>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+            fetchPayrollData(false);
+          }}
+        />
       </div>
     );
   }

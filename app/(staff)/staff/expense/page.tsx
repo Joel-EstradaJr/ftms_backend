@@ -8,13 +8,14 @@ import "../../../styles/expense/expense.css";
 import "../../../styles/components/table.css";
 import PaginationComponent from "../../../Components/pagination";
 import AddExpense from "./addExpense"; 
+import ErrorDisplay from '../../../Components/ErrorDisplay';
 import Swal from 'sweetalert2';
 import EditExpenseModal from "./editExpense";
 import ViewExpenseModal from "./viewExpense";
 import { getAllAssignmentsWithRecorded } from '@/lib/operations/assignments';
-import { formatDateTime, formatDate } from '../../../utility/dateFormatter';
+import { formatDateTime, formatDate } from '../../../utils/formatting';
 import Loading from '../../../Components/loading';
-import { showSuccess, showError, showConfirmation } from '../../../utility/Alerts';
+import { showSuccess, showError, showConfirmation } from '../../../utils/Alerts';
 import { formatDisplayText } from '@/app/utils/formatting';
 import FilterDropdown, { FilterSection } from "../../../Components/filter";
 import type { Assignment } from '@/lib/operations/assignments';
@@ -111,6 +112,7 @@ type ExpenseData = ExpenseRecord;
 const ExpensePage = () => {
   const [data, setData] = useState<ExpenseData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -209,13 +211,21 @@ const ExpensePage = () => {
   // Fetch expenses data
   const fetchExpenses = async () => {
     try {
-      const response = await fetch('/api/expenses');
+      setError(null);
+      console.log('📡 Fetching expenses from /api/expense...');
+      const response = await fetch('/api/expense');
+      console.log('📥 Response status:', response.status);
       if (!response.ok) throw new Error('Failed to fetch expenses');
-      const expensesData = await response.json();
-      setData(expensesData);
-    } catch (error) {
-      console.error('Error fetching expenses:', error);
-      showError('Failed to load expenses', 'Error');
+      const result = await response.json();
+      console.log('📦 API Response:', result);
+      console.log('📊 Expenses data array:', result.data);
+      console.log('📈 Total count:', result.pagination?.totalCount || 0);
+      
+      // The API returns { success, data, pagination } structure
+      setData(result.data || []);
+    } catch (error: any) {
+      console.error('❌ Error fetching expenses:', error);
+      setError(error.message || 'Failed to load expenses');
     }
   };
 
@@ -311,7 +321,7 @@ const filteredData = data.filter((item: ExpenseData) => {
       delete newExpense.employee_id;
     }
     try {
-      const response = await fetch('/api/expenses', {
+      const response = await fetch('/api/expense', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newExpense)
@@ -349,7 +359,7 @@ const filteredData = data.filter((item: ExpenseData) => {
 
     if (result.isConfirmed) {
       try {
-        const response = await fetch(`/api/expenses/${expense_id}`, {
+        const response = await fetch(`/api/expense/${expense_id}`, {
           method: 'DELETE'
         });
 
@@ -374,7 +384,7 @@ const filteredData = data.filter((item: ExpenseData) => {
     conductor_reimbursement?: number;
   }) => {
     try {
-      const response = await fetch(`/api/expenses/${updatedRecord.expense_id}`, {
+      const response = await fetch(`/api/expense/${updatedRecord.expense_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedRecord)
@@ -634,6 +644,19 @@ const filteredData = data.filter((item: ExpenseData) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Expense Management</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to load expense data."
+          onRetry={fetchExpenses}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
         return (

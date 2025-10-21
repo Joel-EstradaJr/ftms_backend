@@ -6,8 +6,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 //@ts-ignore
 import '../../../styles/expense/addExpense.css';
 import { formatDate } from '../../../utility/dateFormatter';
-import { showSuccess, showError, showConfirmation } from '../../../utility/Alerts';
-import { validateField, isValidAmount, ValidationRule } from "../../../utility/validation";
+import { showSuccess, showError, showConfirmation } from '../../../utils/Alerts';
+import { validateField, isValidAmount, ValidationRule } from "../../../utils/validation";
 import { formatDisplayText } from '../../../utils/formatting';
 import BusSelector from '../../../Components/busSelector';
 import ModalHeader from '../../../Components/ModalHeader';

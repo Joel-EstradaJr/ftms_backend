@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import ModalHeader from '../../../../Components/ModalHeader';
-import { showSuccess, showError } from '../../../../utility/Alerts';
-import { formatDate, formatDateTime } from '../../../../utility/dateFormatter';
+import { showSuccess, showError } from '../../../../utils/Alerts';
+import { formatDate, formatDateTime } from '../../../../utils/formatting';
 
 //@ts-ignore
 import '../../../../styles/loan-management/closeLoanRequest.css';

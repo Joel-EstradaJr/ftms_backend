@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { PurchaseRequestApproval } from "../../../types/purchaseRequestApproval";
-import { showSuccess, showError } from "../../../utility/Alerts";
+import { showSuccess, showError } from "../../../utils/Alerts";
 import ModalHeader from '../../../Components/ModalHeader';
 //@ts-ignore
 import "../../../styles/purchase-approval/processRefund.css";

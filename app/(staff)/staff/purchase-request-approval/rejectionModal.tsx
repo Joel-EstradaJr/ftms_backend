@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import ModalHeader from "../../../Components/ModalHeader";
-import { showSuccess, showError } from "../../../utility/Alerts";
+import { showSuccess, showError } from "../../../utils/Alerts";
 //@ts-ignore
 import "../../../styles/purchase-approval/rejectionModal.css";
 

@@ -10,7 +10,7 @@ import {
   showPartialPaymentWarning,
   showPaymentSuccess,
   showPaymentError
-} from '@/app/utility/Alerts';
+} from '@/app/utils/Alerts';
 import {
   validatePaymentAmount,
   isNotFutureDate,
@@ -18,7 +18,7 @@ import {
   isValidPaymentNotes,
   sanitizeNotesInput,
   normalizeCurrencyAmount
-} from '@/app/utility/validation';
+} from '@/app/utils/validation';
 
 interface AddPaymentModalProps {
   show: boolean;

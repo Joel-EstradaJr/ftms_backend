@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import ModalHeader from '@/app/Components/ModalHeader';
-import { showSuccess, showError } from '@/app/utility/Alerts';
+import { showSuccess, showError } from '@/app/utils/Alerts';
 import '@/app/styles/jev/validateBalance.css';
 import '@/app/styles/components/modal.css';
 

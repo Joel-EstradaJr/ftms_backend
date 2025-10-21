@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import ModalHeader from '@/app/Components/ModalHeader';
-import { showError, showSuccess } from '@/app/utility/Alerts';
+import { showError, showSuccess } from '@/app/utils/Alerts';
 import { ChartOfAccount, AccountFormData } from '@/app/types/jev';
 import '@/app/styles/jev/editAccount.css';
 import '@/app/styles/components/modal.css';

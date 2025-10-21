@@ -3,14 +3,15 @@
 import React, { useState, useMemo } from "react";
 import PaginationComponent from "../../../../Components/pagination";
 import Loading from "../../../../Components/loading";
+import ErrorDisplay from "../../../../Components/ErrorDisplay";
 import FilterDropdown, { FilterSection } from "../../../../Components/filter";
-import { showSuccess, showError, showConfirmation } from "../../../../utility/Alerts";
-import { formatDate } from '../../../../utility/dateFormatter';
+import { showSuccess, showError, showConfirmation } from "../../../../utils/Alerts";
+import { formatDate } from '../../../../utils/formatting';;
 import {
   calculateNextPaymentDate,
   calculatePaymentProgress,
   getPaymentStatus
-} from '../../../../utility/paymentCalculations';
+} from '../../../../utils/paymentCalculations';
 
 import ViewLoanPaymentModal from "./viewLoanPayment";
 import AddPaymentModal from "./addPayment";
@@ -221,6 +222,7 @@ const LoanPaymentPage = () => {
 
   const [loanPayments, setLoanPayments] = useState<LoanForPaymentPage[]>(sampleLoanPaymentData);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -553,6 +555,23 @@ const LoanPaymentPage = () => {
       </>
     );
   };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Loan Payment Management</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to load loan payment data."
+          onRetry={() => {
+            setError(null);
+            setLoading(true);
+            setTimeout(() => setLoading(false), 1000);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

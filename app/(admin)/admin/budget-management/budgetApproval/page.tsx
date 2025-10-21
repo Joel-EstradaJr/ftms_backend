@@ -8,10 +8,11 @@ import "../../../../styles/components/chips.css";
 //@ts-ignore
 import "../../../../styles/budget-management/budgetApproval.css";
 import PaginationComponent from "../../../../Components/pagination";
+import ErrorDisplay from '../../../../Components/errordisplay';
 import Swal from 'sweetalert2';
-import { formatDate, formatDateTime } from '../../../../utility/dateFormatter';
+import { formatDate, formatDateTime } from '../../../../utils/formatting';
 import Loading from '../../../../Components/loading';
-import { showSuccess, showError } from '../../../../utility/Alerts';
+import { showSuccess, showError } from '../../../../utils/Alerts';
 import FilterDropdown, { FilterSection } from "../../../../Components/filter";
 import ViewBudgetRequest from '../budgetRequest/viewBudgetRequest';
 import AuditTrailBudgetRequest from '../budgetRequest/auditTrailBudgetRequest';
@@ -35,6 +36,8 @@ interface BudgetRequest {
 const BudgetApprovalPage = () => {
   const [data, setData] = useState<BudgetRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -583,6 +586,23 @@ const BudgetApprovalPage = () => {
       setSortOrder('asc');
     }
   };
+
+   if (errorCode) {
+    return (
+      <div className="card">
+        <h1 className="title">Budget Approval</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+            //fetchdata again
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

@@ -7,11 +7,11 @@ import {
   showCloseLoanConfirmation,
   showCloseLoanSuccess,
   showPaymentError
-} from '@/app/utility/Alerts';
+} from '@/app/utils/Alerts';
 import {
   isNotFutureDate,
   sanitizeNotesInput
-} from '@/app/utility/validation';
+} from '@/app/utils/validation';
 
 interface CloseLoanPaymentProps {
   show: boolean;

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../../../../styles/budget-management/deductBudgetAllocation.module.css';
 import ModalHeader from '../../../../Components/ModalHeader';
-import { showSuccess, showError, showConfirmation } from '../../../../utility/Alerts';
+import { showSuccess, showError, showConfirmation } from '../../../../utils/Alerts';
 
 // Types
 interface DepartmentBudget {

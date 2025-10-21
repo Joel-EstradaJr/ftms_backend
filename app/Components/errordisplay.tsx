@@ -1,5 +1,5 @@
 import React from 'react';
-import '@app/styles/Components/error.css';
+import '../styles/components/error.css';
 
 type ErrorDisplayProps = {
   errorCode?: number | string | null;

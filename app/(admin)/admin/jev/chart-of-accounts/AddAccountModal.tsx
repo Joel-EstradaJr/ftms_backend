@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import ModalHeader from '@/app/Components/ModalHeader';
-import { showError } from '@/app/utility/Alerts';
+import { showError } from '@/app/utils/Alerts';
 import { AccountType, AccountFormData, ChartOfAccount } from '@/app/types/jev';
 import { getNormalBalance, getAvailableParentAccounts } from '@/app/lib/jev/accountHelpers';
 import { validateAccountForm, validateParentChildRelationship } from '@/app/lib/jev/accountValidation';

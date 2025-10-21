@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import FilterDropdown, { FilterSection } from "../../../Components/filter";
 import Loading from "../../../Components/loading";
+import ErrorDisplay from "../../../Components/ErrorDisplay";
 import PaginationComponent from "../../../Components/pagination";
-import { showConfirmation, showSuccess, showError } from "../../../utility/Alerts";
+import { showConfirmation, showSuccess, showError } from "../../../utils/Alerts";
 
 // Import types for purchase request approval
 import {
@@ -258,6 +259,7 @@ export default function PurchaseRequestApproval() {
   // State management
   const [data, setData] = useState<PurchaseRequestApproval[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<ApprovalFilters>({});
   
@@ -860,6 +862,23 @@ export default function PurchaseRequestApproval() {
         return baseActions;
     }
   };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Purchase Request Approval</h1>
+        <ErrorDisplay
+          type="503"
+          message="An error occurred. Please try again."
+          onRetry={() => {
+            setError(null);
+            setLoading(true);
+            setTimeout(() => setLoading(false), 1000);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

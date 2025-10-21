@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import ModalHeader from '@/app/Components/ModalHeader';
-import { formatDateTime } from '@/app/utility/dateFormatter';
+import { formatDateTime } from '@/app/utils/formatting';
 import { AuditLog } from '@/app/types/jev';
 import '@/app/styles/jev/auditTrail.css';
 import '@/app/styles/components/modal.css';

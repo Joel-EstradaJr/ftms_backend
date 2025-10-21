@@ -67,23 +67,23 @@ export async function refreshCaches(baseUrl = process.env.NEXT_PUBLIC_BASE_URL |
 
       await anyTx.busTripCache.createMany({
         data: uniqueTrips.map((t) => ({
-          assignment_id: t.assignment_id,
-          bus_trip_id: t.bus_trip_id,
-          bus_route: t.bus_route,
-          is_revenue_recorded: Boolean(t.is_revenue_recorded),
-          is_expense_recorded: Boolean(t.is_expense_recorded),
-          date_assigned: new Date(t.date_assigned),
-          trip_fuel_expense: String(t.trip_fuel_expense ?? 0),
-          trip_revenue: String(t.trip_revenue ?? 0),
-          assignment_type: String(t.assignment_type ?? ""),
-          assignment_value: String(t.assignment_value ?? 0),
-          payment_method: String(t.payment_method ?? ""),
-          driver_name: String(t.driver_name ?? ""),
-          conductor_name: String(t.conductor_name ?? ""),
-          bus_plate_number: String(t.bus_plate_number ?? ""),
-          bus_type: String(t.bus_type ?? ""),
-          body_number: String(t.body_number ?? ""),
-          last_synced_at: now,
+          assignmentId: t.assignment_id,
+          busTripId: t.bus_trip_id,
+          busRoute: t.bus_route,
+          isRevenueRecorded: Boolean(t.is_revenue_recorded),
+          isExpenseRecorded: Boolean(t.is_expense_recorded),
+          dateAssigned: new Date(t.date_assigned),
+          tripFuelExpense: String(t.trip_fuel_expense ?? 0),
+          tripRevenue: String(t.trip_revenue ?? 0),
+          assignmentType: String(t.assignment_type ?? ""),
+          assignmentValue: String(t.assignment_value ?? 0),
+          paymentMethod: String(t.payment_method ?? ""),
+          driverName: String(t.driver_name ?? ""),
+          conductorName: String(t.conductor_name ?? ""),
+          busPlateNumber: String(t.bus_plate_number ?? ""),
+          busType: String(t.bus_type ?? ""),
+          bodyNumber: String(t.body_number ?? ""),
+          lastSynced: now,
         })
       ) as any,
         skipDuplicates: true as any,
@@ -95,15 +95,15 @@ export async function refreshCaches(baseUrl = process.env.NEXT_PUBLIC_BASE_URL |
     if (employees.length) {
       await anyTx.employeeCache.createMany({
         data: employees.map((e) => ({
-          employee_number: e.employeeNumber,
-          first_name: e.firstName,
-          middle_name: e.middleName || null,
-          last_name: e.lastName,
+          employeeNumber: e.employeeNumber,
+          firstName: e.firstName,
+          middleName: e.middleName || null,
+          lastName: e.lastName,
           phone: e.phone || null,
           position: e.position,
-          department_id: Number(e.departmentId ?? 0),
+          departmentId: Number(e.departmentId ?? 0),
           department: e.department,
-          last_synced_at: now,
+          lastSynced: now,
         })) as any
       });
     }
@@ -113,21 +113,21 @@ export async function refreshCaches(baseUrl = process.env.NEXT_PUBLIC_BASE_URL |
     if (payroll.length) {
       await anyTx.payrollCache.createMany({
         data: payroll.map((p) => ({
-          employee_number: p.employeeNumber,
-          first_name: p.firstName,
-          middle_name: p.middleName || null,
-          last_name: p.lastName,
+          employeeNumber: p.employeeNumber,
+          firstName: p.firstName,
+          middleName: p.middleName || null,
+          lastName: p.lastName,
           suffix: p.suffix || null,
-          employee_status: String(p.employeeStatus ?? ""),
-          hire_date: new Date(p.hiredate),
-          termination_date: p.terminationDate ? new Date(p.terminationDate) : null,
-          basic_rate: String(p.basicRate ?? 0),
-          position_name: p.position?.positionName ?? "",
-          department_name: p.position?.department?.departmentName ?? "",
-          attendances: p.attendances ?? null,
-          benefits: p.benefits ?? null,
-          deductions: p.deductions ?? null,
-          last_synced_at: now,
+          employeeStatus: String(p.employeeStatus ?? ""),
+          hiredate: new Date(p.hiredate),
+          terminationDate: p.terminationDate ? new Date(p.terminationDate) : null,
+          basicRate: String(p.basicRate ?? 0),
+          positionName: p.position?.positionName ?? "",
+          departmentName: p.position?.department?.departmentName ?? "",
+          attendanceData: p.attendances ?? null,
+          benefitsData: p.benefits ?? null,
+          deductionsData: p.deductions ?? null,
+          lastSynced: now,
         })) as any
       });
     }

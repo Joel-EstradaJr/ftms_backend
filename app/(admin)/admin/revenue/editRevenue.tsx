@@ -5,7 +5,7 @@ import "../../../styles/revenue/editRevenue.css";
 import { getAssignmentById } from '@/lib/operations/assignments';
 import { formatDate } from '../../../utility/dateFormatter';
 import { getBoundaryLossInfo, computeAutoAmount } from '@/app/utils/revenueCalc';
-import { validateField, ValidationRule, isValidAmount } from "../../../utility/validation";
+import { validateField, ValidationRule, isValidAmount } from "../../../utils/validation";
 import { getRevenueGlobalsCached } from '@/lib/clientStore';
 import ModalHeader from '@/app/Components/ModalHeader';
 

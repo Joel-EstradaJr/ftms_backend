@@ -3,10 +3,31 @@
 /* Settings bar (search + filters) */
 .settings {
   display: flex;
-  gap: 1rem;
   align-items: center;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+}
+
+.searchBar {
+  display: flex !important;
+  align-items: center !important;
+  width: auto !important;
+  padding: var(--search-input-padding-right) !important;
+  height: var(--search-input-height) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--search-input-border-radius) !important;
+  background-color: var(--foreground-color) !important;
+  box-shadow: var(--box-shadow) !important;
+}
+
+.searchBar .searchInput {
+  flex: 1 !important;
+  border: none !important;
+  outline: none !important;
+  padding: 0 8px !important;
+  font-size: 14px !important;
+  color: var(--primary-text-color) !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .filters {
@@ -76,7 +97,7 @@
 
 /* Validate Button */
 .validateBtn {
-  background-color: var(--warning-color) !important;
+  background-color: var(--info-color) !important;
   color: #FFFFFF !important;
   border: none !important;
   padding: 8px 16px !important;
@@ -92,7 +113,7 @@
 }
 
 .validateBtn:hover {
-  background-color: var(--warning-hover-color) !important;
+  background-color: var(--info-hover-color) !important;
 }
 
 /* Export Button */

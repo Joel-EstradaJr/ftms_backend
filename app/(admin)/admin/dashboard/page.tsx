@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import PieChart from "../../../Components/pieChart";
 import ExportConfirmationModal from "../../../Components/ExportConfirmationModal";
+import ErrorDisplay from '../../../Components/errordisplay';
 //@ts-ignore
 import "../../../styles/dashboard/dashboard.css";
 import { logAuditToServer } from "../../../lib/clientAuditLogger";
@@ -49,6 +50,8 @@ interface EmotionSettings {
 const DashboardPage = () => {
   const today = new Date().toISOString().split('T')[0];
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   const [dateFilter, setDateFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -144,8 +147,9 @@ const DashboardPage = () => {
         expense: { total: totalExpense, byCategory: expenseByCategory },
         profit
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching dashboard data:", error);
+      setError(error.message || 'Failed to load dashboard data');
     }
     finally {
       setLoading(false);
@@ -235,6 +239,23 @@ const DashboardPage = () => {
             <h1 className="title">Dashboard</h1>
             <Loading />
         </div>
+    );
+  }
+
+    if (errorCode) {
+    return (
+      <div className="card">
+        <h1 className="title">Audit Logs</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+            fetchDashboardData;
+          }}
+        />
+      </div>
     );
   }
   

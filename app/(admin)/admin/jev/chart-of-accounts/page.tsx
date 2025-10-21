@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { formatDate } from '@/app/utility/dateFormatter';
-import { showSuccess, showError, showConfirmation } from '@/app/utility/Alerts';
+import { formatDate } from '../../../../utils/formatting';;
+import { showSuccess, showError, showConfirmation } from '@/app/utils/Alerts';
 import PaginationComponent from '@/app/Components/pagination';
 import Loading from '@/app/Components/loading';
+import ErrorDisplay from '@/app/Components/errordisplay';
 import FilterDropdown, { FilterSection } from '@/app/Components/filter';
 import AddAccountModal from './AddAccountModal';
 import EditAccountModal from './EditAccountModal';
@@ -27,6 +28,8 @@ import '@/app/styles/JEV/JEV_table.css';
 const ChartOfAccountsPage = () => {
   const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   const [search, setSearch] = useState('');
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
@@ -513,6 +516,23 @@ const ChartOfAccountsPage = () => {
     );
   };
 
+   if (errorCode) {
+    return (
+      <div className="card">
+        <h1 className="title">Chart of Accounts</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+            //refresh/fetch data again
+          }}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="card">
@@ -533,23 +553,23 @@ const ChartOfAccountsPage = () => {
             <i className="ri-search-line" />
             <input
               type="text"
+              className="searchInput"
               placeholder="Search account code or name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <FilterDropdown
+            sections={filterSections}
+            onApply={handleFilterApply}
+            initialValues={{
+              accountType: [],
+              status: statusFilter,
+            }}
+          />
 
           {/* Filters and Actions */}
           <div className="filters">
-            <FilterDropdown
-              sections={filterSections}
-              onApply={handleFilterApply}
-              initialValues={{
-                accountType: [],
-                status: statusFilter,
-              }}
-            />
-
             <button onClick={handleExport} id="export">
               <i className="ri-file-download-line" /> Generate CSV
             </button>

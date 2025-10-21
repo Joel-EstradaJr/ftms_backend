@@ -6,15 +6,16 @@ import "../../../styles/revenue/revenue.css";
 import "../../../styles/components/table.css";
 import PaginationComponent from "../../../Components/pagination";
 import AddRevenue from "./addRevenue"; 
+import ErrorDisplay from '../../../Components/ErrorDisplay';
 import Swal from 'sweetalert2';
 import EditRevenueModal from "./editRevenue";
 import ViewRevenueModal from "./viewRevenue";
 import AddPaymentModal from "./AddPaymentModal";
 // Assignments are loaded via client-side cache now
-import { formatDate } from '../../../utility/dateFormatter';
+import { formatDate } from '../../../utils/formatting';;
 import Loading from '../../../Components/loading';
-import { showSuccess, showError } from '../../../utility/Alerts';
-import { formatDateTime } from "../../../utility/dateFormatter";
+import { showSuccess, showError } from '../../../utils/Alerts';
+import { formatDateTime } from '../../../utils/formatting';
 import { formatDisplayText } from '@/app/utils/formatting';
 import type { Assignment } from '@/lib/operations/assignments';
 import FilterDropdown, { FilterSection } from "../../../Components/filter"
@@ -173,6 +174,7 @@ const CacheHealthIndicator: React.FC<{ refreshKey: number }> = ({ refreshKey }) 
 const RevenuePage = () => {
   const [data, setData] = useState<RevenueData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -276,60 +278,62 @@ const RevenuePage = () => {
 
   // Centralized periodic refresh is configured in the fetchAllData effect below
 
+  // Main data fetch function - extracted for reusability
+  const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+    console.log('[FETCH] Starting fetchAllData');
+    try {
+      // Fetch categories for the filter dropdown
+      await fetchCategories();
+
+      // Fetch all assignments using the new Operations service
+      const assignmentsData = await getAssignmentsCached();
+      console.log('[FETCH] Assignments loaded from Operations API');
+
+      // Filter out recorded assignments for the AddRevenue modal
+      const unrecordedAssignments = assignmentsData.filter((a: Assignment) => !a.is_revenue_recorded);
+      setAssignments(unrecordedAssignments);
+
+      // Store all assignments for table display
+      setAllAssignments(assignmentsData);
+
+      // Then fetch revenues
+      const revenuesResponse = await fetch('/api/revenues');
+      console.log('[FETCH] /api/revenues status:', revenuesResponse.status);
+      if (!revenuesResponse.ok) throw new Error('Failed to fetch revenues');
+
+      const revenues: RevenueRecord[] = await revenuesResponse.json();
+
+      const transformedData: RevenueData[] = revenues.map(revenue => ({
+        revenue_id: revenue.revenue_id,
+        category: revenue.category,
+        source: revenue.source,
+        total_amount: Number(revenue.total_amount),
+        collection_date: revenue.collection_date, // Keep full ISO datetime string
+        created_by: revenue.created_by,
+        created_at: revenue.created_at,
+        assignment_id: revenue.assignment_id,
+        bus_trip_id: revenue.bus_trip_id,
+        is_receivable: (revenue as any).is_receivable,
+        outstanding_balance: Number((revenue as any).outstanding_balance || 0),
+        due_date: (revenue as any).due_date || null,
+        attachment_count: Number((revenue as any).attachment_count || 0),
+      }));
+
+      setData(transformedData);
+      console.log('[FETCH] Data loaded successfully');
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      setError(error.message || 'Failed to load revenue data');
+    } finally {
+      setLoading(false);
+      console.log('[FETCH] setLoading(false) called');
+    }
+  };
+
   // Single useEffect for initial data fetching
   useEffect(() => {
-    const fetchAllData = async () => {
-      setLoading(true);
-      console.log('[FETCH] Starting fetchAllData');
-      try {
-        // Fetch categories for the filter dropdown
-        await fetchCategories();
-
-        // Fetch all assignments using the new Operations service
-  const assignmentsData = await getAssignmentsCached();
-        console.log('[FETCH] Assignments loaded from Operations API');
-
-        // Filter out recorded assignments for the AddRevenue modal
-        const unrecordedAssignments = assignmentsData.filter((a: Assignment) => !a.is_revenue_recorded);
-        setAssignments(unrecordedAssignments);
-
-        // Store all assignments for table display
-        setAllAssignments(assignmentsData);
-
-        // Then fetch revenues
-        const revenuesResponse = await fetch('/api/revenues');
-        console.log('[FETCH] /api/revenues status:', revenuesResponse.status);
-        if (!revenuesResponse.ok) throw new Error('Failed to fetch revenues');
-
-  const revenues: RevenueRecord[] = await revenuesResponse.json();
-
-        const transformedData: RevenueData[] = revenues.map(revenue => ({
-          revenue_id: revenue.revenue_id,
-          category: revenue.category,
-          source: revenue.source,
-          total_amount: Number(revenue.total_amount),
-          collection_date: revenue.collection_date, // Keep full ISO datetime string
-          created_by: revenue.created_by,
-          created_at: revenue.created_at,
-          assignment_id: revenue.assignment_id,
-          bus_trip_id: revenue.bus_trip_id,
-          is_receivable: (revenue as any).is_receivable,
-          outstanding_balance: Number((revenue as any).outstanding_balance || 0),
-          due_date: (revenue as any).due_date || null,
-          attachment_count: Number((revenue as any).attachment_count || 0),
-        }));
-
-        setData(transformedData);
-        console.log('[FETCH] Data loaded successfully');
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        showError('Failed to load data', 'Error');
-      } finally {
-        setLoading(false);
-        console.log('[FETCH] setLoading(false) called');
-      }
-    };
-    
     fetchAllData();
 
     // Set up periodic refresh of assignments (align with cache refresh cadence)
@@ -880,6 +884,19 @@ const RevenuePage = () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Revenue Records</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to load revenue records."
+          onRetry={fetchAllData}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
         return (

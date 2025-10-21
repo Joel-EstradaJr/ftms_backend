@@ -4,7 +4,7 @@ import Loading from "./loading"; // Reuse your loading spinner
 import "../styles/components/busSelector.css"
 import "../styles/components/table.css"
 import type { Assignment } from '@/lib/operations/assignments';
-import { formatDateTime } from '../utility/dateFormatter';
+import { formatDateTime } from '../utils/formatting';
 import ModalHeader from './ModalHeader';
 
 type Employee = {

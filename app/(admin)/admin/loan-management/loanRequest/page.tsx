@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import PaginationComponent from "../../../../Components/pagination";
 import Loading from "../../../../Components/loading";
+import ErrorDisplay from "../../../../Components/errordisplay";
 import FilterDropdown, { FilterSection } from "../../../../Components/filter";
-import { showSuccess, showError, showConfirmation, showLoanRejectionDialog } from "../../../../utility/Alerts";
-import { formatDateTime, formatDate } from '../../../../utility/dateFormatter';
+import { showSuccess, showError, showConfirmation, showLoanRejectionDialog } from "../../../../utils/Alerts";
+import { formatDateTime, formatDate } from '../../../../utils/formatting';;
 
 // Import Loan Management Modals
 import AddLoanRequestModal from "./addLoanRequest";
@@ -508,6 +509,8 @@ const LoanRequestPage = () => {
   // State management
   const [data, setData] = useState<LoanRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<LoanFilters>({});
   
@@ -1475,6 +1478,22 @@ const LoanRequestPage = () => {
     }
   };
 
+ if (errorCode) {
+    return (
+      <div className="card">
+        <h1 className="title">Loan Request Management</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="card">
@@ -1492,22 +1511,23 @@ const LoanRequestPage = () => {
         </div>
         
         <div className="settings">
-          <div className="loan_searchBar">
-            <i className="ri-search-line" />
-            <input
-              className="searchInput"
-              type="text"
-              placeholder="Search loan requests, employee, purpose..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+          <div className="search-filter-container">
+            <div className="loan_searchBar">
+              <i className="ri-search-line" />
+              <input
+                className="searchInput"
+                type="text"
+                placeholder="Search loan requests, employee, purpose..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            
+            <FilterDropdown
+              sections={filterSections}
+              onApply={handleApplyFilters}
             />
           </div>
-          
-          <FilterDropdown
-            sections={filterSections}
-            onApply={handleApplyFilters}
-          />
-          
           <div className="filters">
             <button onClick={handleExport} id="export">
               <i className="ri-download-line" /> Export CSV

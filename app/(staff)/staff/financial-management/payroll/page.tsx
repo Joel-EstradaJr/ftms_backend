@@ -7,8 +7,9 @@ import "../../../../styles/components/table.css";
 import "../../../../styles/components/chips.css";
 import PaginationComponent from "../../../../Components/pagination";
 import Loading from '../../../../Components/loading';
+import ErrorDisplay from '../../../../Components/ErrorDisplay';
 import Swal from 'sweetalert2';
-import { showSuccess } from '../../../../utility/Alerts';
+import { showSuccess } from '../../../../utils/Alerts';
 import ViewPayrollModal from "./viewPayroll";
 import { endOfMonth, format, getDaysInMonth } from 'date-fns';
 
@@ -449,25 +450,24 @@ const PayrollPage = () => {
     setGenEnd(format(sunday, 'yyyy-MM-dd'));
   };
 
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Payroll Management</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to load payroll data."
+          onRetry={handleRetry}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="card">
         <h1 className="title">Payroll Management</h1>
         <Loading />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="card">
-        <h1 className="title">Payroll Management</h1>
-        <div style={{ textAlign: 'center', padding: '2rem', color: 'red' }}>
-          <p>{error}</p>
-          <button onClick={handleRetry} style={{ marginTop: '1rem' }}>
-            Retry
-          </button>
-        </div>
       </div>
     );
   }

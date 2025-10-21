@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import ModalHeader from '@/app/Components/ModalHeader';
-import { showSuccess } from '@/app/utility/Alerts';
+import { showSuccess } from '@/app/utils/Alerts';
 import { ChartOfAccount, AccountFormData } from '@/app/types/jev';
 import '@/app/styles/jev/addAccount.css';
 

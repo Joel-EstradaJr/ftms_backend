@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import PieChart from "../../../Components/pieChart";
 import ExportConfirmationModal from "../../../Components/ExportConfirmationModal";
+import ErrorDisplay from '../../../Components/ErrorDisplay';
 //@ts-ignore
 import "../../../styles/dashboard/dashboard.css";
 import { logAuditToServer } from "../../../lib/clientAuditLogger";
@@ -49,6 +50,7 @@ interface EmotionSettings {
 const DashboardPage = () => {
   const today = new Date().toISOString().split('T')[0];
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -228,6 +230,23 @@ const DashboardPage = () => {
       console.error('Error exporting dashboard data:', error);
     }
   };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Dashboard</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to load dashboard data."
+          onRetry={() => {
+            setError(null);
+            setLoading(true);
+            // Refetch logic - fetchDashboardData would be called here
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import ModalHeader from '../../../../Components/ModalHeader';
-import { showSuccess, showError } from '../../../../utility/Alerts';
+import { showSuccess, showError } from '../../../../utils/Alerts';
 import {
   PaymentScheduleType,
   PaymentAmountType,
@@ -20,7 +20,7 @@ import {
   convertPesoToPercentage,
   formatCurrency,
   formatPercentage
-} from '../../../../utility/paymentCalculations';
+} from '../../../../utils/paymentCalculations';
 
 //@ts-ignore
 import '../../../../styles/loan-management/addLoanRequest.css';

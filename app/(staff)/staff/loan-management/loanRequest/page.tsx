@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import PaginationComponent from "../../../../Components/pagination";
 import Loading from "../../../../Components/loading";
+import ErrorDisplay from "../../../../Components/ErrorDisplay";
 import FilterDropdown, { FilterSection } from "../../../../Components/filter";
-import { showSuccess, showError, showConfirmation, showLoanRejectionDialog } from "../../../../utility/Alerts";
-import { formatDateTime, formatDate } from '../../../../utility/dateFormatter';
+import { showSuccess, showError, showConfirmation, showLoanRejectionDialog } from "../../../../utils/Alerts";
+import { formatDateTime, formatDate } from '../../../../utils/formatting';;
 
 // Import Loan Management Modals
 import AddLoanRequestModal from "./addLoanRequest";
@@ -508,6 +509,7 @@ const LoanRequestPage = () => {
   // State management
   const [data, setData] = useState<LoanRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<LoanFilters>({});
   
@@ -1474,6 +1476,23 @@ const LoanRequestPage = () => {
         return baseActions;
     }
   };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Loan Request Management</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to load loan requests."
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setTimeout(() => setLoading(false), 1000);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

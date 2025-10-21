@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import '../../../../styles/components/modal.css';
 import '../../../../styles/loan-management/auditLoanPayment.css';
-import { showAuditConfirmation, showAuditSuccess, showConfirmation } from '@/app/utility/Alerts';
+import { showAuditConfirmation, showAuditSuccess, showConfirmation } from '@/app/utils/Alerts';
 
 interface AuditLoanPaymentProps {
   show: boolean;

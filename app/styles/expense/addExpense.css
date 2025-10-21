@@ -1,422 +1,289 @@
 /* ============================================================
-   addExpense.css – Expense Modal (uses tokens from global.css)
+   EXPENSE MODAL - Expense-Specific Styles Only
+   Base modal styles are in modal.css
    ============================================================ */
 
-/* ---------- Overlay ---------- */
-.modalOverlay {
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  background: rgba(0, 0, 0, 0.4) !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-  z-index: 1050 !important;
-  overflow: auto !important;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-.modalOverlay::-webkit-scrollbar {
-  display: none !important;
-}
-
-/* ---------- Modal Box ---------- */
+/* ---------- Expense Modal Specific ---------- */
 .addExpenseModal {
+  width: 95% !important;
+  max-width: 900px !important;
+  max-height: 90vh !important;
+  background-color: var(--foreground-color) !important;
+  border-radius: var(--modal-border-radius) !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  background: var(--foreground-color) !important;
-  padding: var(--modal-padding) !important;
-  border-radius: var(--modal-border-radius) !important;
-  width: 80% !important;
-  max-width: 1000px !important;
-  max-height: 80vh !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
   overflow: hidden !important;
-  box-shadow: var(--box-shadow) !important;
-  position: relative !important;
-  font-family: var(--font-sans) !important;
-  color: var(--primary-text-color) !important;
+  padding: var(--modal-padding) !important;
+}
+
+.addExpenseModal .modal {
+  padding: 0 !important;
+  background-color: transparent !important;
+  overflow-y: auto !important;
+  flex: 1 !important;
+  max-height: calc(90vh - 120px) !important;
 }
 
 .addExpenseModal form {
-  width: 100% !important;
-  overflow-y: auto !important;
-  max-height: calc(80vh - 100px) !important;
-  scrollbar-width: thin !important;
-}
-.addExpenseModal form::-webkit-scrollbar {
-  width: 6px !important;
-}
-.addExpenseModal form::-webkit-scrollbar-thumb {
-  background: var(--border-color) !important;
-  border-radius: 6px !important;
-}
-
-/* ---------- Header ---------- */
-.modalHeader {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  width: 100% !important;
-  margin-bottom: var(--modal-header-margin-bottom) !important;
-  padding-bottom: 10px !important;
-  border-bottom: 1px solid var(--border-color) !important;
-}
-
-.modalHeader h1 {
-  font-size: var(--title-font-size) !important;
-  font-weight: var(--title-font-weight) !important;
-  color: var(--primary-text-color) !important;
-  margin: 0 !important;
-}
-
-/* Date / Time stamp */
-.timeDate {
-  display: flex !important;
-  gap: 1rem !important;
-  font-size: var(--modal-timedate-font-size) !important;
-  font-style: italic !important;
-  color: var(--secondary-text-color) !important;
-  margin-top: 10px !important;
-}
-
-.currTime,
-.currDate {
-  margin: 0 !important;
-  align-self: flex-end !important;
-}
-
-/* ---------- Content ---------- */
-.modalContent {
-  width: var(--modal-content-width) !important;
-  max-width: 100% !important;
-  height: var(--modal-content-height) !important;
-  background-color: var(--modal-content-background-color) !important;
-  padding: var(--modal-content-padding) !important;
-  border-radius: var(--modal-content-border-radius) !important;
-  box-shadow: none !important;
-  overflow-y: auto !important;
-}
-
-/* Ensure only one scrollbar by preventing nested scrolling inside Add modal.
-   The form already handles vertical scroll; keep content as a flow container. */
-.addExpenseModal .modalContent {
-  height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
-}
-
-/* ---------- Field Grid ---------- */
-.formRow{
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  align-content: center;
-  gap: 1rem !important;
-}
-
-.formInputs {
-  display: flex;
-  flex-direction: column !important;
-  flex: 1 1 auto !important;
-  gap: var(--modal-content-row-gap) !important;
-}
-
-.formField {
   display: flex !important;
   flex-direction: column !important;
-  flex: 1;
-  margin: none;
-  width: 50%;
-  max-width: 50%;
-  background-color: none;
+  min-height: 100% !important;
+  background-color: var(--foreground-color) !important;
 }
 
-.formField label {
+/* ---------- Form Sections ---------- */
+.addExpenseModal .form-section {
+  padding: 1.5rem 2rem !important;
+  border-bottom: 1px solid var(--table-header-color) !important;
+}
+
+.addExpenseModal .form-section:last-of-type {
+  border-bottom: none !important;
+}
+
+.addExpenseModal .form-section h3 {
+  color: var(--primary-color) !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 1.25rem !important;
+  padding-bottom: 0.5rem !important;
+  border-bottom: 2px solid var(--secondary-color) !important;
+}
+
+/* ---------- Form Rows & Groups ---------- */
+.form-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+}
+
+.form-row:last-child {
+  margin-bottom: 0 !important;
+}
+
+.form-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1 !important;
+}
+
+.form-group label {
   font-size: var(--input-label-font-size) !important;
   font-weight: var(--input-label-font-weight) !important;
-  margin-bottom: 0.25rem !important;
+  color: var(--primary-text-color) !important;
 }
 
-.formField input,
-.formField select {
-  width: 100% !important;
-  padding: 0.5rem 0.75rem !important;
-  border: none!important;
-  outline: none !important;
-  border-radius: 4px !important;
+.form-group label .requiredTags {
+  color: var(--error-color) !important;
+  margin-left: 2px !important;
+}
+
+/* ---------- Form Inputs ---------- */
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 0.625rem 0.875rem !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--search-input-border-radius) !important;
+  font-size: var(--table-body-font-size) !important;
   font-family: var(--font-sans) !important;
-  background-color: var(--modal-input-select-background-color);
-  box-shadow: var(--box-shadow) !important;
+  background: var(--modal-input-select-background-color) !important;
+  color: var(--primary-text-color) !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
 }
 
-/* ---------- Button Area ---------- */
-.modalButtons {
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px rgba(150, 28, 30, 0.1) !important;
+}
+
+.form-group textarea {
+  resize: vertical !important;
+  min-height: 80px !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* Input Error States */
+.form-group input.input-error,
+.form-group select.input-error,
+.form-group textarea.input-error {
+  border-color: var(--error-color) !important;
+  box-shadow: 0 0 0 3px rgba(255, 73, 73, 0.1) !important;
+}
+
+/* ---------- Toggle/Checkbox ---------- */
+.form-toggle {
+  margin: 1rem 0 !important;
+}
+
+.toggle-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 20px !important;
+  height: 20px !important;
+  cursor: pointer !important;
+  accent-color: var(--primary-color) !important;
+}
+
+.toggle-label span {
+  font-size: var(--input-label-font-size) !important;
+  font-weight: 500 !important;
+  color: var(--primary-text-color) !important;
+}
+
+/* ---------- Trip Assignment Section ---------- */
+.trip-section {
+  background: var(--modal-content-background-color) !important;
+}
+
+.trip-section button {
   width: 100% !important;
-  margin-top: 1.25rem !important;
+  padding: 1rem !important;
+  background: var(--foreground-color) !important;
+  border: 2px dashed var(--border-color) !important;
+  border-radius: var(--search-input-border-radius) !important;
+  color: var(--primary-color) !important;
+  font-size: var(--input-label-font-size) !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-align: left !important;
+}
+
+.trip-section button:hover {
+  background: var(--table-header-color) !important;
+  border-color: var(--primary-color) !important;
+  border-style: solid !important;
+}
+
+.trip-section button i {
+  margin-right: 0.5rem !important;
+}
+
+.trip-section button.input-error {
+  border-color: var(--error-color) !important;
+  border-style: solid !important;
+}
+
+/* ---------- Action Buttons ---------- */
+.modal-actions {
   display: flex !important;
   justify-content: flex-end !important;
   gap: var(--modal-button-gap) !important;
+  padding: 1.5rem 2rem !important;
+  background: var(--foreground-color) !important;
+  border-top: 1px solid var(--border-color) !important;
 }
 
-.modalButtons button {
+.btn-secondary,
+.btn-primary {
   width: var(--modal-button-width) !important;
   height: var(--modal-button-height) !important;
-  font-size: var(--modal-button-font-size) !important;
+  padding: 0 !important;
   border-radius: var(--modal-button-border-radius) !important;
-  border: none !important;
-  outline: none !important;
-  cursor: pointer !important;
-  color: var(--button-font-color) !important;
-  box-shadow: var(--box-shadow) !important;
-  transition: transform 0.15s ease, background 0.15s ease !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-}
-
-.addButton {
-  background: var(--primary-color) !important;
-}
-.addButton:hover {
-  background: var(--primary-hover-color) !important;
-}
-
-#busSelector {
-  min-width: var(--modal-button-width) !important;
-  max-width: fit-content;
-  min-height: var(--modal-button-height) !important;
   font-size: var(--modal-button-font-size) !important;
-  border-radius: var(--modal-button-border-radius) !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
   border: none !important;
   outline: none !important;
-  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.btn-secondary {
+  background: var(--secondary-color) !important;
   color: var(--button-font-color) !important;
+}
+
+.btn-secondary:hover {
+  background: var(--secondary-hover-color) !important;
+  transform: translateY(-2px) !important;
   box-shadow: var(--box-shadow) !important;
-  transition: transform 0.15s ease, background 0.15s ease !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
+}
+
+.btn-primary {
   background: var(--primary-color) !important;
-  padding: var(--table-action-button-padding);
+  color: var(--button-font-color) !important;
 }
 
-#busSelector:hover {
+.btn-primary:hover {
   background: var(--primary-hover-color) !important;
-}
-/* ---------- Utility Rows ---------- */
-.row,
-.buttonRow {
-  width: 100% !important;
-  display: flex !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-}
-
-/* ---------- Reimbursement Box ---------- */
-.reimbBox {
-  background: #f7f7fa;
-  border: 1.5px solid var(--border-color, #d1d5db);
-  border-radius: 8px;
-  padding: 1.25rem 1rem 1rem 1rem;
-  margin: 1.5rem 0 1rem 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-.reimbHeader {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-  color: var(--primary-color, #b91c1c);
-}
-.reimbGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1rem 1.5rem;
-  margin-bottom: 0.5rem;
-}
-.reimbField {
-  display: flex;
-  flex-direction: column;
-}
-.reimbHelper {
-  font-size: 0.95rem;
-  color: #666;
-  margin-top: 0.5rem;
-  margin-bottom: 0.25rem;
-}
-
-/* ---------- Employee Reimbursement Multi-Rows ---------- */
-.reimb-multi-rows {
-  margin: 1rem 0;
-  background: #f8f9fa;
-  border: 1px solid var(--border-color, #d1d5db);
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.reimb-multi-rows h3 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  color: var(--primary-color, #b91c1c);
-}
-
-.employee-reimb-container {
-  background: #ffffff;
-  border: 1px solid var(--border-color, #d1d5db);
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.employee-section {
-  display: flex;
-  align-items: flex-start;
-  gap: 2rem;
-}
-
-.employee-labels {
-  flex: 0 0 auto;
-  min-width: 180px;
-}
-
-.employee-label-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.employee-label-group label {
-  font-size: var(--input-label-font-size) !important;
-  font-weight: var(--input-label-font-weight) !important;
-  margin: 0;
-  padding: 0.5rem 0;
-  color: var(--primary-text-color);
-}
-
-.employee-inputs {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.employee-inputs input,
-.employee-inputs select {
-  width: 100% !important;
-  padding: 0.5rem 0.75rem !important;
-  border: none !important;
-  outline: none !important;
-  border-radius: 4px !important;
-  font-family: var(--font-sans) !important;
-  background-color: var(--modal-input-select-background-color, #ffffff);
+  transform: translateY(-2px) !important;
   box-shadow: var(--box-shadow) !important;
 }
 
-.employee-actions {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  padding-top: 0.5rem;
-}
-
-.removeRowBtn {
-  background: #ef4444 !important;
-  color: white !important;
-  border: none !important;
-  border-radius: 6px !important;
-  padding: 0.75rem !important;
-  cursor: pointer !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 1rem !important;
-  transition: background 0.15s ease !important;
-  min-width: 40px;
-  min-height: 40px;
-}
-
-.removeRowBtn:hover:not(:disabled) {
-  background: #dc2626 !important;
-}
-
-.removeRowBtn:disabled {
-  background: #9ca3af !important;
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5 !important;
   cursor: not-allowed !important;
+  transform: none !important;
 }
 
-.add-employee-section {
-  margin-top: 1rem;
-  display: flex;
-  justify-content: flex-start;
+/* ---------- Loading State ---------- */
+.btn-primary.loading,
+.btn-secondary.loading {
+  position: relative !important;
+  color: transparent !important;
 }
 
-.addRowBtn {
-  background: var(--primary-color) !important;
-  color: var(--button-font-color, white) !important;
-  border: none !important;
-  border-radius: var(--modal-button-border-radius, 6px) !important;
-  padding: 0.75rem 1.5rem !important;
-  cursor: pointer !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 0.5rem !important;
-  font-size: var(--modal-button-font-size, 0.9rem) !important;
-  font-weight: 500 !important;
-  transition: background 0.15s ease !important;
-  box-shadow: var(--box-shadow) !important;
+.btn-primary.loading::after,
+.btn-secondary.loading::after {
+  content: "" !important;
+  position: absolute !important;
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid var(--button-font-color) !important;
+  border-top-color: transparent !important;
+  border-radius: 50% !important;
+  animation: spin 0.6s linear infinite !important;
 }
 
-.addRowBtn:hover:not(:disabled) {
-  background: var(--primary-hover-color) !important;
+@keyframes spin {
+  to {
+    transform: rotate(360deg) !important;
+  }
 }
 
-.addRowBtn:disabled {
-  background: #9ca3af !important;
-  cursor: not-allowed !important;
-}
+/* ---------- Responsive Design ---------- */
+@media (max-width: 768px) {
+  .addExpenseModal {
+    width: 95% !important;
+    max-height: 90vh !important;
+  }
 
-.addRowBtn i {
-  font-size: 1rem;
-}
+  .form-row {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
 
-.employee-error {
-  margin-top: 0.75rem;
-  margin-left: 0;
-  padding: 0.5rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 4px;
-  color: #dc2626;
-  font-size: 0.875rem;
-}
+  .form-section {
+    padding: 1rem 1.5rem !important;
+  }
 
-/* ---------- Additional Form Classes ---------- */
-.formInput {
-  width: 100% !important;
-  padding: 0.5rem 0.75rem !important;
-  border: none !important;
-  outline: none !important;
-  border-radius: 4px !important;
-  font-family: var(--font-sans) !important;
-  background-color: var(--modal-input-select-background-color);
-  box-shadow: var(--box-shadow) !important;
-}
+  .modal-actions {
+    padding: 1rem 1.5rem !important;
+    flex-direction: column !important;
+  }
 
-.error-message {
-  color: #dc2626;
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
-}
-
-.input-error {
-  border: 1px solid #dc2626 !important;
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1) !important;
+  .btn-secondary,
+  .btn-primary {
+    width: 100% !important;
+  }
 }

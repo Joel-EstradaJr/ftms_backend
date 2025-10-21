@@ -9,8 +9,8 @@ import {
   showAddSuccess,
   showInvalidAmountAlert,
   showError
-} from '../../../utility/Alerts';
-import { isValidAmount } from '../../../utility/validation';
+} from '../../../utils/Alerts';
+import { isValidAmount } from '../../../utils/validation';
 import { formatDate } from '../../../utility/dateFormatter';
 import { computeAutoAmount, getBoundaryLossInfo, formatPeso } from '@/app/utils/revenueCalc';
 import { formatDisplayText } from '../../../utils/formatting';

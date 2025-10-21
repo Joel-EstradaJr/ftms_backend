@@ -6,10 +6,11 @@ import LineChart from '../../../Components/expenseRevenueLineChart';
 import ExpensesPieChart from '../../../Components/expensesPieChart';
 import RevenuePieChart from '../../../Components/revenuePieChart';
 import Pagination from '../../../Components/pagination';
+import ErrorDisplay from '../../../Components/errordisplay';
 import { getUnrecordedExpenseAssignments, getAllAssignmentsWithRecorded, type Assignment } from '@/lib/operations/assignments';
-import { formatDate } from '../../../utility/dateFormatter';
+import { formatDate } from '../../../utils/formatting';;
 import Loading from '../../../Components/loading';
-import { showError } from '../../../utility/Alerts';
+import { showError } from '../../../utils/Alerts';
 import Swal from 'sweetalert2';
 
 type ExpenseData = {
@@ -33,6 +34,8 @@ const ReportPage = () => {
   const [activeTab, setActiveTab] = useState('profit');
   const [expenseData, setExpenseData] = useState<ExpenseData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,13 +66,14 @@ const ReportPage = () => {
 
   const fetchExpenses = useCallback(async () => {
     try {
+      setError(null);
       const response = await fetch('/api/expenses');
       if (!response.ok) throw new Error('Failed to fetch expenses');
       const expensesData = await response.json();
       setExpenseData(expensesData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching expenses:', error);
-      showError('Failed to load expenses', 'Error');
+      setError(error.message || 'Failed to load expenses');
     }
   }, []);
 
@@ -412,6 +416,24 @@ const ReportPage = () => {
       netProfit: totalRevenue - totalExpenses
     };
   };
+
+  if (errorCode) {
+    return (
+      <div className="card">
+        <h1 className="title">Finance Tracking Management</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={async () => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+            await Promise.all([fetchExpenses(), fetchAssignments()]);
+            setLoading(false);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

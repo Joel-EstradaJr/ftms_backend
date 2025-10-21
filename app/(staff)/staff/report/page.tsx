@@ -6,10 +6,11 @@ import LineChart from '../../../Components/expenseRevenueLineChart';
 import ExpensesPieChart from '../../../Components/expensesPieChart';
 import RevenuePieChart from '../../../Components/revenuePieChart';
 import Pagination from '../../../Components/pagination';
+import ErrorDisplay from '../../../Components/ErrorDisplay';
 import { getUnrecordedExpenseAssignments, getAllAssignmentsWithRecorded, type Assignment } from '@/lib/operations/assignments';
-import { formatDate } from '../../../utility/dateFormatter';
+import { formatDate } from '../../../utils/formatting';;
 import Loading from '../../../Components/loading';
-import { showError } from '../../../utility/Alerts';
+import { showError } from '../../../utils/Alerts';
 import Swal from 'sweetalert2';
 
 type ExpenseData = {
@@ -33,6 +34,7 @@ const ReportPage = () => {
   const [activeTab, setActiveTab] = useState('profit');
   const [expenseData, setExpenseData] = useState<ExpenseData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -412,6 +414,24 @@ const ReportPage = () => {
       netProfit: totalRevenue - totalExpenses
     };
   };
+
+  if (error) {
+    return (
+      <div className="card">
+        <h1 className="title">Report Generation</h1>
+        <ErrorDisplay
+          type="503"
+          message="Unable to generate report."
+          onRetry={() => {
+            setError(null);
+            setLoading(true);
+            // Refetch logic here
+            setTimeout(() => setLoading(false), 1000);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

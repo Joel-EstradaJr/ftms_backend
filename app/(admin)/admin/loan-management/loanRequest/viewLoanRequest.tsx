@@ -2,7 +2,7 @@
 
 import React from 'react';
 import ModalHeader from '../../../../Components/ModalHeader';
-import { formatDate, formatDateTime } from '../../../../utility/dateFormatter';
+import { formatDate, formatDateTime } from '../../../../utils/formatting';
 
 //@ts-ignore
 import '../../../../styles/loan-management/viewLoanRequest.css';

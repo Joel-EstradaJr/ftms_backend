@@ -2,7 +2,7 @@
 
 import React from 'react';
 import ModalHeader from '@/app/Components/ModalHeader';
-import { formatDate } from '@/app/utility/dateFormatter';
+import { formatDate } from '@/app/utils/formatting';
 import { ChartOfAccount } from '@/app/types/jev';
 import { getAccountHierarchyDisplay, formatAccountBalance, getAccountTypeClass, getAccountStatusInfo, getNormalBalance } from '@/app/lib/jev/accountHelpers';
 import '@/app/styles/jev/viewAccount.css';

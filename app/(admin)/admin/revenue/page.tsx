@@ -17,8 +17,10 @@ import "../../../styles/components/table.css";
 import PaginationComponent from "../../../Components/pagination";
 import RevenueFilter from "../../../Components/RevenueFilter";
 import Swal from 'sweetalert2';
-import { showSuccess, showError } from '../../../utility/Alerts';
+import { showSuccess, showError } from '../../../utils/Alerts';
 import { formatDate, formatMoney } from '../../../utils/formatting';
+import Loading from '../../../Components/loading';
+import ErrorDisplay from '../../../Components/errordisplay';
 
 // TypeScript interfaces
 interface RevenueSource {
@@ -59,6 +61,7 @@ const AdminRevenuePage = () => {
   const [data, setData] = useState<RevenueRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   
   // Filter options state
   const [revenueSources, setRevenueSources] = useState<RevenueSource[]>([]);
@@ -294,33 +297,25 @@ const AdminRevenuePage = () => {
   if (loading && data.length === 0) {
     return (
       <div className="card">
-        <div className="elements">
-          <div className="title">
-            <h1>Revenue Records</h1>
-          </div>
-          <div className="loading-container" style={{ textAlign: 'center', padding: '2rem' }}>
-            <p>Loading revenue data...</p>
-          </div>
-        </div>
+        <h1 className="title">Revenue Records</h1>
+        <Loading />
       </div>
     );
   }
 
-  // Error state
-  if (error && data.length === 0) {
+   if (errorCode) {
     return (
       <div className="card">
-        <div className="elements">
-          <div className="title">
-            <h1>Revenue Records</h1>
-          </div>
-          <div className="error-container" style={{ textAlign: 'center', padding: '2rem', color: '#961C1E' }}>
-            <p>Error: {error}</p>
-            <button onClick={fetchData} style={{ marginTop: '1rem' }}>
-              Retry
-            </button>
-          </div>
-        </div>
+        <h1 className="title">Revenue Record</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+            fetchData();
+          }}
+        />
       </div>
     );
   }

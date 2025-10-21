@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import '../../../styles/expense/editExpense.css';
 import { getAssignmentById } from '@/lib/operations/assignments';
 // import { formatDate } from '../../utility/dateFormatter';
-import { validateField, ValidationRule, isValidAmount } from "../../../utility/validation";
+import { validateField, ValidationRule, isValidAmount } from "../../../utils/validation";
 import type { Assignment } from '@/lib/operations/assignments';
 import ModalHeader from '../../../Components/ModalHeader';
 import Swal from "sweetalert2";

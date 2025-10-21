@@ -6,7 +6,7 @@ import '../../../../styles/components/table.css';
 import '../../../../styles/loan-management/paymentHistory.css';
 import {
   showConfirmation
-} from '@/app/utility/Alerts';
+} from '@/app/utils/Alerts';
 
 interface PaymentHistoryProps {
   show: boolean;

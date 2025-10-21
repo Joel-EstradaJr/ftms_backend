@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import "../../../../styles/budget-management/budgetAllocation.css";
 import MonthYearPicker from '../../../../Components/MonthYearPicker';
-import { formatDate } from '../../../../utility/dateFormatter';
+import ErrorDisplay from '../../../../Components/errordisplay';
+import Loading from '../../../../Components/loading';
+import { formatDate } from '../../../../utils/formatting';
 import AllocateBudgetAllocation from './allocateBudgetAllocation';
 import DeductBudgetAllocation from './deductBudgetAllocation';
 import DepartmentDetailsModal from './departmentDetailsModal';
@@ -48,6 +50,8 @@ const BudgetAllocationPage: React.FC = () => {
   // State management
   const [departmentBudgets, setDepartmentBudgets] = useState<DepartmentBudget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | string | null>(null);
   const [showAllocationModal, setShowAllocationModal] = useState(false);
   const [showDeductionModal, setShowDeductionModal] = useState(false);
   const [showDepartmentDetailsModal, setShowDepartmentDetailsModal] = useState(false);
@@ -282,18 +286,27 @@ const BudgetAllocationPage: React.FC = () => {
   const monthlyOptions = generateMonthlyOptions();
   const isCurrentPeriodPast = isPastPeriod(budgetPeriod);
 
+    if (errorCode) {
+    return (
+      <div className="card">
+        <h1 className="title">Budget Allocation</h1>
+        <ErrorDisplay
+          errorCode={errorCode}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            setErrorCode(null);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className='card'>
-        <div className='elements'>
-          <div className='scrollable-content'>
-            <div className="loading-container">
-              <i className="ri-loader-4-line loading-spinner" />
-              <h2>Loading Budget Allocation</h2>
-              <p>Please wait while we fetch the latest budget data...</p>
-            </div>
-          </div>
-        </div>
+        <h1 className="title">Budget Allocation</h1>
+        <Loading />
       </div>
     );
   }
