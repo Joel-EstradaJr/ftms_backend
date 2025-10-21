@@ -122,66 +122,8 @@ button {
   background-color: var(--primary-hover-color) !important;
 }
 
-/* ---------- Action Buttons - Fixed Visibility ---------- */
-.actionButtonsContainer {
-  display: flex !important;
-  gap: 0.5rem !important;
-  justify-content: center !important;
-}
-
-.actionButtons button {
-  padding: 0.25rem !important;
-  border: none !important;
-  background: transparent !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  opacity: 1 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-.actionButtons button:hover {
-  transform: scale(1.1) !important;
-  opacity: 0.85 !important;
-}
-
-/* Button colors - fixed, always visible */
-.actionButtons .viewBtn,
-.actionButtons button.viewBtn {
-  color: #3498db !important; /* Info blue */
-}
-
-.actionButtons .editBtn,
-.actionButtons button.editBtn {
-  color: #f39c12 !important; /* Warning orange */
-}
-
-.actionButtons .deleteBtn,
-.actionButtons button.deleteBtn {
-  color: #e74c3c !important; /* Error red */
-}
-
-/* Force icon visibility */
-.actionButtons button i,
-.actionButtons i {
-  font-size: 1.25rem !important;
-  color: inherit !important;
-  opacity: 1 !important;
-  display: inline-block !important;
-}
-
-.viewBtn i {
-  color: #3498db !important;
-}
-
-.editBtn i {
-  color: #f39c12 !important;
-}
-
-.deleteBtn i {
-  color: #e74c3c !important;
-}
+/* ---------- Action Buttons - REMOVED: Conflicts with table.css ---------- */
+/* Action button styling now handled by table.css for consistency */
 
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {

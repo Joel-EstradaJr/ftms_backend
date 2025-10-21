@@ -28,6 +28,9 @@ const Sidebar: React.FC = () => {
   const staticRoutes: { [key: string]: string } = {
     "/dashboard": "dashboard",
     "/revenue": "revenue",
+    "/revenue/tripRevenue": "tripRevenue",
+    "/revenue/busRental": "busRental",
+    "/revenue/otherRevenue": "otherRevenue",
     "/expense": "expense",
     "/reimbursement": "reimbursement",
     "/financial-management/payroll": "payroll",
@@ -67,6 +70,8 @@ const Sidebar: React.FC = () => {
         setOpenSubMenu("loan-management");
       } else if (["chart-of-accounts", "journal-entries"].includes(staticMatch)) {
         setOpenSubMenu("jev-management");
+      } else if (["tripRevenue", "busRental", "otherRevenue"].includes(staticMatch)) {
+        setOpenSubMenu("revenue-management");
       }
       return;
     }
@@ -120,15 +125,47 @@ const Sidebar: React.FC = () => {
             <span>Dashboard</span>
           </Link>
 
-          {/* Revenue Management - Both roles */}
-          <Link
-            href={getUrl("/revenue")}
-            className={`nav-item ${activeItem === "revenue" ? "active" : ""}`}
-            onClick={() => setActiveItem("revenue")}
+          {/* Revenue Management Submenu - Both roles */}
+          <div
+            className={`nav-item module ${
+              ["tripRevenue", "busRental", "otherRevenue"].includes(activeItem!) ? "active" : ""
+            }`}
+            onClick={() => toggleSubMenu("revenue-management")}
           >
             <i className="ri-money-dollar-circle-line" />
             <span>Revenue Management</span>
-          </Link>
+            <i
+              className={`dropdown-arrow ri-arrow-down-s-line ${
+                openSubMenu === "revenue-management" ? "rotate" : ""
+              }`}
+            />
+          </div>
+
+          {openSubMenu === "revenue-management" && (
+            <div className="sub-menu active">
+              <Link
+                href={getUrl("/revenue/tripRevenue")}
+                className={`sub-item ${activeItem === "tripRevenue" ? "active" : ""}`}
+                onClick={() => setActiveItem("tripRevenue")}
+              >
+                Trip Revenue
+              </Link>
+              <Link
+                href={getUrl("/revenue/busRental")}
+                className={`sub-item ${activeItem === "busRental" ? "active" : ""}`}
+                onClick={() => setActiveItem("busRental")}
+              >
+                Bus Rental
+              </Link>
+              <Link
+                href={getUrl("/revenue/otherRevenue")}
+                className={`sub-item ${activeItem === "otherRevenue" ? "active" : ""}`}
+                onClick={() => setActiveItem("otherRevenue")}
+              >
+                Other Revenue
+              </Link>
+            </div>
+          )}
 
           {/* Expenses Submenu - Both roles */}
           <div

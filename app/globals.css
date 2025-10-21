@@ -164,6 +164,9 @@ textarea.input-error {
   --modal-content-border-radius: 8px;
   --modal-content-padding: 20px;
   --modal-content-margin-bottom: 20px;
+  --modal-section-title-font-size: 18px;
+  --modal-section-title-font-weight: 600;
+  --modal-section-title-margin-bottom: 10px;
   --modal-input-select-background-color: #FFFFFF;
   --modal-content-row-gap: 1rem;
   --modal-content-column-gap: 20px;

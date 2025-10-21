@@ -22,6 +22,58 @@
   display: none !important;
 }
 
+.modalSmaller {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  background: var(--foreground-color) !important;
+  padding: var(--modal-padding) !important;
+  border-radius: var(--modal-border-radius) !important;
+  width: 50% !important;
+  max-width: 1000px !important;
+  max-height: 80vh !important;
+  overflow: hidden !important;
+  box-shadow: var(--box-shadow) !important;
+  position: relative !important;
+  font-family: var(--font-sans) !important;
+  color: var(--primary-text-color) !important;
+}
+
+.modalStandard {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  background: var(--foreground-color) !important;
+  padding: var(--modal-padding) !important;
+  border-radius: var(--modal-border-radius) !important;
+  width: 100% !important;
+  max-width: 1000px !important;
+  max-height: 80vh !important;
+  overflow: hidden !important;
+  box-shadow: var(--box-shadow) !important;
+  position: relative !important;
+  font-family: var(--font-sans) !important;
+  color: var(--primary-text-color) !important;
+}
+
+.modalStandard form {
+  width: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  max-height: calc(80vh - 150px) !important;
+  scrollbar-width: thin !important;
+}
+
+.modalStandard form::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.modalStandard form::-webkit-scrollbar-thumb {
+  background: var(--border-color) !important;
+  border-radius: 6px !important;
+}
+
 /* ---------- Modal Box ---------- */
 .modalContainer {
   display: flex !important;
@@ -129,6 +181,13 @@
   -ms-overflow-style: none !important;
 }
 
+.sectionTitle {
+  font-size: var(--modal-section-title-font-size) !important;
+  font-weight: var(--modal-section-title-font-weight) !important;
+  margin-bottom: var(--modal-section-title-margin-bottom) !important;
+  color: var(--primary-color) !important;
+}
+
 .modalContent::-webkit-scrollbar {
   display: none !important;
 }
@@ -154,6 +213,7 @@
   justify-content: space-between !important;
   align-items: flex-start !important;
   gap: 1rem !important;
+  margin-top: 0.5rem !important;
 }
 
 .formField {
