@@ -16,6 +16,12 @@ import adminPayrollRoutes from './routes/admin/payroll.routes';
 import staffPayrollRoutes from './routes/staff/payroll.routes';
 import adminReimbursementRoutes from './routes/admin/reimbursement.routes';
 import staffReimbursementRoutes from './routes/staff/reimbursement.routes';
+import adminBudgetRoutes from './routes/admin/budget.routes';
+import staffBudgetRoutes from './routes/staff/budget.routes';
+import adminJournalEntryRoutes from './routes/admin/journalEntry.routes';
+import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
+import adminAssetRoutes from './routes/admin/asset.routes';
+import staffAssetRoutes from './routes/staff/asset.routes';
 
 export const createApp = (): Application => {
   const app = express();
@@ -73,12 +79,18 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/expenses', adminExpenseRoutes);
   app.use('/api/v1/admin/payrolls', adminPayrollRoutes);
   app.use('/api/v1/admin/reimbursements', adminReimbursementRoutes);
+  app.use('/api/v1/admin/budgets', adminBudgetRoutes);
+  app.use('/api/v1/admin/journal-entries', adminJournalEntryRoutes);
+  app.use('/api/v1/admin/assets', adminAssetRoutes);
   
-  // Staff routes (Limited to view + create only)
+  // Staff routes (Limited access - read + create for some modules)
   app.use('/api/v1/staff/revenues', staffRevenueRoutes);
   app.use('/api/v1/staff/expenses', staffExpenseRoutes);
   app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
   app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
+  app.use('/api/v1/staff/budgets', staffBudgetRoutes);
+  app.use('/api/v1/staff/journal-entries', staffJournalEntryRoutes);
+  app.use('/api/v1/staff/assets', staffAssetRoutes);
 
   // 404 handler
   app.use((req, res) => {
