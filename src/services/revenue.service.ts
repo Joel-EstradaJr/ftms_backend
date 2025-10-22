@@ -301,14 +301,11 @@ export class RevenueService {
       });
 
       // Audit log
-      await AuditLogClient.log(
-        userId,
-        'CREATE',
+      await AuditLogClient.logCreate(
         'REVENUE',
-        revenue.id.toString(),
+        { id: revenue.id, code: revenue.code },
         revenue,
-        `Created revenue: ${revenue.code}`,
-        ipAddress
+        { id: userId }
       );
 
       logger.info(`Revenue created: ${revenue.code} (ID: ${revenue.id})`);
@@ -391,15 +388,12 @@ export class RevenueService {
       });
 
       // Audit log
-      await AuditLogClient.log(
-        userId,
-        'UPDATE',
+      await AuditLogClient.logUpdate(
         'REVENUE',
-        updatedRevenue.id.toString(),
+        { id: updatedRevenue.id, code: updatedRevenue.code },
+        existingRevenue,
         updatedRevenue,
-        `Updated revenue: ${updatedRevenue.code}`,
-        ipAddress,
-        existingRevenue
+        { id: userId }
       );
 
       logger.info(`Revenue updated: ${updatedRevenue.code} (ID: ${updatedRevenue.id})`);
@@ -448,15 +442,11 @@ export class RevenueService {
       });
 
       // Audit log
-      await AuditLogClient.log(
-        userId,
-        'DELETE',
+      await AuditLogClient.logDelete(
         'REVENUE',
-        id.toString(),
-        null,
-        `Deleted revenue: ${existingRevenue.code}`,
-        ipAddress,
-        existingRevenue
+        { id: existingRevenue.id, code: existingRevenue.code },
+        existingRevenue,
+        { id: userId }
       );
 
       logger.info(`Revenue deleted: ${existingRevenue.code} (ID: ${id})`);
@@ -497,15 +487,11 @@ export class RevenueService {
         },
       });
 
-      await AuditLogClient.log(
-        userId,
-        'APPROVAL',
+      await AuditLogClient.logApproval(
         'REVENUE',
-        id.toString(),
-        approvedRevenue,
-        `Approved revenue: ${approvedRevenue.code}`,
-        ipAddress,
-        existingRevenue
+        { id: approvedRevenue.id, code: approvedRevenue.code },
+        'APPROVE',
+        { id: userId }
       );
 
       logger.info(`Revenue approved: ${approvedRevenue.code} (ID: ${id})`);
@@ -547,15 +533,12 @@ export class RevenueService {
         },
       });
 
-      await AuditLogClient.log(
-        userId,
-        'REJECTION',
+      await AuditLogClient.logApproval(
         'REVENUE',
-        id.toString(),
-        rejectedRevenue,
-        `Rejected revenue: ${rejectedRevenue.code} - ${remarks}`,
-        ipAddress,
-        existingRevenue
+        { id: rejectedRevenue.id, code: rejectedRevenue.code },
+        'REJECT',
+        { id: userId },
+        remarks
       );
 
       logger.info(`Revenue rejected: ${rejectedRevenue.code} (ID: ${id})`);
