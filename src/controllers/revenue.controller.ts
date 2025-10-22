@@ -1,17 +1,14 @@
 /**
  * Revenue Controller
  * Handles HTTP request/response for revenue management endpoints
- * Migrated from Next.js API routes to Express backend
- * 
- * NOTE: Controller scaffolded from Next.js routes - requires schema verification
+ * Schema-aligned with actual database structure
  */
 
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../config/logger';
-
-// TODO: Import revenue service once types are fixed
-// import { revenueService } from '../services/revenue.service';
+import { revenueService } from '../services/revenue.service';
+import type { RevenueCreateData, RevenueUpdateData, RevenueListFilters } from '../services/revenue.service';
 
 export class RevenueController {
   /**
@@ -25,41 +22,26 @@ export class RevenueController {
         user: req.user,
       });
 
-      // TODO: Uncomment when service is fixed
-      // const filters = {
-      //   page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
-      //   limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
-      //   sourceId: req.query.sourceId ? parseInt(req.query.sourceId as string, 10) : undefined,
-      //   sources: req.query.sources as string | undefined,
-      //   paymentMethods: req.query.paymentMethods as string | undefined,
-      //   externalRefType: req.query.externalRefType as string | undefined,
-      //   isAccountsReceivable: req.query.isAccountsReceivable === 'true' ? true : undefined,
-      //   isInstallment: req.query.isInstallment === 'true' ? true : undefined,
-      //   arStatus: req.query.arStatus as string | undefined,
-      //   startDate: req.query.startDate as string | undefined,
-      //   endDate: req.query.endDate as string | undefined,
-      //   minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
-      //   maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
-      //   search: req.query.search as string | undefined,
-      //   sortBy: req.query.sortBy as 'revenueCode' | 'amount' | 'transactionDate' | undefined,
-      //   sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
-      // };
+      const filters: RevenueListFilters = {
+        page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
+        revenueType: req.query.revenueType as any,
+        department: req.query.department as string,
+        sourceRefNo: req.query.sourceRefNo as string,
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+        isVerified: req.query.isVerified === 'true' ? true : req.query.isVerified === 'false' ? false : undefined,
+        isDeleted: req.query.isDeleted === 'true' ? true : false,
+        search: req.query.search as string,
+        sortBy: req.query.sortBy as any,
+        sortOrder: req.query.sortOrder as any,
+      };
 
-      // const result = await revenueService.listRevenues(filters);
+      const result = await revenueService.listRevenues(filters);
 
-      // Temporary response
-      res.json({
-        message: 'Revenue list endpoint (under construction)',
-        data: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          totalCount: 0,
-          totalPages: 0,
-          hasNextPage: false,
-          hasPreviousPage: false,
-        },
-      });
+      res.json(result);
     } catch (error) {
       logger.error('[RevenueController] Error listing revenues:', error);
       next(error);
@@ -80,15 +62,8 @@ export class RevenueController {
 
       logger.info(`[RevenueController] Get revenue by ID: ${id}`);
 
-      // TODO: Uncomment when service is fixed
-      // const revenue = await revenueService.getRevenueById(id);
-      // res.json({ revenue });
-
-      // Temporary response
-      res.json({
-        message: `Get revenue ${id} endpoint (under construction)`,
-        revenue: null,
-      });
+      const revenue = await revenueService.getRevenueById(id);
+      res.json({ revenue });
     } catch (error) {
       logger.error(`[RevenueController] Error getting revenue:`, error);
       next(error);
@@ -106,15 +81,15 @@ export class RevenueController {
         user: req.user,
       });
 
-      // TODO: Uncomment when service is fixed
-      // const userId = req.user?.userId || 'system';
-      // const ipAddress = req.ip || req.socket.remoteAddress;
-      // const revenue = await revenueService.createRevenue(req.body, userId, ipAddress);
+      const userId = req.user?.sub || 'system';
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      
+      const data: RevenueCreateData = req.body;
+      const revenue = await revenueService.createRevenue(data, userId, ipAddress);
 
-      // Temporary response
       res.status(201).json({
-        message: 'Create revenue endpoint (under construction)',
-        revenue: null,
+        message: 'Revenue created successfully',
+        revenue,
       });
     } catch (error) {
       logger.error('[RevenueController] Error creating revenue:', error);
@@ -139,15 +114,15 @@ export class RevenueController {
         user: req.user,
       });
 
-      // TODO: Uncomment when service is fixed
-      // const userId = req.user?.userId || 'system';
-      // const ipAddress = req.ip || req.socket.remoteAddress;
-      // const revenue = await revenueService.updateRevenue(id, req.body, userId, ipAddress);
+      const userId = req.user?.sub || 'system';
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      
+      const data: RevenueUpdateData = req.body;
+      const revenue = await revenueService.updateRevenue(id, data, userId, ipAddress);
 
-      // Temporary response
       res.json({
-        message: `Update revenue ${id} endpoint (under construction)`,
-        revenue: null,
+        message: 'Revenue updated successfully',
+        revenue,
       });
     } catch (error) {
       logger.error(`[RevenueController] Error updating revenue:`, error);
@@ -157,7 +132,7 @@ export class RevenueController {
 
   /**
    * DELETE /api/v1/admin/revenues/:id
-   * Delete a revenue
+   * Delete a revenue (soft delete)
    */
   async deleteRevenue(req: AuthRequest, res: Response, next: NextFunction) {
     try {
@@ -171,15 +146,14 @@ export class RevenueController {
         user: req.user,
       });
 
-      // TODO: Uncomment when service is fixed
-      // const userId = req.user?.userId || 'system';
-      // const ipAddress = req.ip || req.socket.remoteAddress;
-      // const deletedRevenue = await revenueService.deleteRevenue(id, userId, ipAddress);
+      const userId = req.user?.sub || 'system';
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      
+      const deletedRevenue = await revenueService.deleteRevenue(id, userId, ipAddress);
 
-      // Temporary response
       res.json({
-        message: `Delete revenue ${id} endpoint (under construction)`,
-        deletedRevenueCode: null,
+        message: 'Revenue deleted successfully',
+        revenue: deletedRevenue,
       });
     } catch (error) {
       logger.error(`[RevenueController] Error deleting revenue:`, error);

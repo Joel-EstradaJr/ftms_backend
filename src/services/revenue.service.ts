@@ -1,12 +1,23 @@
 /**
- * Revenue Service
- * Handles all business logic for revenue management
- * Migrated from Next.js API routes to Express backend
+ * Revenue Service (Schema-Aligned)
+ * Business logic for revenue management based on ACTUAL Prisma schema
  * 
- * NOTE: This service is scaffolded based on the Next.js API routes.
- * Schema types may need adjustment based on actual Prisma schema.
+ * Schema Fields:
+ * - id, code (unique)
+ * - revenueType: TRIP | RENTAL | OTHER
+ * - amount, dateRecorded, remarks
+ * - sourceRefNo (Trip ID / Rental ID / etc.)
+ * - department
+ * - Rental fields: rentalDownpayment, rentalBalance, downpaymentReceivedAt, balanceReceivedAt, isDownpaymentRefundable
+ * - otherRevenueCategory (asset_sale, advertising, insurance, etc.)
+ * - receiptUrl
+ * - isVerified, verifiedBy, verifiedAt
+ * - externalRefNo, lastSyncedAt, lastSyncStatus
+ * - Audit: createdBy, createdAt, updatedBy, updatedAt, approvedBy, approvedAt, rejectedBy, rejectedAt, deletedBy, deletedAt, isDeleted
  */
 
+import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AuditLogClient } from '../integrations/audit/audit.client';
@@ -16,57 +27,49 @@ import { BadRequestError, NotFoundError } from '../utils/errors';
 // Types & Interfaces
 // ===========================
 
-export interface RevenueFormData {
-  sourceId: number;
-  description: string;
+export interface RevenueCreateData {
+  revenueType: 'TRIP' | 'RENTAL' | 'OTHER';
   amount: number;
-  transactionDate: string | Date;
-  paymentMethodId: number;
-  busTripCacheId?: number;
-  externalRefId?: string;
-  externalRefType?: string;
-  loanPaymentId?: number;
-  documentIds?: string[];
-  isAccountsReceivable?: boolean;
-  arDueDate?: string | Date;
-  arStatus?: 'PENDING' | 'PAID' | 'OVERDUE';
-  arPaidDate?: string | Date;
-  arId?: number;
-  isInstallment?: boolean;
-  installmentScheduleId?: number;
-  installmentSchedule?: {
-    totalAmount: number;
-    numberOfPayments: number;
-    paymentAmount: number;
-    frequency: 'DAILY' | 'WEEKLY' | 'BI_WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUAL' | 'ANNUAL';
-    startDate: string | Date;
-    interestRate?: number;
-  };
-  createdBy: string;
+  dateRecorded: string | Date;
+  remarks?: string;
+  sourceRefNo?: string; // Trip ID / Rental ID / etc.
+  department?: string;
+  
+  // Rental-specific
+  rentalDownpayment?: number;
+  rentalBalance?: number;
+  downpaymentReceivedAt?: string | Date;
+  balanceReceivedAt?: string | Date;
+  isDownpaymentRefundable?: boolean;
+  
+  // Other revenue
+  otherRevenueCategory?: string; // asset_sale, advertising, insurance, etc.
+  
+  receiptUrl?: string;
+  externalRefNo?: string;
+}
+
+export interface RevenueUpdateData extends Partial<RevenueCreateData> {
+  isVerified?: boolean;
+  verifiedBy?: string;
+  verifiedAt?: string | Date;
 }
 
 export interface RevenueListFilters {
   page?: number;
   limit?: number;
-  sourceId?: number;
-  sources?: string; // comma-separated IDs
-  paymentMethods?: string; // comma-separated IDs
-  externalRefType?: string;
-  isAccountsReceivable?: boolean;
-  isInstallment?: boolean;
-  arStatus?: string;
+  revenueType?: 'TRIP' | 'RENTAL' | 'OTHER';
+  department?: string;
   startDate?: string;
   endDate?: string;
   minAmount?: number;
   maxAmount?: number;
-  search?: string;
-  sortBy?: 'revenueCode' | 'amount' | 'transactionDate';
+  sourceRefNo?: string;
+  isVerified?: boolean;
+  isDeleted?: boolean;
+  search?: string; // Search in code, remarks, sourceRefNo
+  sortBy?: 'code' | 'amount' | 'dateRecorded' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
-}
-
-export interface RevenueValidationResult {
-  isValid: boolean;
-  errors: Record<string, string>;
 }
 
 // ===========================
@@ -75,11 +78,41 @@ export interface RevenueValidationResult {
 
 export class RevenueService {
   /**
-   * List revenues with pagination, filtering, search, and sorting
+   * Generate unique revenue code
+   * Format: REV-YYYYMMDD-NNNN
+   */
+  private async generateRevenueCode(dateRecorded: Date): Promise<string> {
+    const year = dateRecorded.getFullYear();
+    const month = String(dateRecorded.getMonth() + 1).padStart(2, '0');
+    const day = String(dateRecorded.getDate()).padStart(2, '0');
+    const prefix = `REV-${year}${month}${day}`;
+
+    // Find highest sequence for this date
+    const lastRevenue = await prisma.revenue.findFirst({
+      where: {
+        code: {
+          startsWith: prefix,
+        },
+      },
+      orderBy: {
+        code: 'desc',
+      },
+    });
+
+    let sequence = 1;
+    if (lastRevenue) {
+      const lastSequence = parseInt(lastRevenue.code.split('-').pop() || '0', 10);
+      sequence = lastSequence + 1;
+    }
+
+    return `${prefix}-${String(sequence).padStart(4, '0')}`;
+  }
+
+  /**
+   * List revenues with pagination, filtering, and search
    */
   async listRevenues(filters: RevenueListFilters) {
     try {
-      // Parse pagination
       const page = Math.max(1, filters.page || 1);
       const limit = Math.min(100, Math.max(1, filters.limit || 20));
       const skip = (page - 1) * limit;
@@ -87,47 +120,37 @@ export class RevenueService {
       // Build WHERE clause
       const where: Prisma.RevenueWhereInput = {};
 
-      // Source filters
-      if (filters.sourceId) {
-        where.sourceId = filters.sourceId;
-      }
-      if (filters.sources) {
-        const sourceIds = filters.sources.split(',').map(Number).filter(n => !isNaN(n));
-        if (sourceIds.length > 0) {
-          where.sourceId = { in: sourceIds };
-        }
+      // Type filter
+      if (filters.revenueType) {
+        where.revenueType = filters.revenueType;
       }
 
-      // Payment method filters
-      if (filters.paymentMethods) {
-        const paymentMethodIds = filters.paymentMethods.split(',').map(Number).filter(n => !isNaN(n));
-        if (paymentMethodIds.length > 0) {
-          where.paymentMethodId = { in: paymentMethodIds };
-        }
+      // Department filter
+      if (filters.department) {
+        where.department = filters.department;
       }
 
-      // Other filters
-      if (filters.externalRefType) {
-        where.externalRefType = filters.externalRefType;
+      // Source reference filter
+      if (filters.sourceRefNo) {
+        where.sourceRefNo = filters.sourceRefNo;
       }
-      if (filters.isAccountsReceivable !== undefined) {
-        where.isAccountsReceivable = filters.isAccountsReceivable;
+
+      // Verification filter
+      if (filters.isVerified !== undefined) {
+        where.isVerified = filters.isVerified;
       }
-      if (filters.isInstallment !== undefined) {
-        where.isInstallment = filters.isInstallment;
-      }
-      if (filters.arStatus) {
-        where.arStatus = filters.arStatus as any;
-      }
+
+      // Soft delete filter (default: exclude deleted)
+      where.isDeleted = filters.isDeleted !== undefined ? filters.isDeleted : false;
 
       // Date range filter
       if (filters.startDate || filters.endDate) {
-        where.transactionDate = {};
+        where.dateRecorded = {};
         if (filters.startDate) {
-          where.transactionDate.gte = new Date(filters.startDate);
+          where.dateRecorded.gte = new Date(filters.startDate);
         }
         if (filters.endDate) {
-          where.transactionDate.lte = new Date(filters.endDate);
+          where.dateRecorded.lte = new Date(filters.endDate);
         }
       }
 
@@ -135,61 +158,41 @@ export class RevenueService {
       if (filters.minAmount !== undefined || filters.maxAmount !== undefined) {
         where.amount = {};
         if (filters.minAmount !== undefined) {
-          where.amount.gte = filters.minAmount;
+          where.amount.gte = new Decimal(filters.minAmount);
         }
         if (filters.maxAmount !== undefined) {
-          where.amount.lte = filters.maxAmount;
+          where.amount.lte = new Decimal(filters.maxAmount);
         }
       }
 
-      // Search filter (across multiple fields)
+      // Search filter
       if (filters.search) {
         where.OR = [
-          { revenueCode: { contains: filters.search, mode: 'insensitive' } },
-          { description: { contains: filters.search, mode: 'insensitive' } },
-          { source: { name: { contains: filters.search, mode: 'insensitive' } } },
-          { paymentMethod: { methodName: { contains: filters.search, mode: 'insensitive' } } },
+          { code: { contains: filters.search, mode: 'insensitive' } },
+          { remarks: { contains: filters.search, mode: 'insensitive' } },
+          { sourceRefNo: { contains: filters.search, mode: 'insensitive' } },
         ];
       }
 
-      // Build ORDER BY clause
+      // Build ORDER BY
       const orderBy: Prisma.RevenueOrderByWithRelationInput = {};
-      const sortBy = filters.sortBy || 'transactionDate';
+      const sortBy = filters.sortBy || 'dateRecorded';
       const sortOrder = filters.sortOrder || 'desc';
       orderBy[sortBy] = sortOrder;
 
-      // Execute query with relations
+      // Execute query
       const [revenues, totalCount] = await Promise.all([
         prisma.revenue.findMany({
           where,
           orderBy,
           skip,
           take: limit,
-          include: {
-            source: true,
-            paymentMethod: true,
-            busTripCache: true,
-            loanPayment: true,
-            accountsReceivable: true,
-            installmentSchedule: true,
-            journalEntry: {
-              include: {
-                lineItems: {
-                  include: {
-                    account: true,
-                  },
-                },
-              },
-            },
-          },
         }),
         prisma.revenue.count({ where }),
       ]);
 
-      // Calculate pagination metadata
+      // Calculate pagination
       const totalPages = Math.ceil(totalCount / limit);
-      const hasNextPage = page < totalPages;
-      const hasPreviousPage = page > 1;
 
       return {
         data: revenues,
@@ -198,8 +201,8 @@ export class RevenueService {
           limit,
           totalCount,
           totalPages,
-          hasNextPage,
-          hasPreviousPage,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
         },
       };
     } catch (error) {
@@ -209,47 +212,12 @@ export class RevenueService {
   }
 
   /**
-   * Get a single revenue by ID with all relations
+   * Get a single revenue by ID
    */
   async getRevenueById(id: number) {
     try {
       const revenue = await prisma.revenue.findUnique({
         where: { id },
-        include: {
-          source: true,
-          paymentMethod: true,
-          busTripCache: true,
-          loanPayment: {
-            include: {
-              loan: true,
-            },
-          },
-          accountsReceivable: true,
-          installmentSchedule: {
-            include: {
-              installments: true,
-            },
-          },
-          journalEntry: {
-            include: {
-              lineItems: {
-                include: {
-                  account: {
-                    include: {
-                      accountType: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          auditLogs: {
-            orderBy: {
-              timestamp: 'desc',
-            },
-            take: 50,
-          },
-        },
       });
 
       if (!revenue) {
@@ -264,168 +232,86 @@ export class RevenueService {
   }
 
   /**
-   * Create a new revenue record
+   * Get revenue by code
    */
-  async createRevenue(data: RevenueFormData, userId: string, ipAddress?: string) {
+  async getRevenueByCode(code: string) {
     try {
-      // Validate revenue data
-      const validation = await this.validateRevenueData(data);
-      if (!validation.isValid) {
-        throw new ValidationError('Revenue validation failed', validation.errors);
+      const revenue = await prisma.revenue.findUnique({
+        where: { code },
+      });
+
+      if (!revenue) {
+        throw new NotFoundError('Revenue not found');
       }
 
-      // Special validation for BUS_TRIP revenues
-      if (data.externalRefType === 'BUS_TRIP') {
-        if (!data.busTripCacheId) {
-          throw new BadRequestError('Bus Trip Cache ID is required for BUS_TRIP revenue');
-        }
+      return revenue;
+    } catch (error) {
+      logger.error(`Error fetching revenue ${code}:`, error);
+      throw error;
+    }
+  }
 
-        const busTrip = await prisma.busTripCache.findUnique({
-          where: { id: data.busTripCacheId },
-        });
-
-        if (!busTrip) {
-          throw new NotFoundError('Bus trip not found');
-        }
-
-        // Check if amount matches trip revenue
-        if (Math.abs(data.amount - busTrip.tripRevenue) > 0.01) {
-          throw new BadRequestError(
-            `Revenue amount (${data.amount}) does not match bus trip revenue (${busTrip.tripRevenue})`
-          );
-        }
-
-        // Check if revenue already recorded
-        if (busTrip.isRevenueRecorded) {
-          throw new BadRequestError('Revenue has already been recorded for this bus trip');
-        }
+  /**
+   * Create a new revenue
+   */
+  async createRevenue(data: RevenueCreateData, userId: string, ipAddress?: string) {
+    try {
+      // Validate amount
+      if (!data.amount || data.amount <= 0) {
+        throw new BadRequestError('Amount must be greater than 0');
       }
 
-      // Special validation for LOAN_REPAYMENT revenues
-      if (data.externalRefType === 'LOAN_REPAYMENT') {
-        if (!data.loanPaymentId) {
-          throw new BadRequestError('Loan Payment ID is required for LOAN_REPAYMENT revenue');
-        }
-
-        const loanPayment = await prisma.loanPayment.findUnique({
-          where: { id: data.loanPaymentId },
-        });
-
-        if (!loanPayment) {
-          throw new NotFoundError('Loan payment not found');
-        }
-
-        // Check if payment already linked to revenue
-        if (loanPayment.revenueId) {
-          throw new BadRequestError('This loan payment is already linked to a revenue record');
-        }
-      }
-
-      // Require externalRefId for certain types
-      const typesRequiringExtRef = ['RENTAL', 'DISPOSAL', 'FORFEITED_DEPOSIT', 'RENTER_DAMAGE'];
-      if (typesRequiringExtRef.includes(data.externalRefType || '')) {
-        if (!data.externalRefId) {
-          throw new BadRequestError(`External Reference ID is required for ${data.externalRefType} revenue`);
+      // Validate rental data if RENTAL type
+      if (data.revenueType === 'RENTAL') {
+        if (data.rentalDownpayment && data.rentalBalance) {
+          const total = data.rentalDownpayment + data.rentalBalance;
+          if (Math.abs(total - data.amount) > 0.01) {
+            throw new BadRequestError(
+              `Rental downpayment (${data.rentalDownpayment}) + balance (${data.rentalBalance}) must equal total amount (${data.amount})`
+            );
+          }
         }
       }
 
       // Generate revenue code
-      const revenueCode = await this.generateRevenueCode(data.transactionDate);
+      const dateRecorded = new Date(data.dateRecorded);
+      const code = await this.generateRevenueCode(dateRecorded);
 
-      // Prepare create data
-      const createData: Prisma.RevenueCreateInput = {
-        revenueCode,
-        source: { connect: { id: data.sourceId } },
-        description: data.description,
-        amount: data.amount,
-        transactionDate: new Date(data.transactionDate),
-        paymentMethod: { connect: { id: data.paymentMethodId } },
-      };
-
-      // Optional fields
-      if (data.busTripCacheId) {
-        createData.busTripCache = { connect: { id: data.busTripCacheId } };
-      }
-      if (data.externalRefId) createData.externalRefId = data.externalRefId;
-      if (data.externalRefType) createData.externalRefType = data.externalRefType;
-      if (data.loanPaymentId) {
-        createData.loanPayment = { connect: { id: data.loanPaymentId } };
-      }
-      if (data.documentIds) createData.documentIds = data.documentIds;
-
-      // Accounts Receivable
-      if (data.isAccountsReceivable) {
-        createData.isAccountsReceivable = true;
-        createData.arDueDate = data.arDueDate ? new Date(data.arDueDate) : null;
-        createData.arStatus = data.arStatus || 'PENDING';
-        if (data.arPaidDate) createData.arPaidDate = new Date(data.arPaidDate);
-        if (data.arId) {
-          createData.accountsReceivable = { connect: { id: data.arId } };
-        }
-      }
-
-      // Installment Schedule
-      if (data.isInstallment) {
-        createData.isInstallment = true;
-        if (data.installmentScheduleId) {
-          createData.installmentSchedule = { connect: { id: data.installmentScheduleId } };
-        } else if (data.installmentSchedule) {
-          // Create new installment schedule
-          const schedule = data.installmentSchedule;
-          const startDate = new Date(schedule.startDate);
-          const endDate = this.calculateInstallmentEndDate(
-            startDate,
-            schedule.frequency,
-            schedule.numberOfPayments
-          );
-
-          createData.installmentSchedule = {
-            create: {
-              totalAmount: schedule.totalAmount,
-              numberOfPayments: schedule.numberOfPayments,
-              paymentAmount: schedule.paymentAmount,
-              frequency: schedule.frequency,
-              startDate,
-              endDate,
-              interestRate: schedule.interestRate || 0,
-            },
-          };
-        }
-      }
-
-      // Create the revenue
+      // Create revenue
       const revenue = await prisma.revenue.create({
-        data: createData,
-        include: {
-          source: true,
-          paymentMethod: true,
-          busTripCache: true,
-          loanPayment: true,
-          accountsReceivable: true,
-          installmentSchedule: true,
-          journalEntry: true,
+        data: {
+          code,
+          revenueType: data.revenueType,
+          amount: new Decimal(data.amount),
+          dateRecorded,
+          remarks: data.remarks,
+          sourceRefNo: data.sourceRefNo,
+          department: data.department,
+          rentalDownpayment: data.rentalDownpayment ? new Decimal(data.rentalDownpayment) : null,
+          rentalBalance: data.rentalBalance ? new Decimal(data.rentalBalance) : null,
+          downpaymentReceivedAt: data.downpaymentReceivedAt ? new Date(data.downpaymentReceivedAt) : null,
+          balanceReceivedAt: data.balanceReceivedAt ? new Date(data.balanceReceivedAt) : null,
+          isDownpaymentRefundable: data.isDownpaymentRefundable || false,
+          otherRevenueCategory: data.otherRevenueCategory,
+          receiptUrl: data.receiptUrl,
+          externalRefNo: data.externalRefNo,
+          createdBy: userId,
+          updatedAt: new Date(), // Required by schema
         },
       });
 
-      // Update bus trip cache if applicable
-      if (data.busTripCacheId) {
-        await prisma.busTripCache.update({
-          where: { id: data.busTripCacheId },
-          data: { isRevenueRecorded: true },
-        });
-      }
-
-      // Create audit log
-      await auditClient.logCreate({
+      // Audit log
+      await AuditLogClient.log(
         userId,
-        module: 'REVENUE',
-        recordId: revenue.id,
-        afterData: revenue,
-        description: `Created revenue: ${revenue.revenueCode}`,
-        ipAddress,
-      });
+        'CREATE',
+        'REVENUE',
+        revenue.id.toString(),
+        revenue,
+        `Created revenue: ${revenue.code}`,
+        ipAddress
+      );
 
-      logger.info(`Revenue created: ${revenue.revenueCode} (ID: ${revenue.id})`);
+      logger.info(`Revenue created: ${revenue.code} (ID: ${revenue.id})`);
 
       return revenue;
     } catch (error) {
@@ -435,100 +321,88 @@ export class RevenueService {
   }
 
   /**
-   * Update an existing revenue record
+   * Update an existing revenue
    */
-  async updateRevenue(id: number, data: RevenueFormData, userId: string, ipAddress?: string) {
+  async updateRevenue(id: number, data: RevenueUpdateData, userId: string, ipAddress?: string) {
     try {
       // Fetch existing revenue
       const existingRevenue = await prisma.revenue.findUnique({
         where: { id },
-        include: {
-          journalEntry: true,
-        },
       });
 
       if (!existingRevenue) {
         throw new NotFoundError('Revenue not found');
       }
 
-      // Check if revenue is posted
-      if (existingRevenue.journalEntry) {
-        const jeStatus = existingRevenue.journalEntry.status;
-        if (jeStatus === 'POSTED' || jeStatus === 'APPROVED') {
-          throw new BadRequestError(
-            'Cannot edit posted revenue. This revenue has been posted to the General Ledger and cannot be modified. Please create a reversal entry instead.'
-          );
-        }
+      // Prevent editing deleted revenue
+      if (existingRevenue.isDeleted) {
+        throw new BadRequestError('Cannot edit deleted revenue');
       }
 
-      // Validate the updated revenue data
-      const validation = await this.validateRevenueData(data, id);
-      if (!validation.isValid) {
-        throw new ValidationError('Revenue validation failed', validation.errors);
+      // Prevent editing approved revenue (optional business rule)
+      if (existingRevenue.approvedBy && existingRevenue.approvedAt) {
+        throw new BadRequestError(
+          'Cannot edit approved revenue. Please create a reversal entry instead.'
+        );
       }
 
       // Prepare update data
-      const updateData: any = {
-        sourceId: data.sourceId,
-        description: data.description,
-        amount: data.amount,
-        transactionDate: data.transactionDate ? new Date(data.transactionDate) : undefined,
-        paymentMethodId: data.paymentMethodId,
+      const updateData: Prisma.RevenueUpdateInput = {
+        updatedBy: userId,
+        updatedAt: new Date(),
       };
 
-      // Optional fields
-      if (data.busTripCacheId !== undefined) updateData.busTripCacheId = data.busTripCacheId;
-      if (data.externalRefId !== undefined) updateData.externalRefId = data.externalRefId;
-      if (data.externalRefType !== undefined) updateData.externalRefType = data.externalRefType;
-      if (data.loanPaymentId !== undefined) updateData.loanPaymentId = data.loanPaymentId;
-      if (data.documentIds !== undefined) updateData.documentIds = data.documentIds;
-
-      // Accounts Receivable fields
-      if (data.isAccountsReceivable !== undefined) {
-        updateData.isAccountsReceivable = data.isAccountsReceivable;
-        if (data.isAccountsReceivable) {
-          updateData.arDueDate = data.arDueDate ? new Date(data.arDueDate) : null;
-          updateData.arStatus = data.arStatus || 'PENDING';
-          if (data.arPaidDate) updateData.arPaidDate = new Date(data.arPaidDate);
-          if (data.arId) updateData.arId = data.arId;
+      if (data.revenueType) updateData.revenueType = data.revenueType;
+      if (data.amount !== undefined) updateData.amount = new Decimal(data.amount);
+      if (data.dateRecorded) updateData.dateRecorded = new Date(data.dateRecorded);
+      if (data.remarks !== undefined) updateData.remarks = data.remarks;
+      if (data.sourceRefNo !== undefined) updateData.sourceRefNo = data.sourceRefNo;
+      if (data.department !== undefined) updateData.department = data.department;
+      if (data.rentalDownpayment !== undefined) {
+        updateData.rentalDownpayment = data.rentalDownpayment ? new Decimal(data.rentalDownpayment) : null;
+      }
+      if (data.rentalBalance !== undefined) {
+        updateData.rentalBalance = data.rentalBalance ? new Decimal(data.rentalBalance) : null;
+      }
+      if (data.downpaymentReceivedAt !== undefined) {
+        updateData.downpaymentReceivedAt = data.downpaymentReceivedAt ? new Date(data.downpaymentReceivedAt) : null;
+      }
+      if (data.balanceReceivedAt !== undefined) {
+        updateData.balanceReceivedAt = data.balanceReceivedAt ? new Date(data.balanceReceivedAt) : null;
+      }
+      if (data.isDownpaymentRefundable !== undefined) {
+        updateData.isDownpaymentRefundable = data.isDownpaymentRefundable;
+      }
+      if (data.otherRevenueCategory !== undefined) updateData.otherRevenueCategory = data.otherRevenueCategory;
+      if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl;
+      if (data.externalRefNo !== undefined) updateData.externalRefNo = data.externalRefNo;
+      if (data.isVerified !== undefined) {
+        updateData.isVerified = data.isVerified;
+        if (data.isVerified) {
+          updateData.verifiedBy = data.verifiedBy || userId;
+          updateData.verifiedAt = data.verifiedAt ? new Date(data.verifiedAt) : new Date();
         }
       }
 
-      // Installment fields
-      if (data.isInstallment !== undefined) {
-        updateData.isInstallment = data.isInstallment;
-        if (data.installmentScheduleId) {
-          updateData.installmentScheduleId = data.installmentScheduleId;
-        }
-      }
-
-      // Update the revenue
+      // Update revenue
       const updatedRevenue = await prisma.revenue.update({
         where: { id },
         data: updateData,
-        include: {
-          source: true,
-          paymentMethod: true,
-          busTripCache: true,
-          loanPayment: true,
-          accountsReceivable: true,
-          installmentSchedule: true,
-          journalEntry: true,
-        },
       });
 
-      // Create audit log
-      await auditClient.logUpdate({
+      // Audit log
+      await AuditLogClient.log(
         userId,
-        module: 'REVENUE',
-        recordId: updatedRevenue.id,
-        beforeData: existingRevenue,
-        afterData: updatedRevenue,
-        description: `Updated revenue: ${updatedRevenue.revenueCode}`,
+        'UPDATE',
+        'REVENUE',
+        updatedRevenue.id.toString(),
+        updatedRevenue,
+        `Updated revenue: ${updatedRevenue.code}`,
         ipAddress,
-      });
+        existingRevenue
+      );
 
-      logger.info(`Revenue updated: ${updatedRevenue.revenueCode} (ID: ${updatedRevenue.id})`);
+      logger.info(`Revenue updated: ${updatedRevenue.code} (ID: ${updatedRevenue.id})`);
 
       return updatedRevenue;
     } catch (error) {
@@ -538,192 +412,209 @@ export class RevenueService {
   }
 
   /**
-   * Delete a revenue record
+   * Soft delete a revenue
    */
   async deleteRevenue(id: number, userId: string, ipAddress?: string) {
     try {
       // Fetch existing revenue
       const existingRevenue = await prisma.revenue.findUnique({
         where: { id },
-        include: {
-          journalEntry: true,
-          installmentSchedule: {
-            include: {
-              installments: true,
-            },
-          },
-        },
       });
 
       if (!existingRevenue) {
         throw new NotFoundError('Revenue not found');
       }
 
-      // Check if revenue is posted
-      if (existingRevenue.journalEntry) {
-        const jeStatus = existingRevenue.journalEntry.status;
-        if (jeStatus === 'POSTED' || jeStatus === 'APPROVED') {
-          throw new BadRequestError(
-            'Cannot delete posted revenue. This revenue has been posted to the General Ledger and cannot be deleted. Please create a reversal entry instead.'
-          );
-        }
+      // Check if already deleted
+      if (existingRevenue.isDeleted) {
+        throw new BadRequestError('Revenue already deleted');
       }
 
-      // Check for installment payments
-      if (existingRevenue.installmentSchedule?.installments?.length > 0) {
-        const hasPayments = existingRevenue.installmentSchedule.installments.some(
-          (inst: any) => inst.paidAmount > 0
+      // Prevent deleting approved revenue
+      if (existingRevenue.approvedBy && existingRevenue.approvedAt) {
+        throw new BadRequestError(
+          'Cannot delete approved revenue. Please create a reversal entry instead.'
         );
-
-        if (hasPayments) {
-          throw new BadRequestError(
-            'Cannot delete revenue with installment payments. This revenue has installment payments recorded. Please handle those first.'
-          );
-        }
       }
 
-      // Delete the revenue
-      await prisma.revenue.delete({
+      // Soft delete
+      const deletedRevenue = await prisma.revenue.update({
         where: { id },
+        data: {
+          isDeleted: true,
+          deletedBy: userId,
+          deletedAt: new Date(),
+        },
       });
 
-      // Update bus trip cache if applicable
-      if (existingRevenue.busTripCacheId) {
-        await prisma.busTripCache.update({
-          where: { id: existingRevenue.busTripCacheId },
-          data: { isRevenueRecorded: false },
-        });
-      }
-
-      // Create audit log
-      await auditClient.logDelete({
+      // Audit log
+      await AuditLogClient.log(
         userId,
-        module: 'REVENUE',
-        recordId: id,
-        beforeData: existingRevenue,
-        description: `Deleted revenue: ${existingRevenue.revenueCode}`,
+        'DELETE',
+        'REVENUE',
+        id.toString(),
+        null,
+        `Deleted revenue: ${existingRevenue.code}`,
         ipAddress,
-      });
+        existingRevenue
+      );
 
-      logger.info(`Revenue deleted: ${existingRevenue.revenueCode} (ID: ${id})`);
+      logger.info(`Revenue deleted: ${existingRevenue.code} (ID: ${id})`);
 
-      return existingRevenue;
+      return deletedRevenue;
     } catch (error) {
       logger.error(`Error deleting revenue ${id}:`, error);
       throw error;
     }
   }
 
-  // ===========================
-  // Helper Methods
-  // ===========================
-
   /**
-   * Validate revenue data
-   * Basic validation - can be expanded with lib/admin/revenues/validation.ts logic
+   * Approve a revenue (admin only)
    */
-  private async validateRevenueData(
-    data: RevenueFormData,
-    existingId?: number
-  ): Promise<RevenueValidationResult> {
-    const errors: Record<string, string> = {};
-
-    // Required fields
-    if (!data.sourceId) errors.sourceId = 'Source is required';
-    if (!data.description || data.description.trim().length === 0) {
-      errors.description = 'Description is required';
-    }
-    if (!data.amount || data.amount <= 0) {
-      errors.amount = 'Amount must be greater than 0';
-    }
-    if (!data.transactionDate) {
-      errors.transactionDate = 'Transaction date is required';
-    }
-    if (!data.paymentMethodId) {
-      errors.paymentMethodId = 'Payment method is required';
-    }
-
-    // Validate source exists
-    if (data.sourceId) {
-      const sourceExists = await prisma.revenueSource.findUnique({
-        where: { id: data.sourceId },
+  async approveRevenue(id: number, userId: string, ipAddress?: string) {
+    try {
+      const existingRevenue = await prisma.revenue.findUnique({
+        where: { id },
       });
-      if (!sourceExists) {
-        errors.sourceId = 'Invalid revenue source';
+
+      if (!existingRevenue) {
+        throw new NotFoundError('Revenue not found');
       }
-    }
 
-    // Validate payment method exists
-    if (data.paymentMethodId) {
-      const methodExists = await prisma.paymentMethod.findUnique({
-        where: { id: data.paymentMethodId },
-      });
-      if (!methodExists) {
-        errors.paymentMethodId = 'Invalid payment method';
+      if (existingRevenue.isDeleted) {
+        throw new BadRequestError('Cannot approve deleted revenue');
       }
-    }
 
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors,
-    };
-  }
+      if (existingRevenue.approvedBy) {
+        throw new BadRequestError('Revenue already approved');
+      }
 
-  /**
-   * Generate a unique revenue code
-   */
-  private async generateRevenueCode(transactionDate: string | Date): Promise<string> {
-    const date = new Date(transactionDate);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    // Find the highest sequence number for this date
-    const prefix = `REV-${year}${month}${day}`;
-    const lastRevenue = await prisma.revenue.findFirst({
-      where: {
-        revenueCode: {
-          startsWith: prefix,
+      const approvedRevenue = await prisma.revenue.update({
+        where: { id },
+        data: {
+          approvedBy: userId,
+          approvedAt: new Date(),
         },
-      },
-      orderBy: {
-        revenueCode: 'desc',
-      },
-    });
+      });
 
-    let sequence = 1;
-    if (lastRevenue) {
-      const lastSequence = parseInt(lastRevenue.revenueCode.split('-').pop() || '0', 10);
-      sequence = lastSequence + 1;
+      await AuditLogClient.log(
+        userId,
+        'APPROVAL',
+        'REVENUE',
+        id.toString(),
+        approvedRevenue,
+        `Approved revenue: ${approvedRevenue.code}`,
+        ipAddress,
+        existingRevenue
+      );
+
+      logger.info(`Revenue approved: ${approvedRevenue.code} (ID: ${id})`);
+
+      return approvedRevenue;
+    } catch (error) {
+      logger.error(`Error approving revenue ${id}:`, error);
+      throw error;
     }
-
-    return `${prefix}-${String(sequence).padStart(4, '0')}`;
   }
 
   /**
-   * Calculate installment schedule end date
+   * Reject a revenue (admin only)
    */
-  private calculateInstallmentEndDate(
-    startDate: Date,
-    frequency: string,
-    numberOfPayments: number
-  ): Date {
-    const endDate = new Date(startDate);
-    const daysMap: Record<string, number> = {
-      DAILY: 1,
-      WEEKLY: 7,
-      BI_WEEKLY: 14,
-      MONTHLY: 30,
-      QUARTERLY: 90,
-      SEMI_ANNUAL: 180,
-      ANNUAL: 365,
-    };
+  async rejectRevenue(id: number, userId: string, remarks: string, ipAddress?: string) {
+    try {
+      const existingRevenue = await prisma.revenue.findUnique({
+        where: { id },
+      });
 
-    const days = daysMap[frequency] || 30;
-    const totalDays = days * numberOfPayments;
-    endDate.setDate(endDate.getDate() + totalDays);
+      if (!existingRevenue) {
+        throw new NotFoundError('Revenue not found');
+      }
 
-    return endDate;
+      if (existingRevenue.isDeleted) {
+        throw new BadRequestError('Cannot reject deleted revenue');
+      }
+
+      if (existingRevenue.rejectedBy) {
+        throw new BadRequestError('Revenue already rejected');
+      }
+
+      const rejectedRevenue = await prisma.revenue.update({
+        where: { id },
+        data: {
+          rejectedBy: userId,
+          rejectedAt: new Date(),
+          remarks: remarks, // Store rejection reason
+        },
+      });
+
+      await AuditLogClient.log(
+        userId,
+        'REJECTION',
+        'REVENUE',
+        id.toString(),
+        rejectedRevenue,
+        `Rejected revenue: ${rejectedRevenue.code} - ${remarks}`,
+        ipAddress,
+        existingRevenue
+      );
+
+      logger.info(`Revenue rejected: ${rejectedRevenue.code} (ID: ${id})`);
+
+      return rejectedRevenue;
+    } catch (error) {
+      logger.error(`Error rejecting revenue ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get revenue statistics
+   */
+  async getRevenueStats(startDate?: string, endDate?: string) {
+    try {
+      const where: Prisma.RevenueWhereInput = {
+        isDeleted: false,
+      };
+
+      if (startDate || endDate) {
+        where.dateRecorded = {};
+        if (startDate) where.dateRecorded.gte = new Date(startDate);
+        if (endDate) where.dateRecorded.lte = new Date(endDate);
+      }
+
+      const [totalCount, totalAmount, byType] = await Promise.all([
+        prisma.revenue.count({ where }),
+        prisma.revenue.aggregate({
+          where,
+          _sum: {
+            amount: true,
+          },
+        }),
+        prisma.revenue.groupBy({
+          by: ['revenueType'],
+          where,
+          _count: {
+            id: true,
+          },
+          _sum: {
+            amount: true,
+          },
+        }),
+      ]);
+
+      return {
+        totalCount,
+        totalAmount: totalAmount._sum.amount?.toString() || '0',
+        byType: byType.map(item => ({
+          type: item.revenueType,
+          count: item._count.id,
+          amount: item._sum.amount?.toString() || '0',
+        })),
+      };
+    } catch (error) {
+      logger.error('Error getting revenue stats:', error);
+      throw error;
+    }
   }
 }
 
