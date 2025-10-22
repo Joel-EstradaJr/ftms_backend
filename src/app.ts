@@ -8,7 +8,12 @@ import { logger } from './config/logger';
 import { errorHandler } from './middleware/errorHandler';
 
 // Routes
-import revenueRoutes from './routes/admin/revenue.routes';
+import adminRevenueRoutes from './routes/admin/revenue.routes';
+import staffRevenueRoutes from './routes/staff/revenue.routes';
+import adminExpenseRoutes from './routes/admin/expense.routes';
+import staffExpenseRoutes from './routes/staff/expense.routes';
+import adminPayrollRoutes from './routes/admin/payroll.routes';
+import staffPayrollRoutes from './routes/staff/payroll.routes';
 
 export const createApp = (): Application => {
   const app = express();
@@ -61,8 +66,15 @@ export const createApp = (): Application => {
   // API Routes
   // ===========================
   
-  // Admin routes
-  app.use('/api/v1/admin/revenues', revenueRoutes);
+  // Admin routes (Full CRUD + additional actions)
+  app.use('/api/v1/admin/revenues', adminRevenueRoutes);
+  app.use('/api/v1/admin/expenses', adminExpenseRoutes);
+  app.use('/api/v1/admin/payrolls', adminPayrollRoutes);
+  
+  // Staff routes (Limited to view + create only)
+  app.use('/api/v1/staff/revenues', staffRevenueRoutes);
+  app.use('/api/v1/staff/expenses', staffExpenseRoutes);
+  app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
 
   // 404 handler
   app.use((req, res) => {
