@@ -14,6 +14,8 @@ import adminExpenseRoutes from './routes/admin/expense.routes';
 import staffExpenseRoutes from './routes/staff/expense.routes';
 import adminPayrollRoutes from './routes/admin/payroll.routes';
 import staffPayrollRoutes from './routes/staff/payroll.routes';
+import adminReimbursementRoutes from './routes/admin/reimbursement.routes';
+import staffReimbursementRoutes from './routes/staff/reimbursement.routes';
 
 export const createApp = (): Application => {
   const app = express();
@@ -70,11 +72,13 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/revenues', adminRevenueRoutes);
   app.use('/api/v1/admin/expenses', adminExpenseRoutes);
   app.use('/api/v1/admin/payrolls', adminPayrollRoutes);
+  app.use('/api/v1/admin/reimbursements', adminReimbursementRoutes);
   
   // Staff routes (Limited to view + create only)
   app.use('/api/v1/staff/revenues', staffRevenueRoutes);
   app.use('/api/v1/staff/expenses', staffExpenseRoutes);
   app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
+  app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
 
   // 404 handler
   app.use((req, res) => {
