@@ -6,8 +6,9 @@ import morgan from 'morgan';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { errorHandler } from './middleware/errorHandler';
-// Routes will be imported here as we create them
-// import routes from './routes';
+
+// Routes
+import revenueRoutes from './routes/admin/revenue.routes';
 
 export const createApp = (): Application => {
   const app = express();
@@ -56,8 +57,12 @@ export const createApp = (): Application => {
     });
   });
 
-  // API routes (will be added as we migrate)
-  // app.use('/api/v1', routes);
+  // ===========================
+  // API Routes
+  // ===========================
+  
+  // Admin routes
+  app.use('/api/v1/admin/revenues', revenueRoutes);
 
   // 404 handler
   app.use((req, res) => {

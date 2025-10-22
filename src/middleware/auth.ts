@@ -4,11 +4,20 @@ import { config } from '../config/env';
 import { logger } from '../config/logger';
 
 export interface JWTPayload {
-  sub: string;        // User ID
+  sub: string;        // User ID (matches userId field)
   username: string;   // Username
   role: string;       // User role (admin, staff, etc.)
   iat: number;        // Issued at
   exp: number;        // Expires at
+}
+
+// Extend Express Request to include user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: JWTPayload;
+    }
+  }
 }
 
 export interface AuthRequest extends Request {
