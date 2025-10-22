@@ -32,6 +32,9 @@ const Sidebar: React.FC = () => {
     "/revenue/busRental": "busRental",
     "/revenue/otherRevenue": "otherRevenue",
     "/expense": "expense",
+    "/expense-management/operational": "operational-expense",
+    "/expense-management/administrative": "administrative-expense",
+    "/expense-management/purchase": "purchase-expense",
     "/reimbursement": "reimbursement",
     "/financial-management/payroll": "payroll",
     "/purchase-request-approval": "purchaseApproval",
@@ -57,11 +60,11 @@ const Sidebar: React.FC = () => {
   useEffect(() => {
     const normalizedPath = getNormalizedPath(pathname);
     
-    const staticMatch = staticRoutes[normalizedPath];
+      const staticMatch = staticRoutes[normalizedPath];
     if (staticMatch) {
       setActiveItem(staticMatch);
       
-      if (["expense", "reimbursement"].includes(staticMatch)) {
+      if (["expense", "reimbursement", "operational-expense", "administrative-expense", "purchase-expense"].includes(staticMatch)) {
         setOpenSubMenu("expense-management");
       } else if (["budget-request", "budgetAllocation", "budgetApproval"].includes(staticMatch)) {
         setOpenSubMenu("budget-management");
@@ -168,15 +171,15 @@ const Sidebar: React.FC = () => {
             </div>
           )}
 
-          {/* Expenses Submenu - Both roles */}
+          {/* Expense Management Submenu - Both roles */}
           <div
             className={`nav-item module ${
-              ["expense", "reimbursement"].includes(activeItem!) ? "active" : ""
+              ["operational-expense", "administrative-expense", "purchase-expense"].includes(activeItem!) ? "active" : ""
             }`}
             onClick={() => toggleSubMenu("expense-management")}
           >
-            <i className="ri-wallet-3-line"></i>
-            <span>Expenses</span>
+            <i className="ri-money-dollar-circle-line"></i>
+            <span>Expense Management</span>
             <i
               className={`dropdown-arrow ri-arrow-down-s-line ${
                 openSubMenu === "expense-management" ? "rotate" : ""
@@ -187,18 +190,25 @@ const Sidebar: React.FC = () => {
           {openSubMenu === "expense-management" && (
             <div className="sub-menu active">
               <Link
-                href={getUrl("/expense")}
-                className={`sub-item ${activeItem === "expense" ? "active" : ""}`}
-                onClick={() => setActiveItem("expense")}
+                href={getUrl("/expense-management/operational")}
+                className={`sub-item ${activeItem === "operational-expense" ? "active" : ""}`}
+                onClick={() => setActiveItem("operational-expense")}
               >
-                Expenses
+                Operational Expenses
               </Link>
               <Link
-                href={getUrl("/reimbursement")}
-                className={`sub-item ${activeItem === "reimbursement" ? "active" : ""}`}
-                onClick={() => setActiveItem("reimbursement")}
+                href={getUrl("/expense-management/administrative")}
+                className={`sub-item ${activeItem === "administrative-expense" ? "active" : ""}`}
+                onClick={() => setActiveItem("administrative-expense")}
               >
-                Reimbursements
+                Administrative Expenses
+              </Link>
+              <Link
+                href={getUrl("/expense-management/purchase")}
+                className={`sub-item ${activeItem === "purchase-expense" ? "active" : ""}`}
+                onClick={() => setActiveItem("purchase-expense")}
+              >
+                Purchase Expenses
               </Link>
             </div>
           )}

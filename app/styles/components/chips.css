@@ -162,3 +162,43 @@
     background-color: #D6E4FF;
     color: #0050B3;
 }
+
+/* ============================================================
+   EXPENSE MANAGEMENT STATUSES
+   ============================================================ */
+/* Common Expense Statuses */
+.chip.pending {
+    background-color: var(--warning-chip-bg-color);
+    color: var(--warning-chip-text-color);
+}
+
+.chip.approved {
+    background-color: var(--success-chip-bg-color);
+    color: var(--success-chip-text-color);
+}
+
+.chip.rejected {
+    background-color: var(--error-chip-bg-color);
+    color: var(--error-chip-text-color);
+}
+
+/* Purchase Expense Specific Statuses */
+.chip.matched {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.chip.delivered {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.chip.refunded {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.chip.replaced {
+    background-color: #f3e8ff;
+    color: #6b21a8;
+}

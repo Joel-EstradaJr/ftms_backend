@@ -1,0 +1,64 @@
+/* Operational Expense Styles */
+
+.expense-row {
+  transition: background-color 0.2s ease;
+}
+
+.expense-row:hover {
+  background-color: var(--table-hover-bg-color, #f5f5f5);
+}
+
+.description-cell {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount-cell {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.amount-text {
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+  color: var(--text-primary, #333);
+}
+
+/* Expense type chips */
+.chip.fuel {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.chip.toll {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.chip.parking {
+  background-color: #e0e7ff;
+  color: #3730a3;
+}
+
+.chip.allowances {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.chip.petty_cash {
+  background-color: #fce7f3;
+  color: #9f1239;
+}
+
+.chip.violations {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.chip.terminal_fees {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+}
