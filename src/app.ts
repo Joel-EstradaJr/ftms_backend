@@ -22,6 +22,12 @@ import adminJournalEntryRoutes from './routes/admin/journalEntry.routes';
 import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 import adminAssetRoutes from './routes/admin/asset.routes';
 import staffAssetRoutes from './routes/staff/asset.routes';
+import adminReceivableRoutes from './routes/admin/receivable.routes';
+import staffReceivableRoutes from './routes/staff/receivable.routes';
+import adminPayableRoutes from './routes/admin/payable.routes';
+import staffPayableRoutes from './routes/staff/payable.routes';
+import adminLoanRoutes from './routes/admin/loan.routes';
+import staffLoanRoutes from './routes/staff/loan.routes';
 
 export const createApp = (): Application => {
   const app = express();
@@ -82,6 +88,9 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/budgets', adminBudgetRoutes);
   app.use('/api/v1/admin/journal-entries', adminJournalEntryRoutes);
   app.use('/api/v1/admin/assets', adminAssetRoutes);
+  app.use('/api/v1/admin/receivables', adminReceivableRoutes);
+  app.use('/api/v1/admin/payables', adminPayableRoutes);
+  app.use('/api/v1/admin/loans', adminLoanRoutes);
   
   // Staff routes (Limited access - read + create for some modules)
   app.use('/api/v1/staff/revenues', staffRevenueRoutes);
@@ -91,6 +100,9 @@ export const createApp = (): Application => {
   app.use('/api/v1/staff/budgets', staffBudgetRoutes);
   app.use('/api/v1/staff/journal-entries', staffJournalEntryRoutes);
   app.use('/api/v1/staff/assets', staffAssetRoutes);
+  app.use('/api/v1/staff/receivables', staffReceivableRoutes);
+  app.use('/api/v1/staff/payables', staffPayableRoutes);
+  app.use('/api/v1/staff/loans', staffLoanRoutes);
 
   // 404 handler
   app.use((req, res) => {
