@@ -1,9 +1,10 @@
-// ============================================
-// FINANCE DEPARTMENT - PRISMA SCHEMA
-// Integrated Capstone Project - Bus Transportation Company
-// FULLY ALIGNED with Purchase Integration Process & Original Instructions
-// DYNAMIC ENUM TABLES FOR FLEXIBILITY
-// ============================================
+// main schema (FINALIZED)
+
+// ============================================================================
+// MAIN FINANCE BACKEND - PRISMA SCHEMA (COMPLETE & ENHANCED)
+// Repository 2: Core Finance System with Full Inventory Integration
+// Integrated Bus Transportation Management Platform
+// ============================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -14,1626 +15,1095 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// ENUMS (Stable, Operational Workflows Only)
-// ============================================
+// ============================================================================
+// ENUMS
+// ============================================================================
 
-enum PayrollStatus {
-  DRAFT
-  APPROVED
-  DISBURSED
+enum PurchaseRequestStatus {
+  DRAFT                // Initial status in Inventory (can edit/cancel/post)
+  POSTED               // Submitted to Finance for review (view only, can cancel)
+  REJECTED             // Finance rejected (view only, cannot edit/cancel)
+  APPROVED             // Finance approved (view only, cannot edit/cancel)
+  CLOSED               // PO completed (synced from PO status)
 }
 
-enum PayrollFrequency {
-  WEEKLY
-  SEMI_MONTHLY
-  MONTHLY
-}
-
-enum LoanStatus {
-  PENDING
-  APPROVED
-  RELEASED
-  FULLY_PAID
-  DEFAULTED
-}
-
-enum JournalEntryStatus {
-  DRAFT
-  POSTED
-  APPROVED
-  VOID
-}
-
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  APPROVE
-  REJECT
-  EXPORT
-  VIEW
-  REVERSE
-}
-
-enum InstallmentStatus {
-  ACTIVE
-  COMPLETED
-  DEFAULTED
-  CANCELLED
-}
-
-enum ReimbursementStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  DISBURSED
-}
-
-enum RefundReplacementType {
-  REFUND
-  REPLACEMENT
-  FAILED
+enum PurchaseOrderStatus {
+  PENDING              // Auto-created when PR approved with no modifications
+  PENDING_ADJUSTED     // Auto-created when PR approved WITH modifications (quantity/items changed)
+  RECEIVED             // All items physically received with no issues
+  PARTIALLY_COMPLETED  // Items received with damage/missing → triggers Refund/Replacement
+  TO_BE_REFUNDED       // Finance processing refund with supplier
+  TO_BE_REPLACED       // Finance processing replacement with supplier
+  CLOSED               // Successfully completed (no issues OR refund/replacement done)
+  CLOSED_FAILED        // Refund/Replacement failed to complete
 }
 
 enum RefundReplacementStatus {
-  PENDING
-  PROCESSING
-  TO_BE_REFUNDED
-  REFUNDED
-  TO_BE_REPLACED
-  REPLACED
-  REJECTED
-  FAILED
-  CLOSED
+  PENDING              // Awaiting Finance decision (refund or replace)
+  APPROVED             // Finance approved the refund/replacement request
+  REJECTED             // Finance rejected (accept loss or other resolution)
+  PROCESS_REFUND       // Finance contacting supplier for refund
+  PROCESS_REPLACEMENT  // Finance contacting supplier for replacement
+  CLOSED               // Refund completed OR Replacement completed
+  CLOSED_FAILED        // Supplier failed to refund/replace
 }
 
-enum ForfeitedDepositStatus {
+enum ItemApprovalStatus {
+  PENDING              // Default when PR posted to Finance
+  APPROVED             // Finance approved this specific item
+  REJECTED             // Finance rejected this specific item
+  MODIFIED             // Finance modified quantity/cost for this item
+}
+
+enum RequestType {
+  REGULAR              // Priority 1: Standard, routine purchases
+  PROJECT_BASED        // Priority 2: Operations/Maintenance linked
+  BUDGET_SHORTAGE      // Priority 3: When initial purchase exceeds budget
+  URGENT               // Priority 4: Time-sensitive to prevent delays
+  EMERGENCY            // Priority 5: Critical to restore operations
+}
+
+enum ApprovalStatus {
   PENDING
   APPROVED
-  CONVERTED_TO_REVENUE
-  REFUNDED
+  REJECTED
 }
 
-enum ApproverRole {
-  OWNER
-  FINANCE_ADMIN
+enum LoanType {
+  EMPLOYEE
+  EXTERNAL
+  TRIP_DEFICIT
 }
 
-enum ExpenseReservationStatus {
-  NONE
-  RESERVED
-  VALIDATED
-  POSTED
+enum RevenueType {
+  TRIP
+  RENTAL
+  OTHER
 }
 
-enum ReimbursementPaymentMethodType {
-  CASH
-  GCASH
-  PAYMAYA
+enum InstallmentFrequency {
+  DAILY
+  WEEKLY
+  SEMI_MONTHLY
+  MONTHLY
+  YEARLY
 }
 
-// ============================================
-// DYNAMIC CONFIGURATION TABLES
-// ============================================
+enum RepaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+}
 
-model PaymentMethod {
-  id          Int      @id @default(autoincrement())
-  methodCode  String   @unique @db.VarChar(20)
-  methodName  String   @db.VarChar(100)
-  description String?  @db.Text
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// ============================================================================
+// 1. REVENUE MANAGEMENT
+// ============================================================================
 
+model Revenue {
+  id                Int          @id @default(autoincrement())
+  code              String       @unique
+  revenueType       RevenueType
+  amount            Decimal      @db.Decimal(12, 2)
+  dateRecorded      DateTime
+  remarks           String?
+  sourceRefNo       String?      // Trip ID / Rental ID / etc.
+  department        String?
+
+  // Rental-specific
+  rentalDownpayment      Decimal?   @db.Decimal(12, 2)
+  rentalBalance          Decimal?   @db.Decimal(12, 2)
+  downpaymentReceivedAt  DateTime?
+  balanceReceivedAt      DateTime?
+  isDownpaymentRefundable Boolean   @default(false)
+  
+  // Other revenue categorization
+  otherRevenueCategory String? // "asset_sale" | "advertising" | "insurance" | etc.
+  
+  // Receipt linking (currently only in Expense)
+  receiptUrl           String?
+  
+  // Verification flag (optional, can use approvedBy instead)
+  isVerified           Boolean    @default(false)
+  verifiedBy           String?
+  verifiedAt           DateTime?
+  
+  // External Sync Fields
+  externalRefNo     String?
+  lastSyncedAt      DateTime?
+  lastSyncStatus    String?
+  
+  // Audit Trail Fields (auto-populated by middleware)
+  createdBy         String?
+  createdAt         DateTime     @default(now())
+  updatedBy         String?
+  updatedAt         DateTime     @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean      @default(false)
+
+  @@index([revenueType, dateRecorded])
+  @@index([isDeleted])
+  @@index([sourceRefNo])
+}
+
+// ============================================================================
+// 2. EXPENSE MANAGEMENT
+// ============================================================================
+
+model Expense {
+  id                Int        @id @default(autoincrement())
+  code              String     @unique
+  category          String     // "operational" | "administrative" | "purchase"
+  subcategory       String?    // "fuel" | "toll" | "supplies" | "utilities" | etc.
+  amount            Decimal    @db.Decimal(12, 2)
+  dateRecorded      DateTime
+  remarks           String?
+  linkedPurchaseId  Int?
+  department        String?
+  receiptUrl        String?    // Document Management link
+  
+  // External Sync Fields
+  externalRefNo     String?
+  lastSyncedAt      DateTime?
+  lastSyncStatus    String?
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime   @default(now())
+  updatedBy         String?
+  updatedAt         DateTime   @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
+
+  @@index([category, dateRecorded])
+  @@index([subcategory])
+  @@index([isDeleted])
+  @@index([linkedPurchaseId])
+}
+
+// ============================================================================
+// 3. EMPLOYEE FINANCIALS
+// ============================================================================
+
+model Payroll {
+  id                Int            @id @default(autoincrement())
+  employeeId        Int
+  periodStart       DateTime
+  periodEnd         DateTime
+  baseSalary        Decimal        @db.Decimal(12, 2)
+  allowances        Decimal?       @db.Decimal(12, 2)
+  deductions        Decimal?       @db.Decimal(12, 2)
+  netPay            Decimal        @db.Decimal(12, 2)
+  disbursementDate  DateTime?
+  status            ApprovalStatus @default(PENDING)
+
+  // Individual disbursement tracking
+  isDisbursed      Boolean   @default(false)
+  disbursedBy      String?
+  
+  // Finalization lock
+  isFinalized      Boolean   @default(false)
+  finalizedBy      String?
+  finalizedAt      DateTime?
+  
+  // External Link (from HR)
+  externalRefNo     String?
+  lastSyncedAt      DateTime?
+  lastSyncStatus    String?
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime       @default(now())
+  updatedBy         String?
+  updatedAt         DateTime       @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean        @default(false)
+
+  @@index([employeeId, periodStart])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+model Reimbursement {
+  id                Int            @id @default(autoincrement())
+  employeeId        Int
+  amount            Decimal        @db.Decimal(12, 2)
+  purpose           String
+  status            ApprovalStatus @default(PENDING)
+  receiptUrl        String?        // Document Management link
+
+  // Disbursement tracking
+  disbursementDate  DateTime?
+  isDisbursed       Boolean   @default(false)
+  disbursedBy       String?
+  
+  // External Link
+  externalRefNo     String?
+  lastSyncedAt      DateTime?
+  lastSyncStatus    String?
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime       @default(now())
+  updatedBy         String?
+  updatedAt         DateTime       @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean        @default(false)
+
+  @@index([employeeId, status])
+  @@index([isDeleted])
+}
+
+model Loan {
+  id                    Int                     @id @default(autoincrement())
+  loanType              LoanType
+  entityId              Int                     // EmployeeID or ExternalEntityID
+  entityName            String?                 // For external loans
+  principalAmount       Decimal                 @db.Decimal(12, 2)
+  interestRate          Decimal?                @db.Decimal(5, 2)
+  totalPayable          Decimal?                @db.Decimal(12, 2)
+  remainingBalance      Decimal                 @db.Decimal(12, 2)
+  dueDate               DateTime?
+  installmentFrequency  InstallmentFrequency?
+  installmentAmount     Decimal?                @db.Decimal(12, 2)
+  status                ApprovalStatus          @default(PENDING)
+  remarks               String?
+  
+  // Trip Deficit Auto-Loan Fields (Module 3.3)
+  tripDeficitRefNo      String?                 // Links to trip from Operations
+  driverShare           Decimal?                @db.Decimal(12, 2) // 50% of deficit
+  conductorShare        Decimal?                @db.Decimal(12, 2) // 50% of deficit
+  driverId              Int?
+  conductorId           Int?
+
+  // Conversion tracking
+  isConvertedToEmployeeLoan Boolean @default(false)
+  convertedLoanId           Int?
+  convertedAt               DateTime?
+  
+  // External Link
+  externalRefNo         String?
+  lastSyncedAt          DateTime?
+  lastSyncStatus        String?
+  
+  // Audit Trail Fields
+  createdBy             String?
+  createdAt             DateTime                @default(now())
+  updatedBy             String?
+  updatedAt             DateTime                @updatedAt
+  approvedBy            String?
+  approvedAt            DateTime?
+  rejectedBy            String?
+  rejectedAt            DateTime?
+  deletedBy             String?
+  deletedAt             DateTime?
+  isDeleted             Boolean                 @default(false)
+  
   // Relations
-  revenues           Revenue[]
-  expenses           Expense[]
-  loanPayments       LoanPayment[]
-  payrollItems       PayrollItem[]
-  reimbursements     Reimbursement[]
-  refundReplacements RefundReplacement[]
+  repayments            LoanRepayment[]
 
-  @@index([methodCode])
-  @@index([isActive])
+  @@index([loanType, entityId])
+  @@index([status])
+  @@index([isDeleted])
+  @@index([tripDeficitRefNo])
 }
 
-model BudgetPeriodType {
-  id          Int      @id @default(autoincrement())
-  periodCode  String   @unique @db.VarChar(20)
-  periodName  String   @db.VarChar(100)
-  description String?  @db.Text
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model LoanRepayment {
+  id                Int             @id @default(autoincrement())
+  loanId            Int
+  installmentNumber Int             // 1, 2, 3, etc.
+  amountDue         Decimal         @db.Decimal(12, 2)
+  amountPaid        Decimal?        @db.Decimal(12, 2)
+  dueDate           DateTime
+  paidDate          DateTime?
+  status            RepaymentStatus @default(PENDING)
+  paymentMethod     String?         // "cash" | "deduction" | "check"
+  remarks           String?
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime        @default(now())
+  updatedBy         String?
+  updatedAt         DateTime        @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean         @default(false)
+  
+  // Relation
+  loan              Loan            @relation(fields: [loanId], references: [id])
 
+  @@index([loanId])
+  @@index([status, dueDate])
+  @@index([isDeleted])
+}
+
+// ============================================================================
+// 4. PURCHASE PROCESS (ENHANCED FOR INVENTORY INTEGRATION)
+// ============================================================================
+
+model PurchaseRequest {
+  id                Int                    @id @default(autoincrement())
+  refNo             String                 @unique
+  
+  // Request Details
+  department        String                 // "inventory" (in this flow)
+  estimatedAmount   Decimal                @db.Decimal(12, 2) // Sum of all items' estimated costs
+  requestType       RequestType            // Priority-based request type
+  priority          Int                    @default(1) // 1-5 based on RequestType
+  justification     String?                @db.Text
+  status            PurchaseRequestStatus  @default(DRAFT)
+  
+  // Metadata (from Inventory)
+  createdByInventory Boolean               @default(true) // Always true for this flow
+  inventoryMetadata  String?               @db.Text // JSON: low stock triggers, project links, etc.
+  
+  // Budget Integration (links to Budget Request microservice if needed)
+  requiresBudgetApproval Boolean           @default(false) // True if exceeds allocated budget
+  linkedBudgetRequestId  Int?              // Links to Repo 4 BudgetRequest.id
+  budgetRequestCode      String?           // For reference
+  
+  // External Sync (from Inventory microservice)
+  externalRefNo     String?                // Inventory's PR reference
+  lastSyncedAt      DateTime?
+  lastSyncStatus    String?
+  
+  // Audit Trail Fields (populated by Audit Logs middleware)
+  createdBy         String?
+  createdAt         DateTime               @default(now())
+  updatedBy         String?
+  updatedAt         DateTime               @updatedAt
+  approvedBy        String?                // Finance Admin who approved
+  approvedAt        DateTime?
+  rejectedBy        String?                // Finance Admin who rejected
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean                @default(false)
+  
   // Relations
-  budgetAllocations BudgetAllocation[]
+  items             PurchaseRequestItem[]  // Multiple items per PR
+  purchaseOrders    PurchaseOrder[]        // Can generate multiple POs if multi-supplier
 
-  @@index([periodCode])
-  @@index([isActive])
+  @@index([status, department])
+  @@index([requestType, priority])
+  @@index([isDeleted])
+  @@index([externalRefNo])
+  @@index([linkedBudgetRequestId])
+  @@index([createdAt])
 }
 
-model LoanPaymentFrequencyType {
-  id            Int      @id @default(autoincrement())
-  frequencyCode String   @unique @db.VarChar(20)
-  frequencyName String   @db.VarChar(100)
-  daysInterval  Int? // e.g., 7 for WEEKLY, 14 for BI-WEEKLY
-  description   String?  @db.Text
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
+model PurchaseRequestItem {
+  id                    Int                    @id @default(autoincrement())
+  purchaseRequestId     Int
+  
+  // Item Details (from Inventory)
+  itemCode              String?                // Inventory item code
+  itemName              String
+  category              String?                // From Inventory categorization
+  quantity              Int                    // Requested quantity
+  unitMeasure           String                 // "pcs", "liters", "kg", etc.
+  estimatedUnitCost     Decimal                @db.Decimal(12, 2)
+  estimatedAmount       Decimal                @db.Decimal(12, 2) // quantity * unitCost
+  
+  // Supplier Information (one item = one supplier)
+  supplierId            String?
+  supplierName          String?
+  supplierItemCode      String?                // Supplier's product code
+  
+  // Finance Approval Details (can be modified by Finance Admin)
+  itemStatus            ItemApprovalStatus     @default(PENDING)
+  approvedQuantity      Int?                   // Can be less than requested quantity
+  approvedUnitCost      Decimal?               @db.Decimal(12, 2) // Can adjust price
+  approvedAmount        Decimal?               @db.Decimal(12, 2)
+  rejectionReason       String?                @db.Text
+  modificationNotes     String?                @db.Text // Why quantity/cost was changed
+  
+  // Supporting Documents
+  attachmentUrls        String?                @db.Text // JSON array of file URLs
+  
+  // External Link
+  externalItemId        Int?                   // Inventory's item ID
+  lastSyncedAt          DateTime?
+  
+  // Audit Trail
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  approvedBy            String?
+  approvedAt            DateTime?
+  isDeleted             Boolean                @default(false)
+  
   // Relations
-  loans Loan[]
+  purchaseRequest       PurchaseRequest        @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  purchaseOrderItems    PurchaseOrderItem[]    // Links to PO items when approved
 
-  @@index([frequencyCode])
-  @@index([isActive])
+  @@index([purchaseRequestId])
+  @@index([itemStatus])
+  @@index([supplierId])
+  @@index([isDeleted])
 }
 
-model AccountType {
-  id            Int      @id @default(autoincrement())
-  typeCode      String   @unique @db.VarChar(20)
-  typeName      String   @db.VarChar(100)
-  description   String?  @db.Text
-  normalBalance String   @db.VarChar(10) // DEBIT or CREDIT
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
+model PurchaseOrder {
+  id                Int                  @id @default(autoincrement())
+  refNo             String               @unique
+  purchaseRequestId Int
+  
+  // Order Details
+  status            PurchaseOrderStatus  @default(PENDING)
+  totalAmount       Decimal              @db.Decimal(12, 2) // Sum of approved items
+  
+  // Supplier Information (one PO per supplier)
+  supplierId        String
+  supplierName      String
+  supplierContact   String?
+  supplierEmail     String?
+  
+  // Delivery Details
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+  deliveryAddress      String?
+  
+  // Documents
+  invoiceUrl        String?              // Supplier invoice
+  deliveryReceiptUrl String?             // Signed by Inventory upon receipt
+  
+  // Adjustment Tracking (if Finance modified PR)
+  isAdjusted        Boolean              @default(false) // True if PENDING_ADJUSTED
+  adjustmentSummary String?              @db.Text // What was changed
+  
+  // Completion Tracking
+  totalItemsOrdered     Int              @default(0) // Count of line items
+  totalItemsReceived    Int              @default(0) // Successfully received
+  totalItemsDamaged     Int              @default(0) // Damaged/defective
+  totalItemsMissing     Int              @default(0) // Missing from delivery
+  
+  remarks           String?              @db.Text
+  
+  // External Sync (to Inventory)
+  externalRefNo     String?
+  lastSyncedAt      DateTime?
+  lastSyncStatus    String?
+  
+  // Audit Trail Fields (populated by Audit Logs middleware)
+  createdBy         String?
+  createdAt         DateTime             @default(now())
+  updatedBy         String?
+  updatedAt         DateTime             @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  closedBy          String?
+  closedAt          DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean              @default(false)
+  
   // Relations
-  chartOfAccounts ChartOfAccount[]
+  purchaseRequest   PurchaseRequest      @relation(fields: [purchaseRequestId], references: [id])
+  items             PurchaseOrderItem[]  // Line items in this PO
+  refundReplacement RefundReplacement?
 
-  @@index([typeCode])
-  @@index([isActive])
+  @@index([purchaseRequestId])
+  @@index([status])
+  @@index([supplierId])
+  @@index([isDeleted])
+  @@index([actualDeliveryDate])
 }
 
-// ============================================
-// DYNAMIC ENUM TABLES (Configurable)
-// ============================================
+model PurchaseOrderItem {
+  id                    Int                    @id @default(autoincrement())
+  purchaseOrderId       Int
+  purchaseRequestItemId Int                    // Links back to PR item
+  
+  // Item Details (copied from approved PR item)
+  itemCode              String?
+  itemName              String
+  category              String?
+  orderedQuantity       Int                    // From approvedQuantity in PR
+  unitMeasure           String
+  unitCost              Decimal                @db.Decimal(12, 2)
+  lineTotal             Decimal                @db.Decimal(12, 2)
+  
+  // Receipt Tracking (filled by Inventory upon physical receipt)
+  receivedQuantity      Int?                   @default(0)
+  damagedQuantity       Int?                   @default(0)
+  missingQuantity       Int?                   @default(0)
+  acceptedQuantity      Int?                   @default(0) // receivedQuantity - damagedQuantity
+  
+  // Item Status
+  itemStatus            String                 @default("pending") // "pending" | "received" | "partial" | "damaged" | "missing"
+  issueDescription      String?                @db.Text // Details of damage/missing items
+  
+  // Quality Check (by Inventory)
+  qualityCheckPassed    Boolean?
+  qualityCheckNotes     String?                @db.Text
+  qualityCheckedBy      String?
+  qualityCheckedAt      DateTime?
+  
+  // Refund/Replacement Tracking
+  needsRefund           Boolean                @default(false)
+  needsReplacement      Boolean                @default(false)
+  refundAmount          Decimal?               @db.Decimal(12, 2)
+  
+  // External Link
+  externalItemId        Int?                   // Inventory's item ID
+  lastSyncedAt          DateTime?
+  
+  // Audit Trail
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  isDeleted             Boolean                @default(false)
+  
+  // Relations
+  purchaseOrder         PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseRequestItem   PurchaseRequestItem    @relation(fields: [purchaseRequestItemId], references: [id])
+  refundReplacementItems RefundReplacementItem[]
 
-model ExpenseCategory {
-  id           Int      @id @default(autoincrement())
-  categoryCode String   @unique @db.VarChar(20)
-  name         String   @db.VarChar(100)
-  description  String?  @db.Text
-  department   String?  @db.VarChar(100)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  expenses          Expense[]
-  budgetAllocations BudgetAllocation[]
-
-  @@index([categoryCode])
-  @@index([department])
-  @@index([isActive])
+  @@index([purchaseOrderId])
+  @@index([purchaseRequestItemId])
+  @@index([itemStatus])
+  @@index([needsRefund, needsReplacement])
 }
 
-model RevenueSource {
-  id          Int      @id @default(autoincrement())
-  sourceCode  String   @unique @db.VarChar(20)
-  name        String   @db.VarChar(100)
-  description String?  @db.Text
-  isActive    Boolean  @default(true)
-  accountCode String?  @db.VarChar(20)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model RefundReplacement {
+  id                  Int                       @id @default(autoincrement())
+  refNo               String                    @unique @default(cuid())
+  purchaseOrderId     Int                       @unique
+  
+  // Request Details
+  status              RefundReplacementStatus   @default(PENDING)
+  issueType           String                    // "missing" | "damaged" | "defective" | "wrong_item" | "price_mismatch"
+  totalAffectedItems  Int                       @default(0) // Count of items with issues
+  
+  // Financial Impact
+  totalRefundAmount   Decimal?                  @db.Decimal(12, 2) // Sum of all refunds
+  totalReplacementCost Decimal?                 @db.Decimal(12, 2) // Estimated replacement cost
+  
+  // Resolution Tracking
+  resolutionType      String?                   // "refund" | "replacement" | "partial_refund" | "credit_note" | "accept_loss"
+  replacementAttempts Int                       @default(0)
+  maxReplacementAttempts Int                    @default(3) // Configurable
+  
+  // Supplier Communication
+  supplierNotifiedAt  DateTime?
+  supplierResponseAt  DateTime?
+  supplierResolution  String?                   @db.Text
+  
+  // Timeline
+  reportedDate        DateTime                  @default(now())
+  resolutionDate      DateTime?
+  resolutionDeadline  DateTime?                 // SLA deadline
+  
+  remarks             String?                   @db.Text
+  
+  // External Sync
+  externalRefNo       String?
+  lastSyncedAt        DateTime?
+  lastSyncStatus      String?
+  
+  // Audit Trail Fields (populated by Audit Logs middleware)
+  createdBy           String?
+  createdAt           DateTime                  @default(now())
+  updatedBy           String?
+  updatedAt           DateTime                  @updatedAt
+  approvedBy          String?                   // Finance Admin decision
+  approvedAt          DateTime?
+  rejectedBy          String?
+  rejectedAt          DateTime?
+  closedBy            String?
+  closedAt            DateTime?
+  deletedBy           String?
+  deletedAt           DateTime?
+  isDeleted           Boolean                   @default(false)
+  
+  // Relations
+  purchaseOrder       PurchaseOrder             @relation(fields: [purchaseOrderId], references: [id])
+  items               RefundReplacementItem[]   // Item-level refund/replacement tracking
 
-  revenues Revenue[]
-
-  @@index([sourceCode])
-  @@index([isActive])
+  @@index([status])
+  @@index([issueType])
+  @@index([isDeleted])
+  @@index([resolutionDeadline])
+  @@index([createdAt])
 }
 
-model BudgetRequestType {
-  id          Int      @id @default(autoincrement())
-  typeCode    String   @unique @db.VarChar(20)
-  name        String   @db.VarChar(100)
-  description String?  @db.Text
-  priority    Int      @default(1)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model RefundReplacementItem {
+  id                    Int                    @id @default(autoincrement())
+  refundReplacementId   Int
+  purchaseOrderItemId   Int
+  
+  // Item Details
+  itemName              String
+  affectedQuantity      Int                    // How many units damaged/missing
+  unitCost              Decimal                @db.Decimal(12, 2)
+  
+  // Issue Details
+  issueType             String                 // "missing" | "damaged" | "defective" | "wrong_item"
+  issueDescription      String?                @db.Text
+  photosUrls            String?                @db.Text // JSON array of damage photos
+  
+  // Resolution for this item
+  itemResolution        String?                // "refund" | "replace" | "partial_refund" | "waive"
+  refundAmount          Decimal?               @db.Decimal(12, 2)
+  replacementQuantity   Int?                   // How many to replace
+  replacementReceived   Boolean                @default(false)
+  replacementReceivedDate DateTime?
+  
+  // Status
+  itemStatus            String                 @default("pending") // "pending" | "approved" | "refunded" | "replaced" | "rejected"
+  
+  // Audit Trail
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  resolvedAt            DateTime?
+  isDeleted             Boolean                @default(false)
+  
+  // Relations
+  refundReplacement     RefundReplacement      @relation(fields: [refundReplacementId], references: [id], onDelete: Cascade)
+  purchaseOrderItem     PurchaseOrderItem      @relation(fields: [purchaseOrderItemId], references: [id])
 
-  budgetRequests BudgetRequest[]
-
-  @@index([typeCode])
-  @@index([priority])
-  @@index([isActive])
+  @@index([refundReplacementId])
+  @@index([purchaseOrderItemId])
+  @@index([itemStatus])
 }
 
-model BudgetRequestStatus {
-  id          Int      @id @default(autoincrement())
-  statusCode  String   @unique @db.VarChar(20)
-  name        String   @db.VarChar(100)
-  description String?  @db.Text
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// ============================================================================
+// 5. ACCOUNTS (Receivables / Payables)
+// ============================================================================
 
-  budgetRequests BudgetRequest[]
+model AccountReceivable {
+  id                Int        @id @default(autoincrement())
+  referenceCode     String     @unique
+  entityName        String
+  entityType        String?    // "customer" | "employee" | "other"
+  description       String?
+  amountDue         Decimal    @db.Decimal(12, 2)
+  amountPaid        Decimal?   @default(0) @db.Decimal(12, 2)
+  remainingBalance  Decimal    @db.Decimal(12, 2)
+  dueDate           DateTime
+  frequency         InstallmentFrequency?
+  interestRate      Decimal?   @db.Decimal(5, 2)
+  isSettled         Boolean    @default(false)
 
-  @@index([statusCode])
-  @@index([isActive])
+  // More granular status
+  collectionStatus String @default("pending") // "pending" | "partial" | "paid" | "overdue" | "bad_debt"
+  
+  // Payment reminders
+  lastReminderSent DateTime?
+  reminderCount    Int @default(0)
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime   @default(now())
+  updatedBy         String?
+  updatedAt         DateTime   @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
+
+  @@index([dueDate, isSettled])
+  @@index([isDeleted])
+  @@index([entityName])
 }
 
-// ============================================
-// APPROVAL AUTHORITY
-// ============================================
+model AccountPayable {
+  id                Int        @id @default(autoincrement())
+  referenceCode     String     @unique
+  entityName        String
+  entityType        String?    // "supplier" | "vendor" | "contractor" | "other"
+  description       String?
+  amountDue         Decimal    @db.Decimal(12, 2)
+  amountPaid        Decimal?   @default(0) @db.Decimal(12, 2)
+  remainingBalance  Decimal    @db.Decimal(12, 2)
+  dueDate           DateTime
+  frequency         InstallmentFrequency?
+  interestRate      Decimal?   @db.Decimal(5, 2)
+  isSettled         Boolean    @default(false)
 
-model ApprovalAuthority {
-  id           Int          @id @default(autoincrement())
-  role         ApproverRole
-  approvalType String       @db.VarChar(100) // "PURCHASE_REQUEST", "BUDGET_REQUEST", "JOURNAL_ENTRY", "REFUND_REQUEST"
-  minThreshold Decimal?     @db.Decimal(15, 2)
-  maxThreshold Decimal?     @db.Decimal(15, 2)
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  createdBy    String       @db.VarChar(100)
+  // More granular status
+  paymentStatus    String @default("pending") // "pending" | "partial" | "paid" | "overdue"
+  
+  // Payment schedule
+  nextPaymentDue   DateTime?
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime   @default(now())
+  updatedBy         String?
+  updatedAt         DateTime   @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
 
-  @@unique([role, approvalType, minThreshold, maxThreshold])
-  @@index([role])
-  @@index([approvalType])
-  @@index([isActive])
+  @@index([dueDate, isSettled])
+  @@index([isDeleted])
+  @@index([entityName])
 }
 
-// ============================================
-// CACHE MODELS (External System Data)
-// ============================================
+// ============================================================================
+// 6. BUDGET MANAGEMENT
+// ============================================================================
 
-model EmployeeCache {
-  id             Int      @id @default(autoincrement())
-  employeeNumber String   @unique @db.VarChar(20)
-  firstName      String   @db.VarChar(100)
-  middleName     String?  @db.VarChar(100)
-  lastName       String   @db.VarChar(100)
-  phone          String?  @db.VarChar(20)
-  position       String   @db.VarChar(100)
-  departmentId   Int
-  department     String   @db.VarChar(100)
-  lastSynced     DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model Budget {
+  id                Int            @id @default(autoincrement())
+  department        String         // "finance" | "hr" | "inventory" | "operations"
+  fiscalYear        Int
+  fiscalPeriod      String         // "Q1" | "Q2" | "Q3" | "Q4" | "2025-01"
+  allocatedAmount   Decimal        @db.Decimal(12, 2)
+  usedAmount        Decimal        @default(0) @db.Decimal(12, 2)
+  reservedAmount    Decimal        @default(0) @db.Decimal(12, 2)
+  remainingAmount   Decimal        @db.Decimal(12, 2)
+  periodStart       DateTime
+  periodEnd         DateTime
+  status            ApprovalStatus @default(PENDING)
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime       @default(now())
+  updatedBy         String?
+  updatedAt         DateTime       @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean        @default(false)
 
+  @@index([department, periodStart])
+  @@index([status])
+  @@index([isDeleted])
+  @@unique([department, fiscalYear, fiscalPeriod])
+}
+
+// NOTE: BudgetRequest model moved to Repo 4 (Budget Request Microservice)
+// Main Finance backend reads BudgetRequest data via REST API from Repo 4
+
+// ============================================================================
+// 7. JOURNAL ENTRIES & ASSETS
+// ============================================================================
+
+model JournalEntry {
+  id                Int        @id @default(autoincrement())
+  referenceNo       String     @unique
+  description       String
+  debitAmount       Decimal    @db.Decimal(12, 2)
+  creditAmount      Decimal    @db.Decimal(12, 2)
+  linkedEntityType  String?    // "Revenue" | "Expense" | "Loan" | "Asset"
+  linkedEntityId    Int?
+  accountCode       String?    // Optional chart of accounts reference
+  entryDate         DateTime
+
+  // Verification flag
+  isVerified       Boolean    @default(false)
+  verifiedBy       String?
+  verifiedAt       DateTime?
+  
+  // Auto-generated flag
+  isAutoGenerated  Boolean    @default(false)
+  
+  // Audit Trail Fields
+  createdBy         String?
+  createdAt         DateTime   @default(now())
+  updatedBy         String?
+  updatedAt         DateTime   @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  deletedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
+
+  @@index([entryDate])
+  @@index([linkedEntityType, linkedEntityId])
+  @@index([isDeleted])
+}
+
+model Asset {
+  id                      Int        @id @default(autoincrement())
+  assetCode               String     @unique
+  assetName               String
+  category                String     // "vehicle" | "equipment" | "property" | "furniture" | "other"
+  acquisitionCost         Decimal    @db.Decimal(12, 2)
+  acquisitionDate         DateTime
+  currentValue            Decimal?   @db.Decimal(12, 2)
+  depreciationRate        Decimal?   @db.Decimal(5, 2)
+  accumulatedDepreciation Decimal?   @default(0) @db.Decimal(12, 2)
+  salvageValue            Decimal?   @db.Decimal(12, 2)
+  status                  String     @default("active") // "active" | "disposed" | "sold" | "retired"
+  disposalDate            DateTime?
+  disposalAmount          Decimal?   @db.Decimal(12, 2)
+  location                String?
+  serialNumber            String?
+  remarks                 String?
+  
+  // Audit Trail Fields
+  createdBy               String?
+  createdAt               DateTime   @default(now())
+  updatedBy               String?
+updatedAt               DateTime   @updatedAt
+  approvedBy              String?
+  approvedAt              DateTime?
+  rejectedBy              String?
+  rejectedAt              DateTime?
+  deletedBy               String?
+  deletedAt               DateTime?
+  isDeleted               Boolean    @default(false)
+
+  @@index([status])
+  @@index([category])
+  @@index([isDeleted])
+}
+
+// ============================================================================
+// 8. LOCAL CACHE MODELS (External Data Snapshots) - ALIGNED WITH EXTERNAL APIs
+// ============================================================================
+
+// ============================================================================
+// HR EMPLOYEE CACHE - Aligned with /api/clean/hr_employees
+// ============================================================================
+model CachedEmployee {
+  id                Int        @id @default(autoincrement())
+  
+  // Primary employee data from HR
+  employeeNumber    String     @unique // "EMP-0001"
+  firstName         String
+  middleName        String?
+  lastName          String
+  suffix            String?
+  phone             String?
+  position          String     // "Driver", "Conductor", "Accountant", etc.
+  departmentId      Int?
+  department        String     // "Operations", "Finance", "Inventory"
+  
+  // Sync metadata
+  lastSyncedAt      DateTime
+  sourceSystem      String     @default("HR")
+  sourceEndpoint    String     @default("/api/clean/hr_employees")
+  isStale           Boolean    @default(false)
+  
   @@index([employeeNumber])
   @@index([department])
+  @@index([position])
+  @@index([lastSyncedAt])
+  @@index([isStale])
 }
 
-model PayrollCache {
-  id              Int       @id @default(autoincrement())
-  employeeNumber  String    @db.VarChar(20)
-  firstName       String    @db.VarChar(100)
-  middleName      String?   @db.VarChar(100)
-  lastName        String    @db.VarChar(100)
-  suffix          String?   @db.VarChar(20)
-  employeeStatus  String    @db.VarChar(50)
-  hiredate        DateTime?
-  terminationDate DateTime?
-  basicRate       Decimal   @db.Decimal(15, 2)
-  positionName    String    @db.VarChar(100)
-  departmentName  String    @db.VarChar(100)
-  attendanceData  Json? // Array: [{"date": "2025-10-13T14:04:14.590Z", "status": "Present"}]
-  benefitsData    Json? // Array: [{"value": 750, "frequency": "Monthly", "effectiveDate": "2025-08-15T14:04:14.590Z", "endDate": null, "isActive": true, "name": "Housing Allowance"}]
-  deductionsData  Json? // Array: [{"type": "Uniform Deduction", "value": 200, "frequency": "Monthly", "effectiveDate": "2025-07-16T14:04:14.590Z", "endDate": null, "isActive": true}]
-  lastSynced      DateTime  @default(now())
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
+// ============================================================================
+// HR PAYROLL CACHE - Aligned with /api/clean/hr_payroll
+// ============================================================================
+model CachedPayrollData {
+  id                Int        @id @default(autoincrement())
+  
+  // Employee Identification
+  employeeNumber    String     // "EMP-0001"
+  firstName         String
+  middleName        String?
+  lastName          String
+  suffix            String?
+  
+  // Employment Status
+  employeeStatus    String     // "active" | "inactive"
+  hiredate          DateTime
+  terminationDate   DateTime?
+  
+  // Compensation
+  basicRate         Decimal    @db.Decimal(12, 2) // Daily rate
+  position          String     // From nested position.positionName
+  department        String     // From nested position.department.departmentName
+  
+  // Attendance Data (JSON array)
+  attendances       String?    @db.Text // JSON: [{ date, status }]
+  
+  // Benefits Data (JSON array)
+  benefits          String?    @db.Text // JSON: [{ value, frequency, effectiveDate, endDate, isActive, benefitType: { name } }]
+  
+  // Deductions Data (JSON array)
+  deductions        String?    @db.Text // JSON: [{ type, value, frequency, effectiveDate, endDate, isActive, deductionType: { name } }]
+  
+  // Calculated Fields (computed from benefits/deductions arrays)
+  totalMonthlyBenefits   Decimal? @db.Decimal(12, 2)
+  totalMonthlyDeductions Decimal? @db.Decimal(12, 2)
+  netMonthlyRate         Decimal? @db.Decimal(12, 2)
+  
+  // Sync metadata
+  lastSyncedAt      DateTime
+  sourceSystem      String     @default("HR")
+  sourceEndpoint    String     @default("/api/clean/hr_payroll")
+  isStale           Boolean    @default(false)
+  
   @@index([employeeNumber])
-  @@index([departmentName])
   @@index([employeeStatus])
+  @@index([department])
+  @@index([position])
+  @@index([lastSyncedAt])
+  @@index([isStale])
 }
 
-model BusTripCache {
-  id                      Int      @id @default(autoincrement())
-  assignmentId            String   @unique @map("assignment_id") @db.VarChar(20)
-  busTripId               String   @map("bus_trip_id") @db.VarChar(20)
-  busRoute                String   @map("bus_route") @db.VarChar(100)
-  isRevenueRecorded       Boolean  @default(false) @map("is_revenue_recorded")
-  isExpenseRecorded       Boolean  @default(false) @map("is_expense_recorded")
-  dateAssigned            DateTime @map("date_assigned")
-  tripFuelExpense         Decimal  @map("trip_fuel_expense") @db.Decimal(15, 2)
-  tripRevenue             Decimal  @map("trip_revenue") @db.Decimal(15, 2)
-  assignmentType          String   @map("assignment_type") @db.VarChar(50) // "Percentage", "Boundary"
-  assignmentValue         Decimal  @map("assignment_value") @db.Decimal(15, 4)
-  paymentMethod           String   @map("payment_method") @db.VarChar(50)
-  driverName              String   @map("driver_name") @db.VarChar(100)
-  conductorName           String   @map("conductor_name") @db.VarChar(100)
-  driverEmployeeNumber    String?  @map("driver_employee_number") @db.VarChar(20)
-  conductorEmployeeNumber String?  @map("conductor_employee_number") @db.VarChar(20)
-  busPlateNumber          String   @map("bus_plate_number") @db.VarChar(20)
-  busType                 String   @map("bus_type") @db.VarChar(50)
-  bodyNumber              String   @map("body_number") @db.VarChar(20)
-  routeCode               String?  @map("route_code") @db.VarChar(20)
-  tripStatus              String?  @default("COMPLETED") @map("trip_status") @db.VarChar(50)
-  lastSynced              DateTime @default(now()) @map("last_synced")
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
-
-  revenueRecords Revenue[]
-  expenseRecords Expense[]
-
+// ============================================================================
+// OPERATIONS TRIP CACHE - Aligned with /api/clean/op_bus-trip-details
+// ============================================================================
+model CachedTrip {
+  id                    Int        @id @default(autoincrement())
+  
+  // Assignment & Trip Identification
+  assignmentId          String     @unique // "ASSIGN001"
+  busTripId             String     @unique // "TRIP-001-1"
+  busRoute              String     // "Route 1: STOP001 -> STOP002"
+  
+  // Financial Recording Status
+  isRevenueRecorded     Boolean    @default(false)
+  isExpenseRecorded     Boolean    @default(false)
+  
+  // Trip Date
+  dateAssigned          DateTime
+  
+  // Financial Data
+  tripFuelExpense       Decimal?   @db.Decimal(12, 2)
+  tripRevenue           Decimal?   @db.Decimal(12, 2)
+  
+  // Assignment Configuration
+  assignmentType        String     // "Percentage" | "Boundary"
+  assignmentValue       Decimal?   @db.Decimal(5, 4) // 0.2 = 20% for percentage-based
+  paymentMethod         String?    // "Reimbursement" | "Cash" | "Deduction"
+  
+  // Personnel Information
+  driverName            String?
+  conductorName         String?
+  
+  // Bus Information
+  busPlateNumber        String?
+  busType               String?    // "Aircon" | "Non-Aircon"
+  bodyNumber            String?    // "BN-001"
+  
+  // Calculated Fields (for Finance processing)
+  companyIncome         Decimal?   @db.Decimal(12, 2) // Based on assignmentType
+  driverShare           Decimal?   @db.Decimal(12, 2)
+  conductorShare        Decimal?   @db.Decimal(12, 2)
+  tripDeficit           Decimal?   @db.Decimal(12, 2) // If boundary not met
+  
+  // Link to Finance Records (when synced)
+  linkedRevenueId       Int?       // Finance.Revenue.id
+  linkedExpenseId       Int?       // Finance.Expense.id
+  linkedLoanId          Int?       // Finance.Loan.id (if trip deficit loan created)
+  
+  // Sync metadata
+  lastSyncedAt          DateTime
+  sourceSystem          String     @default("Operations")
+  sourceEndpoint        String     @default("/api/clean/op_bus-trip-details")
+  isStale               Boolean    @default(false)
+  syncErrorMessage      String?    @db.Text
+  
   @@index([assignmentId])
   @@index([busTripId])
   @@index([dateAssigned])
-  @@index([driverEmployeeNumber, conductorEmployeeNumber])
-  @@map("bus_trip_cache")
+  @@index([isRevenueRecorded, isExpenseRecorded])
+  @@index([lastSyncedAt])
+  @@index([isStale])
+  @@index([driverName])
+  @@index([conductorName])
+  @@index([busPlateNumber])
 }
 
-// ============================================
-// INVENTORY INTEGRATION CACHE
-// ============================================
-
-model InventoryPurchaseRequestSync {
-  id      Int     @id @default(autoincrement())
-  invPrId String  @unique @db.VarChar(20)
-  finPrId String? @db.VarChar(20)
-
-  categoryId       Int?
-  categoryName     String? @db.VarChar(100)
-  estimatedAmount  Decimal @db.Decimal(15, 2)
-  priority         String? @db.VarChar(20)
-  autoTrigger      Boolean @default(false)
-  reorderOfInvPrId String? @db.VarChar(20)
-
-  syncStatus   String   @default("PENDING") @db.VarChar(50)
-  lastSyncedAt DateTime @default(now())
-  syncNotes    String?  @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([invPrId])
-  @@index([syncStatus])
-}
-
-model InventoryOrderSync {
-  id         Int    @id @default(autoincrement())
-  invPoId    String @unique @db.VarChar(20)
-  finOrderId Int?
-  invPrId    String @db.VarChar(20)
-
-  supplierId   String?  @db.VarChar(20)
-  supplierName String?  @db.VarChar(150)
-  totalAmount  Decimal  @db.Decimal(15, 2)
-  actualAmount Decimal? @db.Decimal(15, 2)
-
-  poStatus             String?   @db.VarChar(50)
-  priceMismatchFlag    Boolean   @default(false)
-  orderDate            DateTime
-  expectedDeliveryDate DateTime?
-  actualDeliveryDate   DateTime?
-
-  syncStatus   String   @default("PENDING") @db.VarChar(50)
-  lastSyncedAt DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([invPoId])
-  @@index([syncStatus])
-}
-
-model InventoryDeliverySync {
-  id            Int    @id @default(autoincrement())
-  invDrId       String @unique @db.VarChar(20)
-  finDeliveryId Int?
-  invPoId       String @db.VarChar(20)
-
-  receivedQuantity  Int
-  defectiveQuantity Int      @default(0)
-  missingQuantity   Int      @default(0)
-  deliveryDate      DateTime
-  inspectionStatus  String?  @db.VarChar(50)
-  invoiceNumber     String?  @db.VarChar(50)
-  invoiceAmount     Decimal? @db.Decimal(15, 2)
-
-  syncStatus   String   @default("PENDING") @db.VarChar(50)
-  lastSyncedAt DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([invDrId])
-  @@index([invPoId])
-  @@index([syncStatus])
-}
-
-// ============================================
-// REVENUE MANAGEMENT
-// ============================================
-
-model Revenue {
-  id              Int           @id @default(autoincrement())
-  revenueCode     String        @unique @default(cuid())
-  sourceId        Int
-  source          RevenueSource @relation(fields: [sourceId], references: [id])
-  description     String        @db.Text
-  amount          Decimal       @db.Decimal(15, 2)
-  transactionDate DateTime      @default(now())
-  paymentMethodId Int
-  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
-
-  busTripCacheId Int?
-  busTripCache   BusTripCache? @relation(fields: [busTripCacheId], references: [id])
-
-  externalRefId   String? @db.VarChar(20)
-  externalRefType String? @db.VarChar(50) // "RENTAL", "DISPOSAL", "FORFEITED_DEPOSIT"
-
-  loanPaymentId Int?         @unique
-  loanPayment   LoanPayment? @relation(fields: [loanPaymentId], references: [id])
-
-  isInstallment         Boolean              @default(false)
-  installmentScheduleId Int?
-  installmentSchedule   InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
-
-  isAccountsReceivable Boolean             @default(false)
-  arDueDate            DateTime?
-  arPaidDate           DateTime?
-  arStatus             String?             @default("PENDING") @db.VarChar(50)
-  arId                 Int?
-  accountsReceivable   AccountsReceivable? @relation(fields: [arId], references: [id])
-
-  documentIds String? @db.Text
-
-  journalEntryId Int?
-  journalEntry   JournalEntry? @relation("RevenueJournalEntry", fields: [journalEntryId], references: [id])
-
-  forfeitedDeposits ForfeitedDeposit[] @relation("ForfeitedDepositRevenue")
-
-  createdBy  String   @db.VarChar(100)
-  approvedBy String?  @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([sourceId])
-  @@index([transactionDate])
-  @@index([revenueCode])
-  @@index([paymentMethodId])
-  @@index([arStatus, arDueDate])
-}
-
-// ============================================
-// EXPENSE MANAGEMENT
-// ============================================
-
-model Expense {
-  id              Int             @id @default(autoincrement())
-  expenseCode     String          @unique @default(cuid())
-  categoryId      Int
-  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
-  description     String          @db.Text
-  amount          Decimal         @db.Decimal(15, 2)
-  transactionDate DateTime        @default(now())
-  paymentMethodId Int
-  paymentMethod   PaymentMethod   @relation(fields: [paymentMethodId], references: [id])
-
-  busTripCacheId Int?
-  busTripCache   BusTripCache? @relation(fields: [busTripCacheId], references: [id])
-
-  externalRefId   String? @db.VarChar(20)
-  externalRefType String? @db.VarChar(50)
-
-  vendorName String? @db.VarChar(150)
-  vendorId   String? @db.VarChar(20)
-
-  isReimbursement Boolean         @default(false)
-  reimbursements  Reimbursement[]
-
-  isPayable       Boolean          @default(false)
-  payableDueDate  DateTime?
-  payablePaidDate DateTime?
-  payableStatus   String?          @default("PENDING") @db.VarChar(50)
-  apId            Int?
-  accountsPayable AccountsPayable? @relation(fields: [apId], references: [id])
-
-  isInstallment         Boolean              @default(false)
-  installmentScheduleId Int?
-  installmentSchedule   InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
-
-  refundReplacements RefundReplacement[]
-
-  documentIds String? @db.Text
-
-  budgetAllocationId Int?
-  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
-
-  journalEntryId Int?
-  journalEntry   JournalEntry? @relation("ExpenseJournalEntry", fields: [journalEntryId], references: [id])
-
-  // PURCHASE INTEGRATION FIELDS
-  purchaseRequestId   String? @db.VarChar(20)
-  inventoryOrderId    String? @db.VarChar(20)
-  inventoryDeliveryId String? @db.VarChar(20)
-
-  reservationStatus   ExpenseReservationStatus @default(NONE)
-  amountReserved      Decimal?                 @db.Decimal(15, 2)
-  threeWayMatchStatus String?                  @default("PENDING") @db.VarChar(50)
-  threeWayMatchNotes  String?                  @db.Text
-
-  priceDecision  String?   @db.VarChar(50)
-  decisionMadeBy String?   @db.VarChar(100)
-  decisionDate   DateTime?
-  decisionReason String?   @db.Text
-
-  isReversal     Boolean @default(false)
-  reversalOfId   Int?
-  reversalReason String? @db.Text
-
-  isTaxable          Boolean @default(true)
-  taxExemptionReason String? @db.Text
-
-  createdBy  String   @db.VarChar(100)
-  approvedBy String?  @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([categoryId])
-  @@index([transactionDate])
-  @@index([expenseCode])
-  @@index([vendorId])
-  @@index([payableStatus, payableDueDate])
-  @@index([reservationStatus])
-  @@index([purchaseRequestId])
-}
-
-// ============================================
-// ORDER MANAGEMENT (Finance-tracked)
-// ============================================
-
-model Order {
-  id        Int    @id @default(autoincrement())
-  orderCode String @unique @default(cuid())
-
-  inventoryPoId     String @db.VarChar(20)
-  purchaseRequestId String @db.VarChar(20)
-
-  supplierId   String @db.VarChar(20)
-  supplierName String @db.VarChar(150)
-
-  status               String    @default("PENDING") @db.VarChar(50)
-  orderDate            DateTime  @default(now())
-  expectedDeliveryDate DateTime?
-  actualDeliveryDate   DateTime?
-
-  orderAmount  Decimal  @db.Decimal(15, 2)
-  actualAmount Decimal? @db.Decimal(15, 2)
-
-  priceMatchFlag Boolean  @default(false)
-  actualQty      Int?
-  newUnitPrice   Decimal? @db.Decimal(15, 2)
-
-  deliveries Delivery[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([inventoryPoId])
-  @@index([purchaseRequestId])
-  @@index([status])
-}
-
-model Delivery {
-  id           Int    @id @default(autoincrement())
-  deliveryCode String @unique @default(cuid())
-
-  orderId Int
-  order   Order @relation(fields: [orderId], references: [id])
-
-  inventoryDrId String? @db.VarChar(20)
-
-  receivedQty        Int
-  defectiveQty       Int      @default(0)
-  missingQty         Int      @default(0)
-  receivedDate       DateTime
-  inspectionStatus   String?  @db.VarChar(50)
-  inspectionFindings String?  @db.Text
-
-  invoiceNumber String?  @db.VarChar(50)
-  invoiceAmount Decimal? @db.Decimal(15, 2)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([orderId])
-  @@index([inventoryDrId])
-}
-
-// ============================================
-// REIMBURSEMENT MANAGEMENT
-// ============================================
-
-model Reimbursement {
-  id                Int    @id @default(autoincrement())
-  reimbursementCode String @unique @default(cuid())
-
-  expenseId Int
-  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-
-  employeeNumber String  @db.VarChar(20)
-  employeeName   String  @db.VarChar(100)
-  department     String? @db.VarChar(100)
-
-  claimedAmount     Decimal                         @db.Decimal(15, 2)
-  approvedAmount    Decimal?                        @db.Decimal(15, 2)
-  status            ReimbursementStatus             @default(PENDING)
-  paymentMethodType ReimbursementPaymentMethodType?
-  paymentMethodId   Int?
-  paymentMethod     PaymentMethod?                  @relation(fields: [paymentMethodId], references: [id])
-  disbursementDate  DateTime?
-
-  documentIds String? @db.Text
-  remarks     String? @db.Text
-
-  createdBy   String   @db.VarChar(100)
-  approvedBy  String?  @db.VarChar(100)
-  disbursedBy String?  @db.VarChar(100)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([employeeNumber])
-  @@index([status])
-  @@index([expenseId])
-  @@index([department])
-}
-
-// ============================================
-// REFUND & REPLACEMENT MANAGEMENT
-// ============================================
-
-model RefundReplacement {
-  id         Int    @id @default(autoincrement())
-  refundCode String @unique @default(cuid())
-
-  expenseId Int
-  expense   Expense @relation(fields: [expenseId], references: [id])
-
-  inventoryRefundId String? @db.VarChar(20)
-  inventoryPoId     String  @db.VarChar(20)
-
-  type   RefundReplacementType
-  status RefundReplacementStatus @default(PENDING)
-
-  refundAmount   Decimal?       @db.Decimal(15, 2)
-  refundMethodId Int?
-  refundMethod   PaymentMethod? @relation(fields: [refundMethodId], references: [id])
-  refundDate     DateTime?
-
-  replacementItems       String?   @db.Text
-  replacementDate        DateTime?
-  replacementAttempts    Int       @default(0)
-  maxReplacementAttempts Int       @default(2)
-
-  supplierName     String  @db.VarChar(150)
-  supplierId       String? @db.VarChar(20)
-  supplierRiskFlag Boolean @default(false)
-
-  reason  String  @db.Text
-  remarks String? @db.Text
-
-  itemId   String? @db.VarChar(20)
-  itemName String? @db.VarChar(150)
-
-  documentIds String? @db.Text
-
-  journalEntryId Int?
-  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
-
-  // Rollback tracking
-  previousStatus     String?   @db.VarChar(50)
-  rollbackPermission String    @default("ADMIN_ONLY") @db.VarChar(50)
-  isRolledBack       Boolean   @default(false)
-  rolledBackBy       String?   @db.VarChar(100)
-  rolledBackAt       DateTime?
-  rolledBackReason   String?   @db.Text
-
-  createdBy   String   @db.VarChar(100)
-  approvedBy  String?  @db.VarChar(100)
-  processedBy String?  @db.VarChar(100)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([inventoryPoId])
-  @@index([status])
-  @@index([type])
-  @@index([supplierId])
-  @@index([inventoryRefundId])
-}
-
-// ============================================
-// EMPLOYEE FINANCIALS - PAYROLL
-// ============================================
-
-model Payroll {
-  id              Int              @id @default(autoincrement())
-  payrollCode     String           @unique @default(cuid())
-  payrollPeriod   String           @db.VarChar(50)
-  frequency       PayrollFrequency
-  periodStart     DateTime
-  periodEnd       DateTime
-  grossAmount     Decimal?         @db.Decimal(15, 2)
-  totalDeductions Decimal?         @db.Decimal(15, 2)
-  netAmount       Decimal?         @db.Decimal(15, 2)
-  totalAmount     Decimal          @db.Decimal(15, 2)
-  status          PayrollStatus    @default(DRAFT)
-
-  payrollItems PayrollItem[]
-
-  documentIds String? @db.Text
-
-  journalEntryId Int?
-  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
-
-  budgetAllocationId Int?
-  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
-
-  createdBy   String   @db.VarChar(100)
-  approvedBy  String?  @db.VarChar(100)
-  disbursedBy String?  @db.VarChar(100)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([payrollPeriod])
-  @@index([status])
-  @@index([periodStart, periodEnd])
-}
-
-model PayrollItem {
-  id Int @id @default(autoincrement())
-
-  payrollId Int
-  payroll   Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
-
-  employeeNumber String @db.VarChar(20)
-  employeeName   String @db.VarChar(100)
-  position       String @db.VarChar(100)
-  department     String @db.VarChar(100)
-
-  basicSalary Decimal @db.Decimal(15, 2)
-  overtimePay Decimal @default(0) @db.Decimal(15, 2)
-  benefits    Decimal @default(0) @db.Decimal(15, 2)
-  allowances  Decimal @default(0) @db.Decimal(15, 2)
-  grossPay    Decimal @db.Decimal(15, 2)
-  deductions  Decimal @default(0) @db.Decimal(15, 2)
-  netPay      Decimal @db.Decimal(15, 2)
-
-  paymentMethodId  Int?
-  paymentMethod    PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
-  disbursementDate DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([employeeNumber])
-  @@index([payrollId])
-  @@index([department])
-}
-
-// ============================================
-// EMPLOYEE FINANCIALS - LOANS
-// ============================================
-
-model Loan {
-  id       Int    @id @default(autoincrement())
-  loanCode String @unique @default(cuid())
-
-  employeeNumber String  @db.VarChar(20)
-  employeeName   String  @db.VarChar(100)
-  department     String? @db.VarChar(100)
-
-  principalAmount Decimal  @db.Decimal(15, 2)
-  interestRate    Decimal? @db.Decimal(5, 2)
-  totalAmount     Decimal  @db.Decimal(15, 2)
-  balanceAmount   Decimal  @db.Decimal(15, 2)
-
-  loanType   String? @default("PERSONAL") @db.VarChar(50)
-  collateral String? @db.Text
-
-  paymentFrequencyId Int
-  paymentFrequency   LoanPaymentFrequencyType @relation(fields: [paymentFrequencyId], references: [id])
-  numberOfPayments   Int
-  paymentAmount      Decimal                  @db.Decimal(15, 2)
-
-  applicationDate DateTime  @default(now())
-  approvalDate    DateTime?
-  releaseDate     DateTime?
-  startDate       DateTime?
-  endDate         DateTime?
-
-  status         LoanStatus @default(PENDING)
-  isStaffRequest Boolean    @default(false)
-
-  documentIds String? @db.Text
-  remarks     String? @db.Text
-
-  loanPayments LoanPayment[]
-
-  journalEntryId Int?
-  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
-
-  budgetAllocationId Int?
-  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
-
-  createdBy  String   @db.VarChar(100)
-  approvedBy String?  @db.VarChar(100)
-  releasedBy String?  @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([employeeNumber])
-  @@index([status])
-  @@index([loanCode])
-  @@index([department])
-}
-
-model LoanPayment {
-  id          Int    @id @default(autoincrement())
-  paymentCode String @unique @default(cuid())
-
-  loanId Int
-  loan   Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
-
-  paymentAmount   Decimal       @db.Decimal(15, 2)
-  principalPaid   Decimal       @db.Decimal(15, 2)
-  interestPaid    Decimal       @db.Decimal(15, 2)
-  paymentDate     DateTime      @default(now())
-  paymentMethodId Int
-  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
-
-  dueDate     DateTime?
-  isOverdue   Boolean   @default(false)
-  daysOverdue Int?      @default(0)
-
-  remarks     String? @db.Text
-  documentIds String? @db.Text
-
-  revenue Revenue?
-
-  journalEntryId Int?
-  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
-
-  recordedBy String   @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([loanId])
-  @@index([paymentDate])
-  @@index([dueDate])
-}
-
-// ============================================
-// BUDGET MANAGEMENT
-// ============================================
-
-model BudgetAllocation {
-  id         Int    @id @default(autoincrement())
-  budgetCode String @unique @default(cuid())
-
-  department String @db.VarChar(100)
-  category   String @db.VarChar(100)
-
-  expenseCategoryId Int?
-  expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id])
-
-  periodTypeId Int
-  periodType   BudgetPeriodType @relation(fields: [periodTypeId], references: [id])
-  periodStart  DateTime
-  periodEnd    DateTime
-
-  allocatedAmount Decimal  @db.Decimal(15, 2)
-  consumedAmount  Decimal  @default(0) @db.Decimal(15, 2)
-  reservedAmount  Decimal  @default(0) @db.Decimal(15, 2)
-  releasedAmount  Decimal  @default(0) @db.Decimal(15, 2)
-  availableAmount Decimal  @db.Decimal(15, 2)
-  minAmount       Decimal? @db.Decimal(15, 2)
-  maxAmount       Decimal? @db.Decimal(15, 2)
-  allowOverflow   Boolean  @default(false)
-
-  previousAllocation Decimal? @db.Decimal(15, 2)
-  varianceAmount     Decimal? @db.Decimal(15, 2)
-  variancePercent    Decimal? @db.Decimal(5, 2)
-
-  isActive Boolean @default(true)
-  remarks  String? @db.Text
-
-  expenses       Expense[]
-  payrolls       Payroll[]
-  loans          Loan[]
-  budgetRequests BudgetRequest[]
-
-  createdBy  String   @db.VarChar(100)
-  approvedBy String?  @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([department])
+// ============================================================================
+// INVENTORY ITEM CACHE - Structure maintained (no external API provided yet)
+// ============================================================================
+model CachedInventoryItem {
+  id                Int        @id @default(autoincrement())
+  
+  // Item Identification
+  itemCode          String?    @unique
+  itemName          String
+  category          String?
+  
+  // Supplier Information
+  supplierId        Int?
+  supplierName      String?
+  
+  // Pricing & Stock
+  unitCost          Decimal    @db.Decimal(12, 2)
+  stockOnHand       Int
+  reorderLevel      Int?
+  
+  // Unit of Measure
+  unitMeasure       String?    // "pcs", "liters", "kg"
+  
+  // Sync metadata
+  lastSyncedAt      DateTime
+  sourceSystem      String     @default("Inventory")
+  sourceEndpoint    String?    // To be provided when Inventory API is available
+  isStale           Boolean    @default(false)
+  
+  @@index([itemCode])
+  @@index([itemName])
+  @@index([supplierName])
   @@index([category])
-  @@index([periodStart, periodEnd])
-  @@index([isActive])
+  @@index([lastSyncedAt])
+  @@index([isStale])
 }
 
-model BudgetRequest {
-  id          Int    @id @default(autoincrement())
-  requestCode String @unique @default(cuid())
-
-  budgetAllocationId Int?
-  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
-
-  department      String            @db.VarChar(100)
-  category        String            @db.VarChar(100)
-  requestTypeId   Int
-  requestType     BudgetRequestType @relation(fields: [requestTypeId], references: [id])
-  requestedAmount Decimal           @db.Decimal(15, 2)
-  approvedAmount  Decimal?          @db.Decimal(15, 2)
-  justification   String            @db.Text
-
-  statusId Int
-  status   BudgetRequestStatus @relation(fields: [statusId], references: [id])
-
-  priority         String?   @default("NORMAL") @db.VarChar(50)
-  requiredByDate   DateTime?
-  approvalDeadline DateTime?
-  expeditedReview  Boolean   @default(false)
-
-  inventoryPrId String? @db.VarChar(20)
-
-  documentIds String? @db.Text
-  remarks     String? @db.Text
-
-  requestedBy String   @db.VarChar(100)
-  reviewedBy  String?  @db.VarChar(100)
-  approvedBy  String?  @db.VarChar(100)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([department])
-  @@index([statusId])
-  @@index([requestCode])
-  @@index([requiredByDate])
-  @@index([expeditedReview])
-  @@index([inventoryPrId])
-}
-
-// ============================================
-// JOURNAL ENTRY VOUCHER
-// ============================================
-
-model ChartOfAccount {
-  id              Int              @id @default(autoincrement())
-  accountCode     String           @unique @db.VarChar(20)
-  accountName     String           @db.VarChar(150)
-  accountTypeId   Int
-  accountType     AccountType      @relation(fields: [accountTypeId], references: [id])
-  parentAccountId Int?
-  parentAccount   ChartOfAccount?  @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
-  childAccounts   ChartOfAccount[] @relation("AccountHierarchy")
-
-  description         String? @db.Text
-  isActive            Boolean @default(true)
-  normalBalance       String  @default("DEBIT") @db.VarChar(10)
-  isSystemAccount     Boolean @default(false)
-  level               Int     @default(1)
-  balanceSheetSection String? @db.VarChar(100)
-
-  journalLineItems JournalLineItem[]
-
-  createdBy String   @db.VarChar(100)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([accountCode])
-  @@index([accountTypeId])
-  @@index([parentAccountId])
-  @@index([isActive])
-}
-
-model JournalEntry {
-  id          Int      @id @default(autoincrement())
-  journalCode String   @unique @default(cuid())
-  entryDate   DateTime @default(now())
-  description String   @db.Text
-
-  sourceModule String? @db.VarChar(100)
-  sourceRefId  String? @db.VarChar(100)
-
-  status           JournalEntryStatus @default(DRAFT)
-  fiscalPeriod     String?            @db.VarChar(50)
-  isAdjustingEntry Boolean            @default(false)
-  isReversingEntry Boolean            @default(false)
-
-  lineItems   JournalLineItem[]
-  documentIds String?           @db.Text
-  remarks     String?           @db.Text
-
-  revenues           Revenue[]           @relation("RevenueJournalEntry")
-  expenses           Expense[]           @relation("ExpenseJournalEntry")
-  payrolls           Payroll[]
-  loans              Loan[]
-  loanPayments       LoanPayment[]
-  refundReplacements RefundReplacement[]
-
-  journalEntryApprovals JournalEntryApproval[]
-
-  preparedBy String   @db.VarChar(100)
-  approvedBy String?  @db.VarChar(100)
-  postedBy   String?  @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([journalCode])
-  @@index([entryDate])
+// ============================================================================
+// INTEGRATION SYNC LOG (Track all external API synchronizations)
+// ============================================================================
+model ExternalSyncLog {
+  id                Int        @id @default(autoincrement())
+  
+  // Sync Details
+  sourceSystem      String     // "HR" | "Operations" | "Inventory"
+  sourceEndpoint    String     // Full API endpoint URL
+  syncType          String     // "employee" | "payroll" | "trip" | "inventory"
+  
+  // Sync Status
+  status            String     // "success" | "failed" | "partial"
+  recordsProcessed  Int        @default(0)
+  recordsCreated    Int        @default(0)
+  recordsUpdated    Int        @default(0)
+  recordsFailed     Int        @default(0)
+  
+  // Timing
+  startedAt         DateTime   @default(now())
+  completedAt       DateTime?
+  duration          Int?       // Milliseconds
+  
+  // Error Tracking
+  errorMessage      String?    @db.Text
+  errorDetails      String?    @db.Text // JSON with failed records
+  
+  // Metadata
+  triggeredBy       String?    // "scheduler" | "manual" | "webhook" | user_id
+  
+  @@index([sourceSystem, syncType])
   @@index([status])
-  @@index([fiscalPeriod])
+  @@index([startedAt])
 }
-
-model JournalEntryApproval {
-  id Int @id @default(autoincrement())
-
-  journalEntryId Int
-  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-
-  stage           Int // 1, 2 (multi-level approval)
-  approverRole    ApproverRole
-  approverAction  String       @db.VarChar(50) // APPROVED, REJECTED, PENDING
-  rejectionReason String?      @db.Text
-  approvedAt      DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([journalEntryId, stage])
-  @@index([journalEntryId])
-  @@index([approverRole])
-}
-
-model JournalLineItem {
-  id Int @id @default(autoincrement())
-
-  journalEntryId Int
-  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-
-  accountId Int
-  account   ChartOfAccount @relation(fields: [accountId], references: [id])
-
-  description  String? @db.Text
-  debitAmount  Decimal @default(0) @db.Decimal(15, 2)
-  creditAmount Decimal @default(0) @db.Decimal(15, 2)
-
-  entityType String? @db.VarChar(100)
-  entityId   String? @db.VarChar(100)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([journalEntryId])
-  @@index([accountId])
-  @@index([entityType, entityId])
-}
-
-// ============================================
-// INSTALLMENT SCHEDULE
-// ============================================
-
-model InstallmentSchedule {
-  id           Int    @id @default(autoincrement())
-  scheduleCode String @unique @default(cuid())
-
-  type String @db.VarChar(50) // "REVENUE", "EXPENSE"
-
-  totalAmount      Decimal @db.Decimal(15, 2)
-  numberOfPayments Int
-  paymentAmount    Decimal @db.Decimal(15, 2)
-  frequency        String  @db.VarChar(50)
-
-  startDate DateTime
-  endDate   DateTime
-
-  status        InstallmentStatus @default(ACTIVE)
-  interestRate  Decimal?          @db.Decimal(5, 2)
-  totalInterest Decimal?          @db.Decimal(15, 2)
-
-  revenues     Revenue[]
-  expenses     Expense[]
-  installments Installment[]
-
-  createdBy String   @db.VarChar(100)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([type])
-  @@index([status])
-  @@index([startDate, endDate])
-}
-
-model Installment {
-  id Int @id @default(autoincrement())
-
-  scheduleId Int
-  schedule   InstallmentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-
-  installmentNumber Int
-  dueDate           DateTime
-  amount            Decimal   @db.Decimal(15, 2)
-  paidAmount        Decimal   @default(0) @db.Decimal(15, 2)
-  paidDate          DateTime?
-  status            String    @default("PENDING") @db.VarChar(50)
-
-  principalAmount Decimal? @db.Decimal(15, 2)
-  interestAmount  Decimal? @db.Decimal(15, 2)
-  daysOverdue     Int?     @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([scheduleId])
-  @@index([dueDate])
-  @@index([status])
-}
-
-// ============================================
-// ACCOUNTS RECEIVABLE & PAYABLE
-// ============================================
-
-model AccountsReceivable {
-  id     Int    @id @default(autoincrement())
-  arCode String @unique @default(cuid())
-
-  debtorName    String  @db.VarChar(150)
-  debtorType    String  @db.VarChar(50)
-  debtorContact String? @db.VarChar(100)
-
-  totalAmount   Decimal @db.Decimal(15, 2)
-  paidAmount    Decimal @default(0) @db.Decimal(15, 2)
-  balanceAmount Decimal @db.Decimal(15, 2)
-
-  invoiceDate DateTime @default(now())
-  dueDate     DateTime
-
-  status String @default("PENDING") @db.VarChar(50)
-
-  referenceType String? @db.VarChar(50)
-  referenceId   String? @db.VarChar(100)
-
-  revenues          Revenue[]
-  forfeitedDeposits ForfeitedDeposit[]
-
-  agingCategory   String?   @db.VarChar(50)
-  lastPaymentDate DateTime?
-
-  documentIds String? @db.Text
-  remarks     String? @db.Text
-
-  recordedBy String   @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([debtorName])
-  @@index([status])
-  @@index([dueDate])
-  @@index([arCode])
-  @@index([agingCategory])
-}
-
-model AccountsPayable {
-  id     Int    @id @default(autoincrement())
-  apCode String @unique @default(cuid())
-
-  creditorName    String  @db.VarChar(150)
-  creditorType    String  @db.VarChar(50)
-  creditorContact String? @db.VarChar(100)
-  creditorId      String? @db.VarChar(20)
-
-  totalAmount   Decimal @db.Decimal(15, 2)
-  paidAmount    Decimal @default(0) @db.Decimal(15, 2)
-  balanceAmount Decimal @db.Decimal(15, 2)
-
-  invoiceDate DateTime @default(now())
-  dueDate     DateTime
-
-  status String @default("PENDING") @db.VarChar(50)
-
-  referenceType String? @db.VarChar(50)
-  referenceId   String? @db.VarChar(100)
-
-  expenses Expense[]
-
-  agingCategory   String?   @db.VarChar(50)
-  lastPaymentDate DateTime?
-
-  documentIds String? @db.Text
-  remarks     String? @db.Text
-
-  recordedBy String   @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([creditorName])
-  @@index([status])
-  @@index([dueDate])
-  @@index([apCode])
-  @@index([creditorId])
-}
-
-// ============================================
-// SUPPORTING FINANCIAL MODELS
-// ============================================
-
-model ForfeitedDeposit {
-  id          Int    @id @default(autoincrement())
-  depositCode String @unique @default(cuid())
-
-  bookingId   String @db.VarChar(20)
-  bookingType String @db.VarChar(50)
-
-  customerName    String  @db.VarChar(150)
-  customerContact String? @db.VarChar(100)
-
-  originalDeposit Decimal  @db.Decimal(15, 2)
-  forfeitedAmount Decimal  @db.Decimal(15, 2)
-  forfeitedDate   DateTime @default(now())
-
-  reason String                 @db.Text
-  status ForfeitedDepositStatus @default(PENDING)
-
-  arId               Int?
-  accountsReceivable AccountsReceivable? @relation(fields: [arId], references: [id], map: "ForfeitedDeposit_arId_fkey")
-
-  convertedRevenueId Int?
-  convertedRevenue   Revenue? @relation("ForfeitedDepositRevenue", fields: [convertedRevenueId], references: [id], map: "ForfeitedDeposit_convertedRevenueId_fkey")
-
-  documentIds String? @db.Text
-
-  recordedBy String   @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([bookingId])
-  @@index([forfeitedDate])
-  @@index([status])
-}
-
-model RenterDamage {
-  id         Int    @id @default(autoincrement())
-  damageCode String @unique @default(cuid())
-
-  rentalId      String  @db.VarChar(20)
-  renterName    String  @db.VarChar(150)
-  renterContact String? @db.VarChar(100)
-
-  busPlateNumber String? @db.VarChar(20)
-  bodyNumber     String? @db.VarChar(20)
-
-  damageDescription String   @db.Text
-  damageDate        DateTime
-
-  repairCost    Decimal @db.Decimal(15, 2)
-  amountCharged Decimal @db.Decimal(15, 2)
-  amountPaid    Decimal @default(0) @db.Decimal(15, 2)
-  balanceAmount Decimal @db.Decimal(15, 2)
-
-  expenseId Int?
-  revenueId Int?
-
-  status           String   @default("PENDING") @db.VarChar(50)
-  disputedAmount   Decimal? @db.Decimal(15, 2)
-  paymentRevenueId Int?
-
-  documentIds String? @db.Text
-  remarks     String? @db.Text
-
-  recordedBy String   @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([rentalId])
-  @@index([status])
-  @@index([damageDate])
-}
-
-model DisposalSale {
-  id           Int    @id @default(autoincrement())
-  disposalCode String @unique @default(cuid())
-
-  disposalId   String @db.VarChar(20)
-  disposalType String @db.VarChar(50)
-
-  itemDescription String @db.VarChar(255)
-
-  saleAmount   Decimal  @db.Decimal(15, 2)
-  saleDate     DateTime @default(now())
-  buyerName    String?  @db.VarChar(150)
-  buyerContact String?  @db.VarChar(100)
-
-  revenueId Int?
-
-  documentIds String? @db.Text
-  remarks     String? @db.Text
-
-  recordedBy String   @db.VarChar(100)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([disposalId])
-  @@index([saleDate])
-}
-
-// ============================================
-// SUPPLIER PERFORMANCE
-// ============================================
-
-model SupplierPerformance {
-  id           Int    @id @default(autoincrement())
-  supplierId   String @unique @db.VarChar(20)
-  supplierName String @db.VarChar(150)
-
-  failedRefunds      Int    @default(0)
-  failedReplacements Int    @default(0)
-  riskLevel          String @default("LOW") @db.VarChar(50)
-
-  isBlockedFromOrders Boolean   @default(false)
-  blockedSince        DateTime?
-  blockedReason       String?   @db.Text
-
-  lastFlaggedAt DateTime?
-  flaggedBy     String?   @db.VarChar(100)
-
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([supplierId])
-  @@index([riskLevel])
-  @@index([isBlockedFromOrders])
-}
-
-// ============================================
-// AUDIT LOGS
-// ============================================
-
-model AuditLog {
-  id Int @id @default(autoincrement())
-
-  userId         String  @db.VarChar(100)
-  userName       String  @db.VarChar(100)
-  userDepartment String? @db.VarChar(100)
-
-  action     AuditAction
-  module     String      @db.VarChar(100)
-  recordId   Int?
-  recordType String?     @db.VarChar(100)
-
-  beforeData Json?
-  afterData  Json?
-
-  description String? @db.Text
-  ipAddress   String? @db.VarChar(50)
-  userAgent   String? @db.VarChar(255)
-  sessionId   String? @db.VarChar(100)
-
-  timestamp DateTime @default(now())
-
-  revenueId Int?
-  revenue   Revenue? @relation(fields: [revenueId], references: [id])
-
-  expenseId Int?
-  expense   Expense? @relation(fields: [expenseId], references: [id])
-
-  reimbursementId Int?
-  reimbursement   Reimbursement? @relation(fields: [reimbursementId], references: [id])
-
-  refundReplacementId Int?
-  refundReplacement   RefundReplacement? @relation(fields: [refundReplacementId], references: [id])
-
-  payrollId Int?
-  payroll   Payroll? @relation(fields: [payrollId], references: [id])
-
-  loanId Int?
-  loan   Loan? @relation(fields: [loanId], references: [id])
-
-  loanPaymentId Int?
-  loanPayment   LoanPayment? @relation(fields: [loanPaymentId], references: [id])
-
-  budgetAllocationId Int?
-  budgetAllocation   BudgetAllocation? @relation(fields: [budgetAllocationId], references: [id])
-
-  budgetRequestId Int?
-  budgetRequest   BudgetRequest? @relation(fields: [budgetRequestId], references: [id])
-
-  chartOfAccountId Int?
-  chartOfAccount   ChartOfAccount? @relation(fields: [chartOfAccountId], references: [id])
-
-  journalEntryId Int?
-  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
-
-  financialReportId Int?
-  financialReport   FinancialReport? @relation(fields: [financialReportId], references: [id])
-
-  @@index([userId])
-  @@index([module])
-  @@index([timestamp])
-  @@index([action])
-  @@index([userDepartment])
-}
-
-// ============================================
-// GLOBAL SETTINGS & CONFIGURATION
-// ============================================
-
-model SystemConfiguration {
-  id          Int     @id @default(autoincrement())
-  configKey   String  @unique @db.VarChar(100)
-  configValue String  @db.Text
-  configType  String  @db.VarChar(50) // "STRING", "NUMBER", "BOOLEAN", "JSON"
-  description String? @db.Text
-
-  createdBy String   @db.VarChar(100)
-  updatedBy String?  @db.VarChar(100)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([configKey])
-}
-
-// ============================================
-// FINANCIAL REPORTS METADATA
-// ============================================
-
-model FinancialReport {
-  id         Int    @id @default(autoincrement())
-  reportCode String @unique @default(cuid())
-  reportType String @db.VarChar(100) // REVENUE, EXPENSE, PAYROLL, LOAN, BUDGET, BALANCE_SHEET, INCOME_STATEMENT, CASH_FLOW
-  reportName String @db.VarChar(150)
-
-  periodStart DateTime
-  periodEnd   DateTime
-  department  String?  @db.VarChar(100)
-  category    String?  @db.VarChar(100)
-  filters     Json?
-
-  fileUrl    String? @db.Text
-  fileFormat String? @db.VarChar(50)
-
-  status String @default("GENERATED") @db.VarChar(50)
-
-  totalRecords Int?
-  totalAmount  Decimal? @db.Decimal(15, 2)
-
-  templateId        String? @db.VarChar(100)
-  isScheduled       Boolean @default(false)
-  scheduleFrequency String? @db.VarChar(50)
-
-  generatedBy String    @db.VarChar(100)
-  exportedBy  String?   @db.VarChar(100)
-  generatedAt DateTime  @default(now())
-  exportedAt  DateTime?
-
-  auditLogs AuditLog[]
-
-  @@index([reportType])
-  @@index([periodStart, periodEnd])
-  @@index([generatedAt])
-  @@index([isScheduled])
-}
-
-// ============================================
-// DASHBOARD METRICS CACHE
-// ============================================
-
-model DashboardMetric {
-  id          Int     @id @default(autoincrement())
-  metricKey   String  @unique @db.VarChar(100)
-  metricName  String  @db.VarChar(150)
-  metricValue Decimal @db.Decimal(15, 2)
-  metricType  String  @db.VarChar(50)
-
-  periodType   String   @db.VarChar(50)
-  calculatedAt DateTime @default(now())
-
-  metadata Json?
-
-  updatedAt DateTime @updatedAt
-
-  @@index([metricKey])
-  @@index([metricType])
-  @@index([periodType])
-  @@index([calculatedAt])
-}
-
-// ============================================
-// NOTIFICATIONS & ALERTS
-// ============================================
-
-model FinanceNotification {
-  id               Int    @id @default(autoincrement())
-  notificationType String @db.VarChar(100)
-  title            String @db.VarChar(255)
-  message          String @db.Text
-
-  recipientUserId     String  @db.VarChar(100)
-  recipientUserName   String  @db.VarChar(100)
-  recipientDepartment String? @db.VarChar(100)
-
-  relatedModule   String? @db.VarChar(100)
-  relatedRecordId Int?
-
-  isRead Boolean   @default(false)
-  readAt DateTime?
-
-  priority String @default("NORMAL") @db.VarChar(50)
-
-  expiresAt DateTime?
-  actionUrl String?   @db.Text
-
-  createdAt DateTime @default(now())
-
-  @@index([recipientUserId])
-  @@index([isRead])
-  @@index([notificationType])
-  @@index([createdAt])
-  @@index([recipientDepartment])
-}
-
-// ============================================
-// ATTACHED DOCUMENTS (Version Control)
-// ============================================
-
-model AttachedDocument {
-  id           Int    @id @default(autoincrement())
-  documentId   String @unique @default(cuid())
-  documentUrl  String @db.Text
-  documentName String @db.VarChar(255)
-  documentType String @db.VarChar(50) // INVOICE, RECEIPT, CONTRACT, REFUND_SLIP, APPROVAL, etc.
-
-  relatedModule   String @db.VarChar(100) // EXPENSE, REVENUE, PAYROLL, REFUND_REQUEST, etc.
-  relatedRecordId Int
-
-  uploadedBy String   @db.VarChar(100)
-  uploadedAt DateTime @default(now())
-  version    Int      @default(1)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([documentId])
-  @@index([relatedModule, relatedRecordId])
-  @@index([documentType])
-}
-
-// ============================================
-// SEQUENCE GENERATOR (ID Code Generation)
-// ============================================
-
-model Sequence {
-  name  String @id @db.VarChar(50)
-  value Int    @default(1)
-
-  @@index([name])
-}
-
-// ============================================
-// END OF SCHEMA
-// ============================================

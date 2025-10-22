@@ -1,0 +1,201 @@
+
+// ============================================================================
+// INTEGRATION NOTES FOR CACHED MODELS
+// ============================================================================
+//
+// 1. EMPLOYEE SYNC PROCESS (from /api/clean/hr_employees):
+//    - Scheduled job fetches all employees every 15 minutes
+//    - Upsert into CachedEmployee by employeeNumber
+//    - Used for: Payroll generation, Loan management, Reimbursement tracking
+//    - Stale detection: Mark isStale = true if lastSyncedAt > 30 minutes
+//
+// 2. PAYROLL DATA SYNC (from /api/clean/hr_payroll):
+//    - Scheduled job fetches payroll data daily at midnight
+//    - Parse nested JSON (attendances, benefits, deductions)
+//    - Calculate totals: totalMonthlyBenefits, totalMonthlyDeductions, netMonthlyRate
+//    - Used for: Payroll module, generating Finance.Payroll records
+//    - Benefits/Deductions stored as JSON for flexibility
+//    - Example benefit parsing:
+//      JSON: [{ value: "750", frequency: "Monthly", benefitType: { name: "Housing Allowance" }}]
+//    - Example deduction parsing:
+//      JSON: [{ type: "SSS", value: "200", frequency: "Monthly", deductionType: { name: "SSS" }}]
+//
+// 3. TRIP SYNC PROCESS (from /api/clean/op_bus-trip-details):
+//    - Scheduled job fetches trip data every hour
+//    - Check isRevenueRecorded and isExpenseRecorded flags
+//    - If false: Auto-create Revenue and Expense records in Finance
+//    - Calculate company income based on assignmentType:
+//      * Percentage: companyIncome = tripRevenue * assignmentValue
+//      * Boundary: companyIncome = assignmentValue (fixed boundary amount)
+//    - If tripRevenue < boundary: Calculate tripDeficit, auto-create Loan
+//    - Update linkedRevenueId, linkedExpenseId, linkedLoanId after creation
+//    - Mark isRevenueRecorded = true, isExpenseRecorded = true
+//    - Sync back to Operations API to update flags
+//
+// 4. TRIP DEFICIT LOAN AUTO-CREATION (Module 3.3):
+//    - Triggered when: assignmentType = "Boundary" AND tripRevenue < assignmentValue
+//    - Calculate: tripDeficit = assignmentValue - tripRevenue
+//    - Split 50/50: driverShare = tripDeficit / 2, conductorShare = tripDeficit / 2
+//    - Create Finance.Loan records:
+//      * Loan 1: Driver (loanType = TRIP_DEFICIT, entityId = driverId, principalAmount = driverShare)
+//      * Loan 2: Conductor (loanType = TRIP_DEFICIT, entityId = conductorId, principalAmount = conductorShare)
+//    - Link back: CachedTrip.linkedLoanId = [loan1.id, loan2.id] (JSON array)
+//
+// 5. REVENUE RECORDING AUTOMATION:
+//    - Check CachedTrip where isRevenueRecorded = false
+//    - Create Finance.Revenue:
+//      * code = auto-generated "REV-{year}-{seq}"
+//      * revenueType = TRIP
+//      * amount = companyIncome (calculated from assignmentType)
+//      * dateRecorded = CachedTrip.dateAssigned
+//      * sourceRefNo = CachedTrip.busTripId
+//      * department = "Operations"
+//      * externalRefNo = CachedTrip.assignmentId
+//    - Update CachedTrip: isRevenueRecorded = true, linkedRevenueId = revenue.id
+//    - Callback to Operations API: POST /api/sync/update-revenue-status
+//
+// 6. EXPENSE RECORDING AUTOMATION:
+//    - Check CachedTrip where isExpenseRecorded = false
+//    - Create Finance.Expense:
+//      * code = auto-generated "EXP-{year}-{seq}"
+//      * category = "operational"
+//      * subcategory = "fuel"
+//      * amount = CachedTrip.tripFuelExpense
+//      * dateRecorded = CachedTrip.dateAssigned
+//      * sourceRefNo = CachedTrip.busTripId
+//      * department = "Operations"
+//      * externalRefNo = CachedTrip.assignmentId
+//    - Update CachedTrip: isExpenseRecorded = true, linkedExpenseId = expense.id
+//    - Callback to Operations API: POST /api/sync/update-expense-status
+//
+// 7. PAYROLL GENERATION USING CACHED DATA:
+//    - Finance Admin triggers payroll generation for period
+//    - Fetch CachedPayrollData filtered by: employeeStatus = "active", department
+//    - For each employee:
+//      * baseSalary = basicRate * workDays (from attendances JSON)
+//      * Parse benefits JSON: Sum where isActive = true, frequency = target period
+//      * Parse deductions JSON: Sum where isActive = true, frequency = target period
+//      * Calculate: netPay = baseSalary + totalBenefits - totalDeductions
+//    - Create Finance.Payroll records
+//    - Link to HR via externalRefNo = employeeNumber
+//
+// 8. STALE DATA DETECTION & REFRESH:
+//    - Background job runs every 10 minutes
+//    - Mark isStale = true where:
+//      * CachedEmployee: lastSyncedAt < now() - 30 minutes
+//      * CachedPayrollData: lastSyncedAt < now() - 24 hours
+//      * CachedTrip: lastSyncedAt < now() - 1 hour
+//    - Trigger sync for stale records
+//    - Send alert if sync fails > 3 times
+//
+// 9. SYNC JOB CONFIGURATION:
+//    - Employee Sync: Every 15 minutes
+//    - Payroll Sync: Daily at 12:00 AM
+//    - Trip Sync: Every 1 hour
+//    - Inventory Sync: Every 30 minutes (when API available)
+//    - All syncs logged in ExternalSyncLog
+//
+// 10. ERROR HANDLING:
+//     - On sync failure: Log to ExternalSyncLog with errorMessage
+//     - Retry with exponential backoff: 1 min, 5 min, 15 min
+//     - After 3 failures: Send notification to Finance Admin
+//     - Keep stale data visible with warning indicator in UI
+//
+// 11. WEBHOOK SUPPORT (Optional Real-time Sync):
+//     - HR can POST to: /api/webhooks/employee-updated
+//     - Operations can POST to: /api/webhooks/trip-completed
+//     - Inventory can POST to: /api/webhooks/stock-updated
+//     - Webhooks trigger immediate sync for specific records
+//     - Verify webhook signature for security
+//
+// 12. CACHE INVALIDATION RULES:
+//     - On employee termination: Keep cached data, set isStale = true
+//     - On trip completion: Sync immediately to record revenue/expense
+//     - On payroll period end: Refresh all payroll data
+//     - Manual refresh: Finance Admin can trigger via UI
+//
+// 13. DATA MAPPING EXAMPLES:
+//
+//     HR Employee → CachedEmployee:
+//     {
+//       employeeNumber: "EMP-0001",
+//       firstName: "Joel",
+//       middleName: "Robes",
+//       lastName: "Estrada Jr.",
+//       phone: "0924-278-6142",
+//       position: "Driver",
+//       departmentId: 1,
+//       department: "Operations"
+//     }
+//
+//     HR Payroll → CachedPayrollData:
+//     {
+//       employeeNumber: "EMP-0001",
+//       firstName: "Joel",
+//       basicRate: Decimal(500),
+//       position: "Driver",
+//       department: "Operations",
+//       benefits: JSON.stringify([
+//         { value: "750", frequency: "Monthly", benefitType: { name: "Housing Allowance" }}
+//       ]),
+//       deductions: JSON.stringify([
+//         { type: "Uniform Deduction", value: "200", frequency: "Monthly" }
+//       ]),
+//       totalMonthlyBenefits: 750.00,
+//       totalMonthlyDeductions: 200.00,
+//       netMonthlyRate: (500 * 22) + 750 - 200 = 11550.00 // Assuming 22 workdays
+//     }
+//
+//     Operations Trip → CachedTrip:
+//     {
+//       assignmentId: "ASSIGN001",
+//       busTripId: "TRIP-001-1",
+//       busRoute: "Route 1: STOP001 -> STOP002",
+//       isRevenueRecorded: false,
+//       isExpenseRecorded: false,
+//       dateAssigned: DateTime("2025-10-13T14:04:14.590Z"),
+//       tripFuelExpense: 1020.00,
+//       tripRevenue: 3050.00,
+//       assignmentType: "Percentage",
+//       assignmentValue: 0.2,
+//       companyIncome: 3050 * 0.2 = 610.00,
+//       driverShare: (3050 - 610) / 2 = 1220.00,
+//       conductorShare: (3050 - 610) / 2 = 1220.00
+//     }
+//
+//     If assignmentType = "Boundary" and assignmentValue = 2000:
+//     {
+//       companyIncome: 2000.00, // Fixed boundary
+//       driverShare: (3050 - 2000) / 2 = 525.00,
+//       conductorShare: (3050 - 2000) / 2 = 525.00,
+//       tripDeficit: null // Revenue exceeds boundary
+//     }
+//
+//     If tripRevenue = 1500 (below boundary 2000):
+//     {
+//       companyIncome: 1500.00, // Company only gets actual revenue
+//       tripDeficit: 2000 - 1500 = 500.00,
+//       driverShare: 500 / 2 = 250.00 (LOAN),
+//       conductorShare: 500 / 2 = 250.00 (LOAN)
+//       // Auto-create 2 Loan records with loanType = TRIP_DEFICIT
+//     }
+//
+// 14. API ENDPOINTS FOR SYNC MANAGEMENT:
+//     - GET /api/sync/status → Check sync health for all systems
+//     - POST /api/sync/trigger → Manual trigger sync for specific system
+//     - GET /api/sync/logs → View ExternalSyncLog history
+//     - POST /api/sync/invalidate → Force cache invalidation
+//
+// 15. ENVIRONMENT VARIABLES:
+//     - HR_API_BASE_URL=https://backends-blue.vercel.app
+//     - HR_EMPLOYEES_ENDPOINT=/api/clean/hr_employees
+//     - HR_PAYROLL_ENDPOINT=/api/clean/hr_payroll
+//     - OPERATIONS_API_BASE_URL=https://backends-blue.vercel.app
+//     - OPERATIONS_TRIPS_ENDPOINT=/api/clean/op_bus-trip-details
+//     - SYNC_EMPLOYEE_INTERVAL_MINUTES=15
+//     - SYNC_PAYROLL_INTERVAL_HOURS=24
+//     - SYNC_TRIP_INTERVAL_MINUTES=60
+//     - SYNC_RETRY_ATTEMPTS=3
+//     - SYNC_TIMEOUT_SECONDS=30
+//     - ENABLE_WEBHOOKS=true
+//     - WEBHOOK_SECRET=your-webhook-secret
