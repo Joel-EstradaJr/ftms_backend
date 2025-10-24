@@ -29,6 +29,9 @@ import staffPayableRoutes from './routes/staff/payable.routes';
 import adminLoanRoutes from './routes/admin/loan.routes';
 import staffLoanRoutes from './routes/staff/loan.routes';
 
+// Integration routes (for microservices)
+import integrationRoutes from './routes/integration';
+
 export const createApp = (): Application => {
   const app = express();
 
@@ -103,6 +106,9 @@ export const createApp = (): Application => {
   app.use('/api/v1/staff/receivables', staffReceivableRoutes);
   app.use('/api/v1/staff/payables', staffPayableRoutes);
   app.use('/api/v1/staff/loans', staffLoanRoutes);
+
+  // Integration routes (machine-to-machine communication)
+  app.use('/api/integration', integrationRoutes);
 
   // 404 handler
   app.use((req, res) => {
