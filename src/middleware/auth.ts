@@ -30,6 +30,8 @@ export interface AuthRequest extends Request {
  * IMPORTANT: FTMS does NOT handle passwords or user login.
  * The HR Auth Microservice handles all authentication.
  * This middleware ONLY validates JWT tokens.
+ * 
+ * Can be disabled via ENABLE_AUTH=false environment variable for testing.
  */
 export const authenticate = (
   req: AuthRequest,
@@ -37,6 +39,20 @@ export const authenticate = (
   next: NextFunction
 ) => {
   try {
+    // Skip authentication if disabled (for testing only)
+    if (config.enableAuth === false) {
+      logger.warn('⚠️  Authentication is DISABLED - for testing only!');
+      // Set mock user for testing
+      req.user = {
+        sub: 'test-user-id',
+        username: 'test-user',
+        role: 'admin',
+        iat: Date.now(),
+        exp: Date.now() + 86400000,
+      };
+      return next();
+    }
+    
     // Get token from header
     const authHeader = req.headers.authorization;
     

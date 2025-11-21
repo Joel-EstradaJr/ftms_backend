@@ -1,0 +1,46 @@
+// Seed script for enum-like tables and fixed lookup data.
+// This file seeds initial Account Types required by the finance system.
+// Placed inside prisma/ because it is part of database initialization concerns.
+import { prisma } from '../lib/prisma';
+
+// Fixed Account Type definitions (Requirement #1)
+// Codes must remain stable: Assets=1, Liabilities=2, Equities=3, Revenues=4, Expenses=5
+const FIXED_ACCOUNT_TYPES: { code: string; name: string; description: string }[] = [
+	{ code: '1', name: 'Assets', description: 'Resources owned providing future economic benefit.' },
+	{ code: '2', name: 'Liabilities', description: 'Obligations owed to external parties.' },
+	{ code: '3', name: 'Equities', description: 'Residual interest after liabilities in assets.' },
+	{ code: '4', name: 'Revenues', description: 'Inflows or enhancements of assets from operations.' },
+	{ code: '5', name: 'Expenses', description: 'Outflows or using up of assets in operations.' },
+];
+
+export async function seedAccountTypes() {
+	for (const at of FIXED_ACCOUNT_TYPES) {
+		// Ignore soft-deleted uniqueness conflicts by reviving if needed
+		const existing = await prisma.account_type.findFirst({ where: { code: at.code } });
+		if (!existing) {
+			await prisma.account_type.create({ data: { code: at.code, name: at.name, description: at.description } });
+			continue;
+		}
+		if (existing.is_deleted) {
+			await prisma.account_type.update({
+				where: { id: existing.id },
+				data: { name: at.name, description: at.description, is_deleted: false, deleted_at: null, deleted_by: null },
+			});
+		}
+	}
+}
+
+// Allow running directly: `ts-node prisma/seed_enums.ts` or via node after build
+if (require.main === module) {
+	seedAccountTypes()
+		.then(() => {
+			console.log('Seeded fixed account types successfully');
+		})
+		.catch((e) => {
+			console.error('Failed seeding account types', e);
+			process.exit(1);
+		})
+		.finally(async () => {
+			await prisma.$disconnect();
+		});
+}

@@ -8,26 +8,18 @@ import { logger } from './config/logger';
 import { errorHandler } from './middleware/errorHandler';
 
 // Routes
-import adminRevenueRoutes from './routes/admin/revenue.routes';
-import staffRevenueRoutes from './routes/staff/revenue.routes';
-import adminExpenseRoutes from './routes/admin/expense.routes';
-import staffExpenseRoutes from './routes/staff/expense.routes';
-import adminPayrollRoutes from './routes/admin/payroll.routes';
-import staffPayrollRoutes from './routes/staff/payroll.routes';
-import adminReimbursementRoutes from './routes/admin/reimbursement.routes';
-import staffReimbursementRoutes from './routes/staff/reimbursement.routes';
-import adminBudgetRoutes from './routes/admin/budget.routes';
-import staffBudgetRoutes from './routes/staff/budget.routes';
-import adminJournalEntryRoutes from './routes/admin/journalEntry.routes';
-import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
-import adminAssetRoutes from './routes/admin/asset.routes';
-import staffAssetRoutes from './routes/staff/asset.routes';
-import adminReceivableRoutes from './routes/admin/receivable.routes';
-import staffReceivableRoutes from './routes/staff/receivable.routes';
-import adminPayableRoutes from './routes/admin/payable.routes';
-import staffPayableRoutes from './routes/staff/payable.routes';
-import adminLoanRoutes from './routes/admin/loan.routes';
-import staffLoanRoutes from './routes/staff/loan.routes';
+// Temporarily commented out routes with compilation errors
+// import staffRevenueRoutes from './routes/staff/revenue.routes';
+// import staffExpenseRoutes from './routes/staff/expense.routes';
+// import staffPayrollRoutes from './routes/staff/payroll.routes';
+// import staffReimbursementRoutes from './routes/staff/reimbursement.routes';
+// import staffBudgetRoutes from './routes/staff/budget.routes';
+// import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
+// import staffAssetRoutes from './routes/staff/asset.routes';
+// import staffReceivableRoutes from './routes/staff/receivable.routes';
+// import staffPayableRoutes from './routes/staff/payable.routes';
+// import staffLoanRoutes from './routes/staff/loan.routes';
+import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 
 // Integration routes (for microservices)
 import integrationRoutes from './routes/integration';
@@ -84,28 +76,20 @@ export const createApp = (): Application => {
   // ===========================
   
   // Admin routes (Full CRUD + additional actions)
-  app.use('/api/v1/admin/revenues', adminRevenueRoutes);
-  app.use('/api/v1/admin/expenses', adminExpenseRoutes);
-  app.use('/api/v1/admin/payrolls', adminPayrollRoutes);
-  app.use('/api/v1/admin/reimbursements', adminReimbursementRoutes);
-  app.use('/api/v1/admin/budgets', adminBudgetRoutes);
-  app.use('/api/v1/admin/journal-entries', adminJournalEntryRoutes);
-  app.use('/api/v1/admin/assets', adminAssetRoutes);
-  app.use('/api/v1/admin/receivables', adminReceivableRoutes);
-  app.use('/api/v1/admin/payables', adminPayableRoutes);
-  app.use('/api/v1/admin/loans', adminLoanRoutes);
+  app.use('/api/v1/admin', chartOfAccountsRoutes);
   
   // Staff routes (Limited access - read + create for some modules)
-  app.use('/api/v1/staff/revenues', staffRevenueRoutes);
-  app.use('/api/v1/staff/expenses', staffExpenseRoutes);
-  app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
-  app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
-  app.use('/api/v1/staff/budgets', staffBudgetRoutes);
-  app.use('/api/v1/staff/journal-entries', staffJournalEntryRoutes);
-  app.use('/api/v1/staff/assets', staffAssetRoutes);
-  app.use('/api/v1/staff/receivables', staffReceivableRoutes);
-  app.use('/api/v1/staff/payables', staffPayableRoutes);
-  app.use('/api/v1/staff/loans', staffLoanRoutes);
+  // Temporarily commented out routes with compilation errors
+  // app.use('/api/v1/staff/revenues', staffRevenueRoutes);
+  // app.use('/api/v1/staff/expenses', staffExpenseRoutes);
+  // app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
+  // app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
+  // app.use('/api/v1/staff/budgets', staffBudgetRoutes);
+  // app.use('/api/v1/staff/journalEntries', staffJournalEntryRoutes);
+  // app.use('/api/v1/staff/assets', staffAssetRoutes);
+  // app.use('/api/v1/staff/receivables', staffReceivableRoutes);
+  // app.use('/api/v1/staff/payables', staffPayableRoutes);
+  // app.use('/api/v1/staff/loans', staffLoanRoutes);
 
   // Integration routes (machine-to-machine communication)
   app.use('/api/integration', integrationRoutes);

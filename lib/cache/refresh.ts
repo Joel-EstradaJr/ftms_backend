@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
-import { clearCache } from "@/lib/serverCache";
+import { prisma } from "../prisma";
+import { clearCache } from "../serverCache";
 
 // Simple retry helper
 async function retry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1000): Promise<T> {

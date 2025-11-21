@@ -1,5 +1,5 @@
-import refreshCaches from "@/lib/cache/refresh";
-import { prisma } from "@/lib/prisma";
+import refreshCaches from "../cache/refresh";
+import { prisma } from "../prisma";
 
 // Use globals to persist across HMR and multiple imports
 const g = globalThis as any;
@@ -28,8 +28,6 @@ function isBuildTime(): boolean {
 function shouldStart(): boolean {
   // Only when explicitly enabled
   if (process.env.ENABLE_CACHE_SCHEDULER !== 'true') return false;
-  // Server-only
-  if (typeof window !== 'undefined') return false;
   // Skip during build/pre-render
   if (isBuildTime()) return false;
   return true;
@@ -76,7 +74,7 @@ async function startScheduler() {
   const seconds = parseIntervalSeconds(process.env.REFRESH_INTERVAL, 5 * 60);
   const intervalMs = seconds * 1000;
   intervalHandle = setInterval(() => {
-    refreshCaches().catch((e) => console.error("[cache] interval refresh failed", e));
+    refreshCaches().catch((e: any) => console.error("[cache] interval refresh failed", e));
   }, intervalMs);
   g.__FTMS_CACHE_SCHEDULER_INTERVAL__ = intervalHandle;
 

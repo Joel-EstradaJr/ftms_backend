@@ -1,1109 +1,1565 @@
-// main schema (FINALIZED)
-
-// ============================================================================
-// MAIN FINANCE BACKEND - PRISMA SCHEMA (COMPLETE & ENHANCED)
-// Repository 2: Core Finance System with Full Inventory Integration
-// Integrated Bus Transportation Management Platform
+// FINANCE'S MAIN SCHEMA - REVENUE, EXPENSE, PAYABLES, RECEIVABLES, INSTALLMENTS, BUDGET ALLOCATION & APPROVAL, PRUCHASE REQUEST APPROVAL, REFUND_REPLACEMENT APPROVAL & TRACKING, PAYROLL, (FIXED) ASSET DEPRECIATION & ACCUMULATION AND DISPOSAL, CHART OF ACCOUNTS, JOURNAL ENTRY, EXTERNAL DATA CACHE TABLES
 // ============================================================================
 
 generator client {
-  provider = "prisma-client-js"
+provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+provider = "postgresql"
+url      = env("FINANCE_MAIN_DATABASE_URL")
 }
 
 // ============================================================================
 // ENUMS
 // ============================================================================
-
-enum PurchaseRequestStatus {
-  DRAFT                // Initial status in Inventory (can edit/cancel/post)
-  POSTED               // Submitted to Finance for review (view only, can cancel)
-  REJECTED             // Finance rejected (view only, cannot edit/cancel)
-  APPROVED             // Finance approved (view only, cannot edit/cancel)
-  CLOSED               // PO completed (synced from PO status)
+enum normal_balance {
+DEBIT
+CREDIT
 }
 
-enum PurchaseOrderStatus {
-  PENDING              // Auto-created when PR approved with no modifications
-  PENDING_ADJUSTED     // Auto-created when PR approved WITH modifications (quantity/items changed)
-  RECEIVED             // All items physically received with no issues
-  PARTIALLY_COMPLETED  // Items received with damage/missing → triggers Refund/Replacement
-  TO_BE_REFUNDED       // Finance processing refund with supplier
-  TO_BE_REPLACED       // Finance processing replacement with supplier
-  CLOSED               // Successfully completed (no issues OR refund/replacement done)
-  CLOSED_FAILED        // Refund/Replacement failed to complete
+enum journal_status {
+PENDING
+APPROVED
+REJECTED
 }
 
-enum RefundReplacementStatus {
-  PENDING              // Awaiting Finance decision (refund or replace)
-  APPROVED             // Finance approved the refund/replacement request
-  REJECTED             // Finance rejected (accept loss or other resolution)
-  PROCESS_REFUND       // Finance contacting supplier for refund
-  PROCESS_REPLACEMENT  // Finance contacting supplier for replacement
-  CLOSED               // Refund completed OR Replacement completed
-  CLOSED_FAILED        // Supplier failed to refund/replace
+enum revenue_status {
+PENDING      // expected/receivable
+RECORDED     // received
+OVERDUE      // past due
+CANCELLED    // invalidated
 }
 
-enum ItemApprovalStatus {
-  PENDING              // Default when PR posted to Finance
-  APPROVED             // Finance approved this specific item
-  REJECTED             // Finance rejected this specific item
-  MODIFIED             // Finance modified quantity/cost for this item
+enum expense_status {
+PENDING      // expected/payable
+PAID         // fully paid
+OVERDUE      // past due
+CANCELLED    // invalidated
 }
 
-enum RequestType {
-  REGULAR              // Priority 1: Standard, routine purchases
-  PROJECT_BASED        // Priority 2: Operations/Maintenance linked
-  BUDGET_SHORTAGE      // Priority 3: When initial purchase exceeds budget
-  URGENT               // Priority 4: Time-sensitive to prevent delays
-  EMERGENCY            // Priority 5: Critical to restore operations
+enum receivable_status {
+PENDING           // Not yet paid at all
+PARTIALLY_PAID    // Some payments received, but balance still exists
+PAID              // Fully settled, balance = 0
+OVERDUE           // Past due date; may accrue interest
+CANCELLED         // Invalidated before collection
+WRITTEN_OFF       // Cannot be collected; moved to bad debts
 }
 
-enum ApprovalStatus {
-  PENDING
-  APPROVED
-  REJECTED
+enum payable_status {
+PENDING           // Not yet paid at all
+PARTIALLY_PAID    // Some payments received, but balance still exists
+PAID              // Fully settled, balance = 0
+OVERDUE           // Past due date; may accrue interest
+CANCELLED         // Invalidated before collection
+WRITTEN_OFF       // Cannot be paid; moved to bad debts
 }
 
-enum LoanType {
-  EMPLOYEE
-  EXTERNAL
-  TRIP_DEFICIT
+enum revenue_approval_status {
+PENDING     // Auto-filled, awaiting user review/approval
+APPROVED    // Verified and approved
+REJECTED    // Rejected / needs correction
 }
 
-enum RevenueType {
-  TRIP
-  RENTAL
-  OTHER
+enum expense_approval_status {
+PENDING     // Auto-filled, awaiting user review/approval
+APPROVED    // Verified and approved
+REJECTED    // Rejected / needs correction
 }
 
-enum InstallmentFrequency {
-  DAILY
-  WEEKLY
-  SEMI_MONTHLY
-  MONTHLY
-  YEARLY
+enum installment_status {
+PENDING           // Not yet paid at all
+PARTIALLY_PAID    // Some payments received, but balance still exists
+PAID              // Fully settled, balance = 0
+OVERDUE           // Past due date; may accrue interest
+CANCELLED         // Invalidated before collection
+WRITTEN_OFF       // Cannot be collected; moved to bad debts
 }
 
-enum RepaymentStatus {
-  PENDING
-  PAID
-  OVERDUE
-  WAIVED
+enum payroll_status {
+PENDING
+APPROVED
+POSTED
 }
 
-// ============================================================================
-// 1. REVENUE MANAGEMENT
-// ============================================================================
-
-model Revenue {
-  id                Int          @id @default(autoincrement())
-  code              String       @unique
-  revenueType       RevenueType
-  amount            Decimal      @db.Decimal(12, 2)
-  dateRecorded      DateTime
-  remarks           String?
-  sourceRefNo       String?      // Trip ID / Rental ID / etc.
-  department        String?
-
-  // Rental-specific
-  rentalDownpayment      Decimal?   @db.Decimal(12, 2)
-  rentalBalance          Decimal?   @db.Decimal(12, 2)
-  downpaymentReceivedAt  DateTime?
-  balanceReceivedAt      DateTime?
-  isDownpaymentRefundable Boolean   @default(false)
-  
-  // Other revenue categorization
-  otherRevenueCategory String? // "asset_sale" | "advertising" | "insurance" | etc.
-  
-  // Receipt linking (currently only in Expense)
-  receiptUrl           String?
-  
-  // Verification flag (optional, can use approvedBy instead)
-  isVerified           Boolean    @default(false)
-  verifiedBy           String?
-  verifiedAt           DateTime?
-  
-  // External Sync Fields
-  externalRefNo     String?
-  lastSyncedAt      DateTime?
-  lastSyncStatus    String?
-  
-  // Audit Trail Fields (auto-populated by middleware)
-  createdBy         String?
-  createdAt         DateTime     @default(now())
-  updatedBy         String?
-  updatedAt         DateTime     @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean      @default(false)
-
-  @@index([revenueType, dateRecorded])
-  @@index([isDeleted])
-  @@index([sourceRefNo])
+enum payroll_period_status {
+OPEN
+LOCKED
+APPROVED
+POSTED
 }
 
-// ============================================================================
-// 2. EXPENSE MANAGEMENT
-// ============================================================================
+enum rate_type {
+MONTHLY
+DAILY
+WEEKLY
+SEMI_MONTHLY
+}
 
-model Expense {
-  id                Int        @id @default(autoincrement())
-  code              String     @unique
-  category          String     // "operational" | "administrative" | "purchase"
-  subcategory       String?    // "fuel" | "toll" | "supplies" | "utilities" | etc.
-  amount            Decimal    @db.Decimal(12, 2)
-  dateRecorded      DateTime
-  remarks           String?
-  linkedPurchaseId  Int?
-  department        String?
-  receiptUrl        String?    // Document Management link
-  
-  // External Sync Fields
-  externalRefNo     String?
-  lastSyncedAt      DateTime?
-  lastSyncStatus    String?
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime   @default(now())
-  updatedBy         String?
-  updatedAt         DateTime   @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean    @default(false)
+enum budget_status {
+ACTIVE
+INACTIVE
+}
 
-  @@index([category, dateRecorded])
-  @@index([subcategory])
-  @@index([isDeleted])
-  @@index([linkedPurchaseId])
+enum refund_replacement_finance_status {
+PENDING                       // Request received from Inventory
+UNDER_REVIEW                  // Finance reviewing the request
+APPROVED                      // Finance approved refund/replacement
+REJECTED                      // Finance rejected the request
+IN_PROGRESS                   // Contacting supplier, processing
+COMPLETED                     // All items processed
+PARTIALLY_COMPLETED           // Some items completed
+CLOSED                        // Request closed
+}
+
+enum refund_replacement_action {
+REFUND                        // Return money, adjust expense
+REPLACEMENT                   // Get replacement items
+NO_ACTION                     // Close without action
+}
+
+enum asset_status {
+ACTIVE       // Asset is in use
+INACTIVE     // Asset not in use, e.g., disposed
+FULLY_DEPRECIATED // Asset fully depreciated
+}
+
+enum accumulation_type {
+APPRECIATION
+DEPRECIATION
+}
+
+enum purchase_request_approval_status {
+PENDING                 // Received from Inventory, Finance can review
+APPROVED                // Finance approved (all or partial items)
+REJECTED                // Finance rejected the PR
+ADJUSTED                // Finance adjusted quantities/suppliers
+CLOSED                  // PR processing complete
+}
+
+enum pr_item_finance_status {
+PENDING                 // Item awaiting Finance decision
+APPROVED                // Item approved with quantity/supplier
+REJECTED                // Item rejected
+ADJUSTED                // Quantity or supplier modified
+CLOSED                    // PR Item processing completed
 }
 
 // ============================================================================
-// 3. EMPLOYEE FINANCIALS
+// CACHE TABLES (External System Data)
 // ============================================================================
+model employees_cache {
+// Fields
+employee_number   String    @id
+first_name        String?
+middle_name       String?
+last_name         String?
+suffix            String?
+phone_number      String?
+position_id       String
+position_name     String
+department_id     String
+department_name   String
+last_synced_at    DateTime  @default(now())
+is_deleted        Boolean   @default(false)
 
-model Payroll {
-  id                Int            @id @default(autoincrement())
-  employeeId        Int
-  periodStart       DateTime
-  periodEnd         DateTime
-  baseSalary        Decimal        @db.Decimal(12, 2)
-  allowances        Decimal?       @db.Decimal(12, 2)
-  deductions        Decimal?       @db.Decimal(12, 2)
-  netPay            Decimal        @db.Decimal(12, 2)
-  disbursementDate  DateTime?
-  status            ApprovalStatus @default(PENDING)
+// Relations
+operational_trips operational_trip_employee[]
+rental_trips      rental_trip_employee[]
+payroll_cache     payroll_cache[]
+payroll           payroll[]
 
-  // Individual disbursement tracking
-  isDisbursed      Boolean   @default(false)
-  disbursedBy      String?
-  
-  // Finalization lock
-  isFinalized      Boolean   @default(false)
-  finalizedBy      String?
-  finalizedAt      DateTime?
-  
-  // External Link (from HR)
-  externalRefNo     String?
-  lastSyncedAt      DateTime?
-  lastSyncStatus    String?
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime       @default(now())
-  updatedBy         String?
-  updatedAt         DateTime       @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean        @default(false)
-
-  @@index([employeeId, periodStart])
-  @@index([status])
-  @@index([isDeleted])
+// Indexes
+@@index([is_deleted])
+@@index([last_synced_at])
+@@index([department_id])
 }
 
-model Reimbursement {
-  id                Int            @id @default(autoincrement())
-  employeeId        Int
-  amount            Decimal        @db.Decimal(12, 2)
-  purpose           String
-  status            ApprovalStatus @default(PENDING)
-  receiptUrl        String?        // Document Management link
+model operational_trip {
+// Fields
+assignment_id        String
+bus_trip_id          String
+date_assigned        DateTime?
+bus_route            String?
+trip_fuel_expense    Decimal?   @db.Decimal(14, 2)
+trip_revenue         Decimal?   @db.Decimal(14, 2)
+assignment_type      String?
+assignment_value     Decimal?   @db.Decimal(14, 2)
+payment_method       String?
+bus_plate_number     String?
+bus_type             String?
+body_builder         String?
+body_number          String?
+last_synced_at       DateTime   @default(now())
+is_deleted           Boolean    @default(false)
 
-  // Disbursement tracking
-  disbursementDate  DateTime?
-  isDisbursed       Boolean   @default(false)
-  disbursedBy       String?
-  
-  // External Link
-  externalRefNo     String?
-  lastSyncedAt      DateTime?
-  lastSyncStatus    String?
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime       @default(now())
-  updatedBy         String?
-  updatedAt         DateTime       @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean        @default(false)
+// Constraints
+@@id([assignment_id, bus_trip_id])
 
-  @@index([employeeId, status])
-  @@index([isDeleted])
+// Relations
+revenue_records      revenue[]
+employees            operational_trip_employee[]
+expenses             expense[]
+
+// Indexes
+@@index([date_assigned])
+@@index([bus_route])
+@@index([assignment_type])
+@@index([is_deleted])
+@@index([last_synced_at])
 }
 
-model Loan {
-  id                    Int                     @id @default(autoincrement())
-  loanType              LoanType
-  entityId              Int                     // EmployeeID or ExternalEntityID
-  entityName            String?                 // For external loans
-  principalAmount       Decimal                 @db.Decimal(12, 2)
-  interestRate          Decimal?                @db.Decimal(5, 2)
-  totalPayable          Decimal?                @db.Decimal(12, 2)
-  remainingBalance      Decimal                 @db.Decimal(12, 2)
-  dueDate               DateTime?
-  installmentFrequency  InstallmentFrequency?
-  installmentAmount     Decimal?                @db.Decimal(12, 2)
-  status                ApprovalStatus          @default(PENDING)
-  remarks               String?
-  
-  // Trip Deficit Auto-Loan Fields (Module 3.3)
-  tripDeficitRefNo      String?                 // Links to trip from Operations
-  driverShare           Decimal?                @db.Decimal(12, 2) // 50% of deficit
-  conductorShare        Decimal?                @db.Decimal(12, 2) // 50% of deficit
-  driverId              Int?
-  conductorId           Int?
+model operational_trip_employee {
+// Fields
+id                 Int       @id @default(autoincrement())
+assignment_id      String
+bus_trip_id        String
+employee_number    String
+first_name         String?
+middle_name        String?
+last_name          String?
+suffix             String?
+phone_number       String?
+position_id        String?
+position_name      String?
+department_id      String?
+department_name    String?
+last_synced_at     DateTime  @default(now())
 
-  // Conversion tracking
-  isConvertedToEmployeeLoan Boolean @default(false)
-  convertedLoanId           Int?
-  convertedAt               DateTime?
-  
-  // External Link
-  externalRefNo         String?
-  lastSyncedAt          DateTime?
-  lastSyncStatus        String?
-  
-  // Audit Trail Fields
-  createdBy             String?
-  createdAt             DateTime                @default(now())
-  updatedBy             String?
-  updatedAt             DateTime                @updatedAt
-  approvedBy            String?
-  approvedAt            DateTime?
-  rejectedBy            String?
-  rejectedAt            DateTime?
-  deletedBy             String?
-  deletedAt             DateTime?
-  isDeleted             Boolean                 @default(false)
-  
-  // Relations
-  repayments            LoanRepayment[]
+// Relations
+trip               operational_trip @relation(fields: [assignment_id, bus_trip_id], references: [assignment_id, bus_trip_id], onDelete: Cascade)
+employee           employees_cache @relation(fields: [employee_number], references: [employee_number], onDelete: Cascade)
 
-  @@index([loanType, entityId])
-  @@index([status])
-  @@index([isDeleted])
-  @@index([tripDeficitRefNo])
+// Indexes
+@@index([employee_number])
+@@index([assignment_id, bus_trip_id])
+@@index([position_name])
+@@index([department_name])
 }
 
-model LoanRepayment {
-  id                Int             @id @default(autoincrement())
-  loanId            Int
-  installmentNumber Int             // 1, 2, 3, etc.
-  amountDue         Decimal         @db.Decimal(12, 2)
-  amountPaid        Decimal?        @db.Decimal(12, 2)
-  dueDate           DateTime
-  paidDate          DateTime?
-  status            RepaymentStatus @default(PENDING)
-  paymentMethod     String?         // "cash" | "deduction" | "check"
-  remarks           String?
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime        @default(now())
-  updatedBy         String?
-  updatedAt         DateTime        @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean         @default(false)
-  
-  // Relation
-  loan              Loan            @relation(fields: [loanId], references: [id])
+model rental_trip {
+// Fields
+assignment_id        String    @id
+bus_plate_number     String?
+bus_type             String?
+body_builder         String?
+body_number          String?
+rental_status        String?
+rental_destination   String?
+rental_start_date    DateTime?
+rental_end_date      DateTime?
+total_rental_amount  Decimal?  @db.Decimal(14, 2)
+down_payment_amount  Decimal?  @db.Decimal(14, 2)
+balance_amount       Decimal?  @db.Decimal(14, 2)
+down_payment_date    DateTime?
+full_payment_date    DateTime?
+cancelled_at         DateTime?
+cancellation_reason  String?
+rental_fuel_expense  Decimal?  @db.Decimal(14, 2)
+last_synced_at       DateTime  @default(now())
+is_deleted           Boolean   @default(false)
 
-  @@index([loanId])
-  @@index([status, dueDate])
-  @@index([isDeleted])
+// Relations
+revenue_records      revenue[]
+employees            rental_trip_employee[]
+expenses             expense[]
+
+// Indexes
+@@index([rental_status])
+@@index([rental_start_date])
+@@index([rental_end_date])
+@@index([is_deleted])
+@@index([last_synced_at])
 }
 
-// ============================================================================
-// 4. PURCHASE PROCESS (ENHANCED FOR INVENTORY INTEGRATION)
-// ============================================================================
+model rental_trip_employee {
+// Fields
+id                 Int       @id @default(autoincrement())
+assignment_id      String
+employee_number    String
+first_name         String?
+middle_name        String?
+last_name          String?
+suffix             String?
+phone_number       String?
+position_id        String?
+position_name      String?
+department_id      String?
+department_name    String?
+last_synced_at     DateTime  @default(now())
 
-model PurchaseRequest {
-  id                Int                    @id @default(autoincrement())
-  refNo             String                 @unique
-  
-  // Request Details
-  department        String                 // "inventory" (in this flow)
-  estimatedAmount   Decimal                @db.Decimal(12, 2) // Sum of all items' estimated costs
-  requestType       RequestType            // Priority-based request type
-  priority          Int                    @default(1) // 1-5 based on RequestType
-  justification     String?                @db.Text
-  status            PurchaseRequestStatus  @default(DRAFT)
-  
-  // Metadata (from Inventory)
-  createdByInventory Boolean               @default(true) // Always true for this flow
-  inventoryMetadata  String?               @db.Text // JSON: low stock triggers, project links, etc.
-  
-  // Budget Integration (links to Budget Request microservice if needed)
-  requiresBudgetApproval Boolean           @default(false) // True if exceeds allocated budget
-  linkedBudgetRequestId  Int?              // Links to Repo 4 BudgetRequest.id
-  budgetRequestCode      String?           // For reference
-  
-  // External Sync (from Inventory microservice)
-  externalRefNo     String?                // Inventory's PR reference
-  lastSyncedAt      DateTime?
-  lastSyncStatus    String?
-  
-  // Audit Trail Fields (populated by Audit Logs middleware)
-  createdBy         String?
-  createdAt         DateTime               @default(now())
-  updatedBy         String?
-  updatedAt         DateTime               @updatedAt
-  approvedBy        String?                // Finance Admin who approved
-  approvedAt        DateTime?
-  rejectedBy        String?                // Finance Admin who rejected
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean                @default(false)
-  
-  // Relations
-  items             PurchaseRequestItem[]  // Multiple items per PR
-  purchaseOrders    PurchaseOrder[]        // Can generate multiple POs if multi-supplier
+// Relations
+rental_trip        rental_trip @relation(fields: [assignment_id], references: [assignment_id], onDelete: Cascade)
+employee           employees_cache @relation(fields: [employee_number], references: [employee_number], onDelete: Cascade)
 
-  @@index([status, department])
-  @@index([requestType, priority])
-  @@index([isDeleted])
-  @@index([externalRefNo])
-  @@index([linkedBudgetRequestId])
-  @@index([createdAt])
+// Indexes
+@@index([employee_number])
+@@index([assignment_id])
+@@index([position_name])
+@@index([department_name])
 }
 
-model PurchaseRequestItem {
-  id                    Int                    @id @default(autoincrement())
-  purchaseRequestId     Int
-  
-  // Item Details (from Inventory)
-  itemCode              String?                // Inventory item code
-  itemName              String
-  category              String?                // From Inventory categorization
-  quantity              Int                    // Requested quantity
-  unitMeasure           String                 // "pcs", "liters", "kg", etc.
-  estimatedUnitCost     Decimal                @db.Decimal(12, 2)
-  estimatedAmount       Decimal                @db.Decimal(12, 2) // quantity * unitCost
-  
-  // Supplier Information (one item = one supplier)
-  supplierId            String?
-  supplierName          String?
-  supplierItemCode      String?                // Supplier's product code
-  
-  // Finance Approval Details (can be modified by Finance Admin)
-  itemStatus            ItemApprovalStatus     @default(PENDING)
-  approvedQuantity      Int?                   // Can be less than requested quantity
-  approvedUnitCost      Decimal?               @db.Decimal(12, 2) // Can adjust price
-  approvedAmount        Decimal?               @db.Decimal(12, 2)
-  rejectionReason       String?                @db.Text
-  modificationNotes     String?                @db.Text // Why quantity/cost was changed
-  
-  // Supporting Documents
-  attachmentUrls        String?                @db.Text // JSON array of file URLs
-  
-  // External Link
-  externalItemId        Int?                   // Inventory's item ID
-  lastSyncedAt          DateTime?
-  
-  // Audit Trail
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  approvedBy            String?
-  approvedAt            DateTime?
-  isDeleted             Boolean                @default(false)
-  
-  // Relations
-  purchaseRequest       PurchaseRequest        @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
-  purchaseOrderItems    PurchaseOrderItem[]    // Links to PO items when approved
+model payroll_cache {
+// Fields
+id                       Int       @id @default(autoincrement())
+payroll_period_start     DateTime
+payroll_period_end       DateTime
+employee_number          String
+employee_position_name   String?
+employee_department_name String?
+basic_rate               Decimal?  @db.Decimal(12, 2)
+rate_type                rate_type @default(MONTHLY)
+last_synced_at           DateTime  @default(now())
+is_deleted               Boolean   @default(false)
 
-  @@index([purchaseRequestId])
-  @@index([itemStatus])
-  @@index([supplierId])
-  @@index([isDeleted])
+// Constraints
+@@unique([employee_number, payroll_period_start, payroll_period_end])
+
+// Relations
+attendances              payroll_attendance_cache[]
+benefits                 payroll_benefit_cache[]
+deductions               payroll_deduction_cache[]
+employee                 employees_cache @relation(fields: [employee_number], references: [employee_number], onDelete: Cascade)
+
+// Indexes
+@@index([employee_number])
+@@index([payroll_period_start])
+@@index([payroll_period_end])
+@@index([is_deleted])
+@@index([payroll_period_start, payroll_period_end])
 }
 
-model PurchaseOrder {
-  id                Int                  @id @default(autoincrement())
-  refNo             String               @unique
-  purchaseRequestId Int
-  
-  // Order Details
-  status            PurchaseOrderStatus  @default(PENDING)
-  totalAmount       Decimal              @db.Decimal(12, 2) // Sum of approved items
-  
-  // Supplier Information (one PO per supplier)
-  supplierId        String
-  supplierName      String
-  supplierContact   String?
-  supplierEmail     String?
-  
-  // Delivery Details
-  expectedDeliveryDate DateTime?
-  actualDeliveryDate   DateTime?
-  deliveryAddress      String?
-  
-  // Documents
-  invoiceUrl        String?              // Supplier invoice
-  deliveryReceiptUrl String?             // Signed by Inventory upon receipt
-  
-  // Adjustment Tracking (if Finance modified PR)
-  isAdjusted        Boolean              @default(false) // True if PENDING_ADJUSTED
-  adjustmentSummary String?              @db.Text // What was changed
-  
-  // Completion Tracking
-  totalItemsOrdered     Int              @default(0) // Count of line items
-  totalItemsReceived    Int              @default(0) // Successfully received
-  totalItemsDamaged     Int              @default(0) // Damaged/defective
-  totalItemsMissing     Int              @default(0) // Missing from delivery
-  
-  remarks           String?              @db.Text
-  
-  // External Sync (to Inventory)
-  externalRefNo     String?
-  lastSyncedAt      DateTime?
-  lastSyncStatus    String?
-  
-  // Audit Trail Fields (populated by Audit Logs middleware)
-  createdBy         String?
-  createdAt         DateTime             @default(now())
-  updatedBy         String?
-  updatedAt         DateTime             @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  closedBy          String?
-  closedAt          DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean              @default(false)
-  
-  // Relations
-  purchaseRequest   PurchaseRequest      @relation(fields: [purchaseRequestId], references: [id])
-  items             PurchaseOrderItem[]  // Line items in this PO
-  refundReplacement RefundReplacement?
+model payroll_attendance_cache {
+// Fields
+id             Int       @id @default(autoincrement())
+payroll_id     Int
+date           DateTime
+status         String    // Present, Absent, Leave
+last_synced_at DateTime  @default(now())
 
-  @@index([purchaseRequestId])
-  @@index([status])
-  @@index([supplierId])
-  @@index([isDeleted])
-  @@index([actualDeliveryDate])
+// Relations
+payroll        payroll_cache @relation(fields: [payroll_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([payroll_id])
+@@index([date])
+@@index([status])
 }
 
-model PurchaseOrderItem {
-  id                    Int                    @id @default(autoincrement())
-  purchaseOrderId       Int
-  purchaseRequestItemId Int                    // Links back to PR item
-  
-  // Item Details (copied from approved PR item)
-  itemCode              String?
-  itemName              String
-  category              String?
-  orderedQuantity       Int                    // From approvedQuantity in PR
-  unitMeasure           String
-  unitCost              Decimal                @db.Decimal(12, 2)
-  lineTotal             Decimal                @db.Decimal(12, 2)
-  
-  // Receipt Tracking (filled by Inventory upon physical receipt)
-  receivedQuantity      Int?                   @default(0)
-  damagedQuantity       Int?                   @default(0)
-  missingQuantity       Int?                   @default(0)
-  acceptedQuantity      Int?                   @default(0) // receivedQuantity - damagedQuantity
-  
-  // Item Status
-  itemStatus            String                 @default("pending") // "pending" | "received" | "partial" | "damaged" | "missing"
-  issueDescription      String?                @db.Text // Details of damage/missing items
-  
-  // Quality Check (by Inventory)
-  qualityCheckPassed    Boolean?
-  qualityCheckNotes     String?                @db.Text
-  qualityCheckedBy      String?
-  qualityCheckedAt      DateTime?
-  
-  // Refund/Replacement Tracking
-  needsRefund           Boolean                @default(false)
-  needsReplacement      Boolean                @default(false)
-  refundAmount          Decimal?               @db.Decimal(12, 2)
-  
-  // External Link
-  externalItemId        Int?                   // Inventory's item ID
-  lastSyncedAt          DateTime?
-  
-  // Audit Trail
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  isDeleted             Boolean                @default(false)
-  
-  // Relations
-  purchaseOrder         PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  purchaseRequestItem   PurchaseRequestItem    @relation(fields: [purchaseRequestItemId], references: [id])
-  refundReplacementItems RefundReplacementItem[]
+model payroll_benefit_type_cache {
+// Fields
+id             String    @id
+name           String
+last_synced_at DateTime  @default(now())
 
-  @@index([purchaseOrderId])
-  @@index([purchaseRequestItemId])
-  @@index([itemStatus])
-  @@index([needsRefund, needsReplacement])
+// Relations
+benefits       payroll_benefit_cache[]
+
+// Indexes
+@@index([name])
 }
 
-model RefundReplacement {
-  id                  Int                       @id @default(autoincrement())
-  refNo               String                    @unique @default(cuid())
-  purchaseOrderId     Int                       @unique
-  
-  // Request Details
-  status              RefundReplacementStatus   @default(PENDING)
-  issueType           String                    // "missing" | "damaged" | "defective" | "wrong_item" | "price_mismatch"
-  totalAffectedItems  Int                       @default(0) // Count of items with issues
-  
-  // Financial Impact
-  totalRefundAmount   Decimal?                  @db.Decimal(12, 2) // Sum of all refunds
-  totalReplacementCost Decimal?                 @db.Decimal(12, 2) // Estimated replacement cost
-  
-  // Resolution Tracking
-  resolutionType      String?                   // "refund" | "replacement" | "partial_refund" | "credit_note" | "accept_loss"
-  replacementAttempts Int                       @default(0)
-  maxReplacementAttempts Int                    @default(3) // Configurable
-  
-  // Supplier Communication
-  supplierNotifiedAt  DateTime?
-  supplierResponseAt  DateTime?
-  supplierResolution  String?                   @db.Text
-  
-  // Timeline
-  reportedDate        DateTime                  @default(now())
-  resolutionDate      DateTime?
-  resolutionDeadline  DateTime?                 // SLA deadline
-  
-  remarks             String?                   @db.Text
-  
-  // External Sync
-  externalRefNo       String?
-  lastSyncedAt        DateTime?
-  lastSyncStatus      String?
-  
-  // Audit Trail Fields (populated by Audit Logs middleware)
-  createdBy           String?
-  createdAt           DateTime                  @default(now())
-  updatedBy           String?
-  updatedAt           DateTime                  @updatedAt
-  approvedBy          String?                   // Finance Admin decision
-  approvedAt          DateTime?
-  rejectedBy          String?
-  rejectedAt          DateTime?
-  closedBy            String?
-  closedAt            DateTime?
-  deletedBy           String?
-  deletedAt           DateTime?
-  isDeleted           Boolean                   @default(false)
-  
-  // Relations
-  purchaseOrder       PurchaseOrder             @relation(fields: [purchaseOrderId], references: [id])
-  items               RefundReplacementItem[]   // Item-level refund/replacement tracking
+model payroll_benefit_cache {
+// Fields
+id              Int       @id @default(autoincrement())
+payroll_id      Int
+benefit_type_id String
+value           Decimal?  @db.Decimal(12, 2)
+frequency       String?   // Once, Monthly, Weekly, Daily, Yearly
+effective_date  DateTime?
+end_date        DateTime?
+is_active       Boolean?  @default(false)
+last_synced_at  DateTime  @default(now())
 
-  @@index([status])
-  @@index([issueType])
-  @@index([isDeleted])
-  @@index([resolutionDeadline])
-  @@index([createdAt])
+// Relations
+payroll         payroll_cache @relation(fields: [payroll_id], references: [id], onDelete: Cascade)
+benefit_type    payroll_benefit_type_cache @relation(fields: [benefit_type_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([payroll_id])
+@@index([benefit_type_id])
+@@index([is_active])
 }
 
-model RefundReplacementItem {
-  id                    Int                    @id @default(autoincrement())
-  refundReplacementId   Int
-  purchaseOrderItemId   Int
-  
-  // Item Details
-  itemName              String
-  affectedQuantity      Int                    // How many units damaged/missing
-  unitCost              Decimal                @db.Decimal(12, 2)
-  
-  // Issue Details
-  issueType             String                 // "missing" | "damaged" | "defective" | "wrong_item"
-  issueDescription      String?                @db.Text
-  photosUrls            String?                @db.Text // JSON array of damage photos
-  
-  // Resolution for this item
-  itemResolution        String?                // "refund" | "replace" | "partial_refund" | "waive"
-  refundAmount          Decimal?               @db.Decimal(12, 2)
-  replacementQuantity   Int?                   // How many to replace
-  replacementReceived   Boolean                @default(false)
-  replacementReceivedDate DateTime?
-  
-  // Status
-  itemStatus            String                 @default("pending") // "pending" | "approved" | "refunded" | "replaced" | "rejected"
-  
-  // Audit Trail
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  resolvedAt            DateTime?
-  isDeleted             Boolean                @default(false)
-  
-  // Relations
-  refundReplacement     RefundReplacement      @relation(fields: [refundReplacementId], references: [id], onDelete: Cascade)
-  purchaseOrderItem     PurchaseOrderItem      @relation(fields: [purchaseOrderItemId], references: [id])
+model payroll_deduction_type_cache {
+// Fields
+id             String    @id
+name           String
+last_synced_at DateTime  @default(now())
 
-  @@index([refundReplacementId])
-  @@index([purchaseOrderItemId])
-  @@index([itemStatus])
+// Relations
+deductions     payroll_deduction_cache[]
+
+// Indexes
+@@index([name])
+}
+
+model payroll_deduction_cache {
+// Fields
+id                Int       @id @default(autoincrement())
+payroll_id        Int
+deduction_type_id String
+value             Decimal?  @db.Decimal(12, 2)
+frequency         String?
+effective_date    DateTime?
+end_date          DateTime?
+is_active         Boolean?  @default(false)
+last_synced_at    DateTime  @default(now())
+
+// Relations
+payroll           payroll_cache @relation(fields: [payroll_id], references: [id], onDelete: Cascade)
+deduction_type    payroll_deduction_type_cache @relation(fields: [deduction_type_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([payroll_id])
+@@index([deduction_type_id])
+@@index([is_active])
 }
 
 // ============================================================================
-// 5. ACCOUNTS (Receivables / Payables)
+// CHART OF ACCOUNTS & JOURNAL ENTRY SYSTEM
 // ============================================================================
+model account_type {
+// Fields
+id            Int       @id @default(autoincrement())
+code          String    @unique
+name          String    @unique
+description   String?
 
-model AccountReceivable {
-  id                Int        @id @default(autoincrement())
-  referenceCode     String     @unique
-  entityName        String
-  entityType        String?    // "customer" | "employee" | "other"
-  description       String?
-  amountDue         Decimal    @db.Decimal(12, 2)
-  amountPaid        Decimal?   @default(0) @db.Decimal(12, 2)
-  remainingBalance  Decimal    @db.Decimal(12, 2)
-  dueDate           DateTime
-  frequency         InstallmentFrequency?
-  interestRate      Decimal?   @db.Decimal(5, 2)
-  isSettled         Boolean    @default(false)
+// Relations
+chart_of_accounts chart_of_account[]
 
-  // More granular status
-  collectionStatus String @default("pending") // "pending" | "partial" | "paid" | "overdue" | "bad_debt"
-  
-  // Payment reminders
-  lastReminderSent DateTime?
-  reminderCount    Int @default(0)
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime   @default(now())
-  updatedBy         String?
-  updatedAt         DateTime   @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean    @default(false)
+// Indexes
+@@index([code])
+@@index([name])
+@@index([is_deleted])
+@@index([created_at])
 
-  @@index([dueDate, isSettled])
-  @@index([isDeleted])
-  @@index([entityName])
+// Audit Trail
+created_by    String?
+created_at    DateTime  @default(now())
+updated_by    String?
+updated_at    DateTime  @updatedAt
+deleted_by    String?
+deleted_at    DateTime?
+is_deleted    Boolean   @default(false)
 }
 
-model AccountPayable {
-  id                Int        @id @default(autoincrement())
-  referenceCode     String     @unique
-  entityName        String
-  entityType        String?    // "supplier" | "vendor" | "contractor" | "other"
-  description       String?
-  amountDue         Decimal    @db.Decimal(12, 2)
-  amountPaid        Decimal?   @default(0) @db.Decimal(12, 2)
-  remainingBalance  Decimal    @db.Decimal(12, 2)
-  dueDate           DateTime
-  frequency         InstallmentFrequency?
-  interestRate      Decimal?   @db.Decimal(5, 2)
-  isSettled         Boolean    @default(false)
+model chart_of_account {
+// Fields
+id              Int            @id @default(autoincrement())
+account_code    String         @unique
+account_name    String
+account_type_id Int
+normal_balance  normal_balance
+description     String?        @db.Text
 
-  // More granular status
-  paymentStatus    String @default("pending") // "pending" | "partial" | "paid" | "overdue"
-  
-  // Payment schedule
-  nextPaymentDue   DateTime?
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime   @default(now())
-  updatedBy         String?
-  updatedAt         DateTime   @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean    @default(false)
+// Constraints
+@@unique([account_type_id, account_name])
 
-  @@index([dueDate, isSettled])
-  @@index([isDeleted])
-  @@index([entityName])
+// Relations
+account_type    account_type   @relation(fields: [account_type_id], references: [id])
+journal_lines   journal_entry_line[]
+
+// Indexes
+@@index([account_type_id])
+@@index([account_code])
+@@index([account_name])
+@@index([normal_balance])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by      String?
+created_at      DateTime       @default(now())
+updated_by      String?
+updated_at      DateTime       @updatedAt
+deleted_by      String?
+deleted_at      DateTime?
+is_deleted      Boolean        @default(false)
 }
 
-// ============================================================================
-// 6. BUDGET MANAGEMENT
-// ============================================================================
+model journal_entry {
+// Fields
+id               Int            @id @default(autoincrement())
+code             String         @unique
+date             DateTime
+reference        String?
+description      String?
+total_debit      Decimal        @db.Decimal(12, 2) @default(0)
+total_credit     Decimal        @db.Decimal(12, 2) @default(0)
+status           journal_status @default(PENDING)
+approved_by      String?
+approved_at      DateTime?
+rejected_by      String?
+rejected_at      DateTime?
+rejection_reason String?
+reversal_of_id   Int?
 
-model Budget {
-  id                Int            @id @default(autoincrement())
-  department        String         // "finance" | "hr" | "inventory" | "operations"
-  fiscalYear        Int
-  fiscalPeriod      String         // "Q1" | "Q2" | "Q3" | "Q4" | "2025-01"
-  allocatedAmount   Decimal        @db.Decimal(12, 2)
-  usedAmount        Decimal        @default(0) @db.Decimal(12, 2)
-  reservedAmount    Decimal        @default(0) @db.Decimal(12, 2)
-  remainingAmount   Decimal        @db.Decimal(12, 2)
-  periodStart       DateTime
-  periodEnd         DateTime
-  status            ApprovalStatus @default(PENDING)
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime       @default(now())
-  updatedBy         String?
-  updatedAt         DateTime       @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean        @default(false)
+// Relations
+reversal_of      journal_entry? @relation("ReversalRelation", fields: [reversal_of_id], references: [id], onDelete: SetNull)
+reversals        journal_entry[] @relation("ReversalRelation")
+lines            journal_entry_line[]
+revenues         revenue[]
+expenses         expense[]
+revenue_installment_payments revenue_installment_payment[]
+expense_installment_payments expense_installment_payment[]
+payrolls         payroll[]
+expense_adjustments       expense_adjustment[] 
 
-  @@index([department, periodStart])
-  @@index([status])
-  @@index([isDeleted])
-  @@unique([department, fiscalYear, fiscalPeriod])
+// Indexes
+@@index([code])
+@@index([date])
+@@index([status])
+@@index([approved_at])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by       String?
+created_at       DateTime       @default(now())
+updated_by       String?
+updated_at       DateTime       @updatedAt
+deleted_by       String?
+deleted_at       DateTime?
+is_deleted       Boolean        @default(false)
 }
 
-// NOTE: BudgetRequest model moved to Repo 4 (Budget Request Microservice)
-// Main Finance backend reads BudgetRequest data via REST API from Repo 4
+model journal_entry_line {
+// Fields
+id               Int      @id @default(autoincrement())
+journal_entry_id Int
+account_id       Int
+debit            Decimal  @db.Decimal(12, 2) @default(0)
+credit           Decimal  @db.Decimal(12, 2) @default(0)
+description      String?
+line_number      Int?
 
-// ============================================================================
-// 7. JOURNAL ENTRIES & ASSETS
-// ============================================================================
+// Relations
+journal_entry    journal_entry @relation(fields: [journal_entry_id], references: [id], onDelete: Cascade)
+account          chart_of_account @relation(fields: [account_id], references: [id])
 
-model JournalEntry {
-  id                Int        @id @default(autoincrement())
-  referenceNo       String     @unique
-  description       String
-  debitAmount       Decimal    @db.Decimal(12, 2)
-  creditAmount      Decimal    @db.Decimal(12, 2)
-  linkedEntityType  String?    // "Revenue" | "Expense" | "Loan" | "Asset"
-  linkedEntityId    Int?
-  accountCode       String?    // Optional chart of accounts reference
-  entryDate         DateTime
+// Indexes
+@@index([journal_entry_id])
+@@index([account_id])
+@@index([is_deleted])
+@@index([created_at])
 
-  // Verification flag
-  isVerified       Boolean    @default(false)
-  verifiedBy       String?
-  verifiedAt       DateTime?
-  
-  // Auto-generated flag
-  isAutoGenerated  Boolean    @default(false)
-  
-  // Audit Trail Fields
-  createdBy         String?
-  createdAt         DateTime   @default(now())
-  updatedBy         String?
-  updatedAt         DateTime   @updatedAt
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedBy        String?
-  rejectedAt        DateTime?
-  deletedBy         String?
-  deletedAt         DateTime?
-  isDeleted         Boolean    @default(false)
-
-  @@index([entryDate])
-  @@index([linkedEntityType, linkedEntityId])
-  @@index([isDeleted])
-}
-
-model Asset {
-  id                      Int        @id @default(autoincrement())
-  assetCode               String     @unique
-  assetName               String
-  category                String     // "vehicle" | "equipment" | "property" | "furniture" | "other"
-  acquisitionCost         Decimal    @db.Decimal(12, 2)
-  acquisitionDate         DateTime
-  currentValue            Decimal?   @db.Decimal(12, 2)
-  depreciationRate        Decimal?   @db.Decimal(5, 2)
-  accumulatedDepreciation Decimal?   @default(0) @db.Decimal(12, 2)
-  salvageValue            Decimal?   @db.Decimal(12, 2)
-  status                  String     @default("active") // "active" | "disposed" | "sold" | "retired"
-  disposalDate            DateTime?
-  disposalAmount          Decimal?   @db.Decimal(12, 2)
-  location                String?
-  serialNumber            String?
-  remarks                 String?
-  
-  // Audit Trail Fields
-  createdBy               String?
-  createdAt               DateTime   @default(now())
-  updatedBy               String?
-updatedAt               DateTime   @updatedAt
-  approvedBy              String?
-  approvedAt              DateTime?
-  rejectedBy              String?
-  rejectedAt              DateTime?
-  deletedBy               String?
-  deletedAt               DateTime?
-  isDeleted               Boolean    @default(false)
-
-  @@index([status])
-  @@index([category])
-  @@index([isDeleted])
+// Audit Trail
+created_by       String?
+created_at       DateTime @default(now())
+updated_by       String?
+updated_at       DateTime @updatedAt
+deleted_by       String?
+deleted_at       DateTime?
+is_deleted       Boolean  @default(false)
 }
 
 // ============================================================================
-// 8. LOCAL CACHE MODELS (External Data Snapshots) - ALIGNED WITH EXTERNAL APIs
+// REVENUE MANAGEMENT
 // ============================================================================
+model revenue_type {
+// Fields
+id          Int      @id @default(autoincrement())
+code        String   @unique
+name        String   @unique
+description String?
 
-// ============================================================================
-// HR EMPLOYEE CACHE - Aligned with /api/clean/hr_employees
-// ============================================================================
-model CachedEmployee {
-  id                Int        @id @default(autoincrement())
-  
-  // Primary employee data from HR
-  employeeNumber    String     @unique // "EMP-0001"
-  firstName         String
-  middleName        String?
-  lastName          String
-  suffix            String?
-  phone             String?
-  position          String     // "Driver", "Conductor", "Accountant", etc.
-  departmentId      Int?
-  department        String     // "Operations", "Finance", "Inventory"
-  
-  // Sync metadata
-  lastSyncedAt      DateTime
-  sourceSystem      String     @default("HR")
-  sourceEndpoint    String     @default("/api/clean/hr_employees")
-  isStale           Boolean    @default(false)
-  
-  @@index([employeeNumber])
-  @@index([department])
-  @@index([position])
-  @@index([lastSyncedAt])
-  @@index([isStale])
+// Relations
+revenues    revenue[]
+
+// Indexes
+@@index([code])
+@@index([name])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by  String?
+created_at  DateTime @default(now())
+updated_by  String?
+updated_at  DateTime @updatedAt
+deleted_by  String?
+deleted_at  DateTime?
+is_deleted  Boolean  @default(false)
+}
+
+model revenue {
+// Fields
+id                              Int                     @id @default(autoincrement())
+code                            String                  @unique
+revenue_type_id                 Int
+amount                          Decimal                 @db.Decimal(12, 2)
+date_recorded                   DateTime?
+date_expected                   DateTime?
+description                     String?
+status                          revenue_status          @default(RECORDED)
+approval_status                 revenue_approval_status @default(PENDING)
+operational_trip_assignment_id  String?
+operational_trip_bus_trip_id    String?
+rental_trip_assignment_id       String?
+receivable_id                   Int?
+payment_method                  String?
+payment_reference               String?
+journal_entry_id                Int?                    @unique
+disposal_ref            String?  // Inventory disposal_code
+
+// Relations
+revenue_type                    revenue_type @relation(fields: [revenue_type_id], references: [id])
+operational_trip                operational_trip? @relation(fields: [operational_trip_assignment_id, operational_trip_bus_trip_id], references: [assignment_id, bus_trip_id], onDelete: SetNull)
+rental_trip                     rental_trip? @relation(fields: [rental_trip_assignment_id], references: [assignment_id])
+receivable                      receivable? @relation(fields: [receivable_id], references: [id])
+journal_entry                   journal_entry? @relation(fields: [journal_entry_id], references: [id])
+installment_payments            revenue_installment_payment[]
+disposal_revenues       disposal_revenue[] 
+
+// Indexes
+@@index([code])
+@@index([revenue_type_id])
+@@index([date_recorded])
+@@index([date_expected])
+@@index([status])
+@@index([approval_status])
+@@index([approval_status, operational_trip_assignment_id, operational_trip_bus_trip_id])
+@@index([payment_method])
+@@index([receivable_id])
+@@index([rental_trip_assignment_id])
+@@index([disposal_ref])
+@@index([journal_entry_id])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by                      String?
+created_at                      DateTime @default(now())
+updated_by                      String?
+updated_at                      DateTime @updatedAt
+deleted_by                      String?
+deleted_at                      DateTime?
+is_deleted                      Boolean  @default(false)
+}
+
+model receivable {
+// Fields
+id                     Int               @id @default(autoincrement())
+code                   String            @unique
+debtor_name            String
+description            String?
+total_amount           Decimal           @db.Decimal(12, 2)
+due_date               DateTime?
+status                 receivable_status @default(PENDING)
+installment_plan       String?
+expected_installment   Decimal?          @db.Decimal(12, 2)
+paid_amount            Decimal           @db.Decimal(12, 2) @default(0)
+balance                Decimal           @db.Decimal(12, 2) @default(0)
+last_payment_date      DateTime?
+last_payment_amount    Decimal?          @db.Decimal(12, 2)
+interest_rate          Decimal?          @db.Decimal(5, 2)
+accrued_interest       Decimal?          @db.Decimal(12, 2) @default(0)
+last_interest_applied  DateTime?
+
+// Relations
+revenue_records        revenue[]
+installment_schedule   revenue_installment_schedule[]
+
+// Indexes
+@@index([code])
+@@index([debtor_name])
+@@index([due_date])
+@@index([status])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by             String?
+created_at             DateTime @default(now())
+updated_by             String?
+updated_at             DateTime @updatedAt
+deleted_by             String?
+deleted_at             DateTime?
+is_deleted             Boolean  @default(false)
+}
+
+model revenue_installment_schedule {
+// Fields
+id                  Int                @id @default(autoincrement())
+receivable_id       Int
+installment_number  Int
+due_date            DateTime
+amount_due          Decimal            @db.Decimal(12, 2)
+amount_paid         Decimal            @db.Decimal(12, 2) @default(0)
+balance             Decimal            @db.Decimal(12, 2)
+status              installment_status @default(PENDING)
+
+// Constraints
+@@unique([receivable_id, installment_number])
+
+// Relations
+receivable          receivable @relation(fields: [receivable_id], references: [id], onDelete: Cascade)
+payments            revenue_installment_payment[]
+
+// Indexes
+@@index([receivable_id])
+@@index([due_date])
+@@index([status])
+@@index([created_at])
+
+// Audit Trail
+created_at          DateTime           @default(now())
+updated_at          DateTime           @updatedAt
+}
+
+model revenue_installment_payment {
+// Fields
+id                Int      @id @default(autoincrement())
+installment_id    Int
+revenue_id        Int
+amount_paid       Decimal  @db.Decimal(12, 2)
+payment_date      DateTime @default(now())
+payment_method    String?
+payment_reference String?
+journal_entry_id  Int?
+
+// Relations
+installment       revenue_installment_schedule @relation(fields: [installment_id], references: [id], onDelete: Cascade)
+revenue           revenue @relation(fields: [revenue_id], references: [id])
+journal_entry     journal_entry? @relation(fields: [journal_entry_id], references: [id])
+
+// Indexes
+@@index([installment_id])
+@@index([revenue_id])
+@@index([payment_date])
+@@index([installment_id, payment_date])
+
+// Audit Trail
+created_at        DateTime @default(now())
 }
 
 // ============================================================================
-// HR PAYROLL CACHE - Aligned with /api/clean/hr_payroll
+// EXPENSE MANAGEMENT
 // ============================================================================
-model CachedPayrollData {
-  id                Int        @id @default(autoincrement())
-  
-  // Employee Identification
-  employeeNumber    String     // "EMP-0001"
-  firstName         String
-  middleName        String?
-  lastName          String
-  suffix            String?
-  
-  // Employment Status
-  employeeStatus    String     // "active" | "inactive"
-  hiredate          DateTime
-  terminationDate   DateTime?
-  
-  // Compensation
-  basicRate         Decimal    @db.Decimal(12, 2) // Daily rate
-  position          String     // From nested position.positionName
-  department        String     // From nested position.department.departmentName
-  
-  // Attendance Data (JSON array)
-  attendances       String?    @db.Text // JSON: [{ date, status }]
-  
-  // Benefits Data (JSON array)
-  benefits          String?    @db.Text // JSON: [{ value, frequency, effectiveDate, endDate, isActive, benefitType: { name } }]
-  
-  // Deductions Data (JSON array)
-  deductions        String?    @db.Text // JSON: [{ type, value, frequency, effectiveDate, endDate, isActive, deductionType: { name } }]
-  
-  // Calculated Fields (computed from benefits/deductions arrays)
-  totalMonthlyBenefits   Decimal? @db.Decimal(12, 2)
-  totalMonthlyDeductions Decimal? @db.Decimal(12, 2)
-  netMonthlyRate         Decimal? @db.Decimal(12, 2)
-  
-  // Sync metadata
-  lastSyncedAt      DateTime
-  sourceSystem      String     @default("HR")
-  sourceEndpoint    String     @default("/api/clean/hr_payroll")
-  isStale           Boolean    @default(false)
-  
-  @@index([employeeNumber])
-  @@index([employeeStatus])
-  @@index([department])
-  @@index([position])
-  @@index([lastSyncedAt])
-  @@index([isStale])
+model expense_type {
+// Fields
+id          Int      @id @default(autoincrement())
+code        String   @unique
+name        String   @unique
+description String?
+
+// Relations
+expenses    expense[]
+
+// Indexes
+@@index([code])
+@@index([name])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by  String?
+created_at  DateTime @default(now())
+updated_by  String?
+updated_at  DateTime @updatedAt
+deleted_by  String?
+deleted_at  DateTime?
+is_deleted  Boolean  @default(false)
+}
+
+model expense {
+// Fields
+id                              Int                     @id @default(autoincrement())
+code                            String                  @unique
+expense_type_id                 Int
+amount                          Decimal                 @db.Decimal(12, 2)
+date_recorded                   DateTime?
+date_expected                   DateTime?
+description                     String?
+status                          expense_status          @default(PENDING)
+approval_status                 expense_approval_status @default(PENDING)
+operational_trip_assignment_id  String?
+operational_trip_bus_trip_id    String?
+rental_trip_assignment_id       String?
+payable_id                      Int?
+payment_method                  String?
+payment_reference               String?
+journal_entry_id                Int?                    @unique
+
+order_ref                       String?   // Reference to Inventory order.order_code
+purchase_request_ref            String?   // Reference to PR for traceability
+original_amount                 Decimal?  @db.Decimal(12, 2)  // Track original before adjustments
+adjusted_amount                 Decimal?  @db.Decimal(12, 2)  // Total adjustments (refunds)
+
+// Relations
+expense_type                    expense_type @relation(fields: [expense_type_id], references: [id])
+operational_trip                operational_trip? @relation(fields: [operational_trip_assignment_id, operational_trip_bus_trip_id], references: [assignment_id, bus_trip_id], onDelete: SetNull)
+rental_trip                     rental_trip? @relation(fields: [rental_trip_assignment_id], references: [assignment_id])
+payable                         payable? @relation(fields: [payable_id], references: [id])
+journal_entry                   journal_entry? @relation(fields: [journal_entry_id], references: [id])
+installment_payments            expense_installment_payment[]
+payrolls                        payroll[]
+budget_usage                    budget_usage[]
+
+refund_replacements             refund_replacement_finance[]
+expense_adjustments             expense_adjustment[]
+
+// Indexes
+@@index([code])
+@@index([expense_type_id])
+@@index([date_recorded])
+@@index([date_expected])
+@@index([status])
+@@index([approval_status])
+@@index([approval_status, operational_trip_assignment_id, operational_trip_bus_trip_id])
+@@index([payment_method])
+@@index([payable_id])
+@@index([order_ref])
+@@index([purchase_request_ref])
+@@index([rental_trip_assignment_id])
+@@index([journal_entry_id])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by                      String?
+created_at                      DateTime @default(now())
+updated_by                      String?
+updated_at                      DateTime @updatedAt
+deleted_by                      String?
+deleted_at                      DateTime?
+is_deleted                      Boolean  @default(false)
+}
+
+model payable {
+// Fields
+id                     Int            @id @default(autoincrement())
+code                   String         @unique
+creditor_name          String
+description            String?
+total_amount           Decimal        @db.Decimal(12, 2)
+due_date               DateTime?
+status                 payable_status @default(PENDING)
+installment_plan       String?
+expected_installment   Decimal?       @db.Decimal(12, 2)
+paid_amount            Decimal        @db.Decimal(12, 2) @default(0)
+balance                Decimal        @db.Decimal(12, 2) @default(0)
+last_payment_date      DateTime?
+last_payment_amount    Decimal?       @db.Decimal(12, 2)
+interest_rate          Decimal?       @db.Decimal(5, 2)
+accrued_interest       Decimal?       @db.Decimal(12, 2) @default(0)
+last_interest_applied  DateTime?
+
+// Relations
+expense_records        expense[]
+installment_schedule   expense_installment_schedule[]
+
+// Indexes
+@@index([code])
+@@index([creditor_name])
+@@index([due_date])
+@@index([status])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by             String?
+created_at             DateTime @default(now())
+updated_by             String?
+updated_at             DateTime @updatedAt
+deleted_by             String?
+deleted_at             DateTime?
+is_deleted             Boolean  @default(false)
+}
+
+model expense_installment_schedule {
+// Fields
+id                  Int                @id @default(autoincrement())
+payable_id          Int
+installment_number  Int
+due_date            DateTime
+amount_due          Decimal            @db.Decimal(12, 2)
+amount_paid         Decimal            @db.Decimal(12, 2) @default(0)
+balance             Decimal            @db.Decimal(12, 2)
+status              installment_status @default(PENDING)
+
+// Constraints
+@@unique([payable_id, installment_number])
+
+// Relations
+payable             payable @relation(fields: [payable_id], references: [id], onDelete: Cascade)
+payments            expense_installment_payment[]
+
+// Indexes
+@@index([payable_id])
+@@index([due_date])
+@@index([status])
+@@index([created_at])
+
+// Audit Trail
+created_at          DateTime           @default(now())
+updated_at          DateTime           @updatedAt
+}
+
+model expense_installment_payment {
+// Fields
+id                Int      @id @default(autoincrement())
+installment_id    Int
+expense_id        Int
+amount_paid       Decimal  @db.Decimal(12, 2)
+payment_date      DateTime @default(now())
+payment_method    String?
+payment_reference String?
+journal_entry_id  Int?
+
+// Relations
+installment       expense_installment_schedule @relation(fields: [installment_id], references: [id], onDelete: Cascade)
+expense           expense @relation(fields: [expense_id], references: [id])
+journal_entry     journal_entry? @relation(fields: [journal_entry_id], references: [id])
+
+// Indexes
+@@index([installment_id])
+@@index([expense_id])
+@@index([payment_date])
+@@index([installment_id, payment_date])
+
+// Audit Trail
+created_at        DateTime @default(now())
 }
 
 // ============================================================================
-// OPERATIONS TRIP CACHE - Aligned with /api/clean/op_bus-trip-details
+// PAYROLL MANAGEMENT
 // ============================================================================
-model CachedTrip {
-  id                    Int        @id @default(autoincrement())
-  
-  // Assignment & Trip Identification
-  assignmentId          String     @unique // "ASSIGN001"
-  busTripId             String     @unique // "TRIP-001-1"
-  busRoute              String     // "Route 1: STOP001 -> STOP002"
-  
-  // Financial Recording Status
-  isRevenueRecorded     Boolean    @default(false)
-  isExpenseRecorded     Boolean    @default(false)
-  
-  // Trip Date
-  dateAssigned          DateTime
-  
-  // Financial Data
-  tripFuelExpense       Decimal?   @db.Decimal(12, 2)
-  tripRevenue           Decimal?   @db.Decimal(12, 2)
-  
-  // Assignment Configuration
-  assignmentType        String     // "Percentage" | "Boundary"
-  assignmentValue       Decimal?   @db.Decimal(5, 4) // 0.2 = 20% for percentage-based
-  paymentMethod         String?    // "Reimbursement" | "Cash" | "Deduction"
-  
-  // Personnel Information
-  driverName            String?
-  conductorName         String?
-  
-  // Bus Information
-  busPlateNumber        String?
-  busType               String?    // "Aircon" | "Non-Aircon"
-  bodyNumber            String?    // "BN-001"
-  
-  // Calculated Fields (for Finance processing)
-  companyIncome         Decimal?   @db.Decimal(12, 2) // Based on assignmentType
-  driverShare           Decimal?   @db.Decimal(12, 2)
-  conductorShare        Decimal?   @db.Decimal(12, 2)
-  tripDeficit           Decimal?   @db.Decimal(12, 2) // If boundary not met
-  
-  // Link to Finance Records (when synced)
-  linkedRevenueId       Int?       // Finance.Revenue.id
-  linkedExpenseId       Int?       // Finance.Expense.id
-  linkedLoanId          Int?       // Finance.Loan.id (if trip deficit loan created)
-  
-  // Sync metadata
-  lastSyncedAt          DateTime
-  sourceSystem          String     @default("Operations")
-  sourceEndpoint        String     @default("/api/clean/op_bus-trip-details")
-  isStale               Boolean    @default(false)
-  syncErrorMessage      String?    @db.Text
-  
-  @@index([assignmentId])
-  @@index([busTripId])
-  @@index([dateAssigned])
-  @@index([isRevenueRecorded, isExpenseRecorded])
-  @@index([lastSyncedAt])
-  @@index([isStale])
-  @@index([driverName])
-  @@index([conductorName])
-  @@index([busPlateNumber])
+model payroll_period {
+// Fields
+id               Int                    @id @default(autoincrement())
+period_start     DateTime
+period_end       DateTime
+status           payroll_period_status  @default(OPEN)
+total_employees  Int?
+total_gross      Decimal                @db.Decimal(12, 2) @default(0)
+total_deductions Decimal                @db.Decimal(12, 2) @default(0)
+total_net        Decimal                @db.Decimal(12, 2) @default(0)
+approved_by      String?
+approved_at      DateTime?
+is_deleted       Boolean                @default(false)
+
+// Relations
+payrolls         payroll[]
+
+// Indexes
+@@index([period_start])
+@@index([period_end])
+@@index([status])
+@@index([is_deleted])
+
+// Audit Trail
+created_by       String?
+created_at       DateTime               @default(now())
+}
+
+model payroll {
+// Fields
+id                Int            @id @default(autoincrement())
+payroll_period_id Int
+employee_number   String
+rate_type         rate_type      @default(MONTHLY)
+basic_rate        Decimal?       @db.Decimal(12, 2)
+gross_pay         Decimal        @db.Decimal(12, 2) @default(0)
+total_deductions  Decimal        @db.Decimal(12, 2) @default(0)
+net_pay           Decimal        @db.Decimal(12, 2) @default(0)
+status            payroll_status @default(PENDING)
+expense_id        Int?
+journal_entry_id  Int?
+
+// Relations
+payroll_period    payroll_period @relation(fields: [payroll_period_id], references: [id])
+employee          employees_cache @relation(fields: [employee_number], references: [employee_number])
+expense           expense? @relation(fields: [expense_id], references: [id])
+journal_entry     journal_entry? @relation(fields: [journal_entry_id], references: [id])
+payroll_items     payroll_item[]
+payroll_attendances payroll_attendance[]
+
+// Indexes
+@@index([payroll_period_id])
+@@index([employee_number])
+@@index([status])
+@@index([expense_id])
+@@index([journal_entry_id])
+
+// Audit Trail
+created_by        String?
+created_at        DateTime       @default(now())
+}
+
+model payroll_item_type {
+// Fields
+id          Int     @id @default(autoincrement())
+code        String  @unique
+name        String
+category    String  // EARNING, BENEFIT, DEDUCTION
+is_required Boolean @default(false)
+is_deleted  Boolean @default(false)
+
+// Relations
+payroll_items payroll_item[]
+
+// Indexes
+@@index([code])
+@@index([category])
+@@index([is_deleted])
+}
+
+model payroll_item {
+// Fields
+id           Int      @id @default(autoincrement())
+payroll_id   Int
+item_type_id Int
+amount       Decimal  @db.Decimal(12, 2)
+quantity     Decimal? @db.Decimal(12, 2)
+rate         Decimal? @db.Decimal(12, 2)
+description  String?
+category     String   // EARNING, BENEFIT, DEDUCTION (cached for fast queries)
+
+// Relations
+payroll      payroll @relation(fields: [payroll_id], references: [id], onDelete: Cascade)
+item_type    payroll_item_type @relation(fields: [item_type_id], references: [id])
+
+// Indexes
+@@index([payroll_id])
+@@index([item_type_id])
+@@index([category])
+
+// Audit Trail
+created_at   DateTime @default(now())
+}
+
+model payroll_attendance {
+// Fields
+id           Int      @id @default(autoincrement())
+payroll_id   Int
+date         DateTime
+status       String   // Present, Absent, Late, Leave, etc.
+hours_worked Decimal? @db.Decimal(5, 2)
+
+// Relations
+payroll      payroll @relation(fields: [payroll_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([payroll_id])
+@@index([date])
+@@index([status])
+
+// Audit Trail
+created_at   DateTime @default(now())
 }
 
 // ============================================================================
-// INVENTORY ITEM CACHE - Structure maintained (no external API provided yet)
+// BUDGET MANAGEMENT
 // ============================================================================
-model CachedInventoryItem {
-  id                Int        @id @default(autoincrement())
-  
-  // Item Identification
-  itemCode          String?    @unique
-  itemName          String
-  category          String?
-  
-  // Supplier Information
-  supplierId        Int?
-  supplierName      String?
-  
-  // Pricing & Stock
-  unitCost          Decimal    @db.Decimal(12, 2)
-  stockOnHand       Int
-  reorderLevel      Int?
-  
-  // Unit of Measure
-  unitMeasure       String?    // "pcs", "liters", "kg"
-  
-  // Sync metadata
-  lastSyncedAt      DateTime
-  sourceSystem      String     @default("Inventory")
-  sourceEndpoint    String?    // To be provided when Inventory API is available
-  isStale           Boolean    @default(false)
-  
-  @@index([itemCode])
-  @@index([itemName])
-  @@index([supplierName])
-  @@index([category])
-  @@index([lastSyncedAt])
-  @@index([isStale])
+model department_budget {
+// Fields
+id                 Int           @id @default(autoincrement())
+department_id      String        @unique
+department_name    String?
+total_budget       Decimal       @db.Decimal(14, 2) @default(0)
+used_budget        Decimal       @db.Decimal(14, 2) @default(0)
+remaining_budget   Decimal       @db.Decimal(14, 2) @default(0)
+status             budget_status @default(ACTIVE)
+
+// Relations
+cycles             department_budget_cycle[]
+approved_requests  approved_budget_request[]
+direct_allocations direct_budget_allocation[]
+budget_usage       budget_usage[]
+purchase_requests       purchase_request_approval[]
+
+// Indexes
+@@index([department_id])
+@@index([status])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by         String?
+created_at         DateTime  @default(now())
+updated_by         String?
+updated_at         DateTime  @updatedAt
+deleted_by         String?
+deleted_at         DateTime?
+is_deleted         Boolean   @default(false)
+}
+
+model department_budget_cycle {
+// Fields
+id                Int     @id @default(autoincrement())
+budget_id         Int
+cycle_year        Int
+cycle_month       Int
+starting_budget   Decimal @db.Decimal(14, 2)
+used_budget       Decimal @db.Decimal(14, 2) @default(0)
+remaining_budget  Decimal @db.Decimal(14, 2) @default(0)
+carry_over_amount Decimal @db.Decimal(14, 2) @default(0)
+
+// Relations
+budget            department_budget @relation(fields: [budget_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([budget_id])
+@@index([cycle_year, cycle_month])
+@@index([budget_id, cycle_year, cycle_month])
+
+// Audit Trail
+created_at        DateTime @default(now())
+}
+
+model approved_budget_request {
+// Fields
+id              Int      @id @default(autoincrement())
+budget_id       Int
+request_code    String   @unique
+approved_amount Decimal  @db.Decimal(14, 2)
+approval_date   DateTime
+approved_by     String?
+
+// Relations
+budget          department_budget @relation(fields: [budget_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([budget_id])
+@@index([request_code])
+@@index([approval_date])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by      String?
+created_at      DateTime @default(now())
+updated_by      String?
+updated_at      DateTime @updatedAt
+deleted_by      String?
+deleted_at      DateTime?
+is_deleted      Boolean  @default(false)
+}
+
+model direct_budget_allocation {
+// Fields
+id               Int      @id @default(autoincrement())
+budget_id        Int
+allocated_amount Decimal  @db.Decimal(14, 2)
+allocation_date  DateTime @default(now())
+allocated_by     String?
+description      String?
+
+// Relations
+budget           department_budget @relation(fields: [budget_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([budget_id])
+@@index([allocation_date])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by       String?
+created_at       DateTime @default(now())
+updated_by       String?
+updated_at       DateTime @updatedAt
+deleted_by       String?
+deleted_at       DateTime?
+is_deleted       Boolean  @default(false)
+}
+
+model budget_usage {
+// Fields
+id                  Int      @id @default(autoincrement())
+budget_id           Int
+order_ref           String?
+expense_id          Int?
+consumed_amount     Decimal  @db.Decimal(14, 2)
+consumption_date    DateTime @default(now())
+description         String?
+
+original_consumed_amount  Decimal?  @db.Decimal(14, 2)  // Track original before refunds
+refund_adjustment         Decimal?  @db.Decimal(14, 2) @default(0)  // Total refunds applied
+
+// Relations
+budget              department_budget @relation(fields: [budget_id], references: [id], onDelete: Cascade)
+expense             expense? @relation(fields: [expense_id], references: [id], onDelete: SetNull)
+
+// Indexes
+@@index([budget_id])
+@@index([order_ref])
+@@index([expense_id])
+@@index([consumption_date])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by          String?
+created_at          DateTime @default(now())
+updated_by          String?
+updated_at          DateTime @updatedAt
+deleted_by          String?
+deleted_at          DateTime?
+is_deleted          Boolean  @default(false)
 }
 
 // ============================================================================
-// INTEGRATION SYNC LOG (Track all external API synchronizations)
+// PURCHASE REQUEST APPROVAL (Finance Side)
 // ============================================================================
-model ExternalSyncLog {
-  id                Int        @id @default(autoincrement())
-  
-  // Sync Details
-  sourceSystem      String     // "HR" | "Operations" | "Inventory"
-  sourceEndpoint    String     // Full API endpoint URL
-  syncType          String     // "employee" | "payroll" | "trip" | "inventory"
-  
-  // Sync Status
-  status            String     // "success" | "failed" | "partial"
-  recordsProcessed  Int        @default(0)
-  recordsCreated    Int        @default(0)
-  recordsUpdated    Int        @default(0)
-  recordsFailed     Int        @default(0)
-  
-  // Timing
-  startedAt         DateTime   @default(now())
-  completedAt       DateTime?
-  duration          Int?       // Milliseconds
-  
-  // Error Tracking
-  errorMessage      String?    @db.Text
-  errorDetails      String?    @db.Text // JSON with failed records
-  
-  // Metadata
-  triggeredBy       String?    // "scheduler" | "manual" | "webhook" | user_id
-  
-  @@index([sourceSystem, syncType])
-  @@index([status])
-  @@index([startedAt])
+
+model purchase_request_approval {
+// Fields
+id                      Int                              @id @default(autoincrement())
+request_code            String                           @unique  // From Inventory microservice
+department_id           String
+department_name         String?
+category_id             Int                              // References expense_type or budget category
+request_type            String                           // REGULAR, PROJECT_BASED, URGENT, EMERGENCY
+reason                  String?                          @db.Text
+total_amount            Decimal                          @db.Decimal(12, 2)
+status                  purchase_request_approval_status  @default(PENDING)
+
+// Budget integration
+budget_request_code     String?                          // Links to budget_request if over budget
+department_budget_id    Int?                             // Links to department_budget
+
+// Finance decision
+approved_amount         Decimal?                         @db.Decimal(12, 2)
+finance_remarks         String?                          @db.Text
+
+// Order creation
+order_code              String?                          // Created order code (links to Inventory order)
+
+// Relations
+department_budget       department_budget? @relation(fields: [department_budget_id], references: [id], onDelete: SetNull)
+items                   purchase_request_item_finance[]
+
+// Indexes
+@@index([request_code])
+@@index([department_id])
+@@index([status])
+@@index([budget_request_code])
+@@index([order_code])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by              String?
+created_at              DateTime  @default(now())
+updated_by              String?
+updated_at              DateTime  @updatedAt
+approved_by             String?
+approved_at             DateTime?
+rejected_by             String?
+rejected_at             DateTime?
+deleted_by              String?
+deleted_at              DateTime?
+is_deleted              Boolean   @default(false)
 }
+
+model purchase_request_item_finance {
+// Fields
+id                      Int                       @id @default(autoincrement())
+purchase_request_id     Int
+pr_item_ref_from_inv    String                    // Reference to inventory microservice PR item.id
+external_item_ref       String                    // Reference to inventory item.item_code
+item_name               String                    // Denormalized
+requested_quantity      Decimal                   @db.Decimal(12, 2)
+requested_unit_price    Decimal                   @db.Decimal(12, 2)
+requested_total         Decimal                   @db.Decimal(12, 2)
+
+// Finance decision per item
+status                  pr_item_finance_status    @default(PENDING)
+approved_quantity       Decimal?                  @db.Decimal(12, 2)
+approved_unit_price     Decimal?                  @db.Decimal(12, 2)
+approved_total          Decimal?                  @db.Decimal(12, 2)
+
+// Supplier assignment
+supplier_id             String?                   // Reference to inventory supplier
+supplier_name           String?
+supplier_item_ref       String?
+
+// Finance notes
+finance_notes           String?                   @db.Text
+rejection_reason        String?                   @db.Text
+
+// Relations
+purchase_request        purchase_request_approval @relation(fields: [purchase_request_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([purchase_request_id])
+@@index([pr_item_ref_from_inv])
+@@index([external_item_ref])
+@@index([status])
+@@index([is_deleted])
+
+// Audit Trail
+created_at              DateTime  @default(now())
+updated_at              DateTime  @updatedAt
+is_deleted              Boolean   @default(false)
+}
+
+// ============================================================================
+// REFUND/REPLACEMENT FINANCE TRACKING
+// ============================================================================
+model refund_replacement_finance {
+// Fields
+id                            Int                                 @id @default(autoincrement())
+request_code                  String                              @unique  // From Inventory microservice
+order_ref                     String                              // Reference to order.order_code
+expense_id                    Int?                                // Linked expense
+status                        refund_replacement_finance_status   @default(PENDING)
+request_type                  String                              // REFUND or REPLACEMENT (from Inventory)
+issue_description             String                              @db.Text
+total_affected_amount         Decimal                             @db.Decimal(12, 2)
+approved_amount               Decimal?                            @db.Decimal(12, 2)  // Amount Finance approved for refund
+finance_remarks               String?                             @db.Text
+supplier_contact_notes        String?                             @db.Text
+
+// Relations
+expense                       expense?  @relation(fields: [expense_id], references: [id], onDelete: SetNull)
+items                         refund_replacement_item_finance[]
+adjustments                   expense_adjustment[]
+
+// Indexes
+@@index([request_code])
+@@index([order_ref])
+@@index([expense_id])
+@@index([status])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by                    String?
+created_at                    DateTime  @default(now())
+updated_by                    String?
+updated_at                    DateTime  @updatedAt
+approved_by                   String?
+approved_at                   DateTime?
+rejected_by                   String?
+rejected_at                   DateTime?
+closed_by                     String?
+closed_at                     DateTime?
+deleted_by                    String?
+deleted_at                    DateTime?
+is_deleted                    Boolean   @default(false)
+}
+
+// ============================================================================
+// REFUND/REPLACEMENT ITEM-LEVEL FINANCE TRACKING
+// ============================================================================
+model refund_replacement_item_finance {
+// Fields
+id                            Int                           @id @default(autoincrement())
+refund_replacement_id         Int
+item_ref_from_inventory       String                        // Reference to inventory's refund_replacement_item.id
+order_item_ref                String                        // Reference to order_item.id from Inventory
+external_item_ref             String                        // Reference to item.item_code
+item_name                     String
+affected_quantity             Decimal                       @db.Decimal(12, 2)
+unit_price                    Decimal                       @db.Decimal(12, 2)
+total_amount                  Decimal                       @db.Decimal(12, 2)
+
+// Finance decision per item
+finance_action                refund_replacement_action?    // REFUND, REPLACEMENT, NO_ACTION
+approved_refund_amount        Decimal?                      @db.Decimal(12, 2)
+expected_replacement_quantity Decimal?                      @db.Decimal(12, 2)
+
+// Issue details
+missing_quantity              Decimal?                      @db.Decimal(12, 2)
+damaged_quantity              Decimal?                      @db.Decimal(12, 2)
+issue_description             String?                       @db.Text
+finance_notes                 String?                       @db.Text
+
+// Status tracking
+status                        String                        @default("PENDING")  // Mirrors Inventory statuses
+
+// Relations
+refund_replacement            refund_replacement_finance @relation(fields: [refund_replacement_id], references: [id], onDelete: Cascade)
+
+// Indexes
+@@index([refund_replacement_id])
+@@index([item_ref_from_inventory])
+@@index([order_item_ref])
+@@index([external_item_ref])
+@@index([status])
+@@index([is_deleted])
+
+// Audit Trail
+created_at                    DateTime  @default(now())
+updated_at                    DateTime  @updatedAt
+is_deleted                    Boolean   @default(false)
+}
+
+// ============================================================================
+// DISPOSAL REVENUE TRACKING
+// ============================================================================
+
+model disposal_revenue {
+// Fields
+id                      Int      @id @default(autoincrement())
+disposal_ref            String   @unique  // From Inventory disposal.disposal_code
+revenue_id              Int?     // Links to revenue record
+
+// Disposal details
+disposal_type           String   // ITEM, BUS, FIXED_ASSET
+disposal_method         String   // SOLD, SCRAPPED, DONATED, TRANSFERRED, WRITTEN_OFF
+item_ref                String?  // item.item_code or bus.plate_number
+item_name               String?
+quantity                Decimal? @db.Decimal(12, 2)
+
+// Financial details
+book_value              Decimal? @db.Decimal(14, 2)  // For fixed assets
+disposal_value          Decimal  @db.Decimal(14, 2)  // Actual sale/disposal amount
+gain_loss               Decimal? @db.Decimal(14, 2)  // Disposal value - Book value
+
+// Fixed asset link
+fixed_asset_id          Int?     // If disposing a fixed asset
+
+// Status
+is_revenue_recorded     Boolean  @default(false)
+is_asset_updated        Boolean  @default(false)  // Fixed asset status updated
+
+// Relations
+revenue                 revenue? @relation(fields: [revenue_id], references: [id], onDelete: SetNull)
+fixed_asset             fixed_asset? @relation(fields: [fixed_asset_id], references: [id], onDelete: SetNull)
+
+// Indexes
+@@index([disposal_ref])
+@@index([revenue_id])
+@@index([fixed_asset_id])
+@@index([disposal_type])
+@@index([is_revenue_recorded])
+@@index([is_asset_updated])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by              String?
+created_at              DateTime  @default(now())
+updated_by              String?
+updated_at              DateTime  @updatedAt
+deleted_by              String?
+deleted_at              DateTime?
+is_deleted              Boolean   @default(false)
+}
+
+// ============================================================================
+// EXPENSE ADJUSTMENTS (For Refunds)
+// ============================================================================
+model expense_adjustment {
+// Fields
+id                        Int                           @id @default(autoincrement())
+expense_id                Int
+refund_replacement_id     Int?                          // Optional link to refund/replacement
+adjustment_code           String                        @unique
+adjustment_type           String                        // REFUND, CORRECTION, REVERSAL
+original_amount           Decimal                       @db.Decimal(12, 2)
+adjustment_amount         Decimal                       @db.Decimal(12, 2)  // Negative for refunds
+new_amount                Decimal                       @db.Decimal(12, 2)
+reason                    String                        @db.Text
+journal_entry_id          Int?                          // Link to adjustment JE
+
+// Relations
+expense                   expense @relation(fields: [expense_id], references: [id], onDelete: Cascade)
+refund_replacement        refund_replacement_finance? @relation(fields: [refund_replacement_id], references: [id], onDelete: SetNull)
+journal_entry             journal_entry? @relation(fields: [journal_entry_id], references: [id], onDelete: SetNull)
+
+// Indexes
+@@index([expense_id])
+@@index([refund_replacement_id])
+@@index([adjustment_code])
+@@index([adjustment_type])
+@@index([journal_entry_id])
+@@index([is_deleted])
+@@index([created_at])
+
+// Audit Trail
+created_by                String?
+created_at                DateTime  @default(now())
+updated_by                String?
+updated_at                DateTime  @updatedAt
+approved_by               String?
+approved_at               DateTime?
+deleted_by                String?
+deleted_at                DateTime?
+is_deleted                Boolean   @default(false)
+}
+
+// ============================================================================
+// (FIXED) ASSETS MANAGEMENT
+// ============================================================================
+
+model asset_type {
+id          Int      @id @default(autoincrement())
+code        String   @unique       // e.g., "BUS", "MACHINERY", "LAND"
+name        String
+description String?  @db.Text
+
+assets      fixed_asset[]
+
+@@index([code])
+}
+
+// ============================================================================
+// FIXED ASSETS
+// ============================================================================
+
+model fixed_asset {
+id                    Int        @id @default(autoincrement())
+asset_code            String     @unique
+asset_type_id          Int       // references asset_type
+inventory_item_ref     String?   // optional reference to inventory.item.item_code (if inventory-managed)
+asset_name            String
+acquisition_date       DateTime
+acquisition_cost       Decimal    @db.Decimal(14,2)
+estimated_life_years  Int        // useful life in years
+status                 asset_status @default(ACTIVE)
+
+disposal_ref            String?          // inventory disposal
+disposal_date           DateTime?        // When asset was disposed
+disposal_value          Decimal?         @db.Decimal(14, 2)  // Actual disposal amount
+disposal_gain_loss      Decimal?         @db.Decimal(14, 2)  // Gain or loss on disposal: disposal_value - (acquisition_cost + Accumulated Appreciation – Accumulated Depreciation)
+
+// Audit trail
+created_by             String?
+created_at             DateTime   @default(now())
+updated_by             String?
+updated_at             DateTime   @updatedAt
+deleted_by             String?
+deleted_at             DateTime?
+is_deleted             Boolean    @default(false)
+
+// Relations
+type                   asset_type @relation(fields: [asset_type_id], references: [id])
+accumulations          asset_accumulation[]
+disposal_revenues       disposal_revenue[]
+
+@@index([asset_type_id])
+@@index([inventory_item_ref])
+@@index([status])
+@@index([disposal_ref])
+@@index([disposal_date])
+}
+
+model asset_accumulation {
+id                Int       @id @default(autoincrement())
+fixed_asset_id     Int
+period_start       DateTime  // e.g., first day of month
+period_end         DateTime  // e.g., last day of month
+monthly_amount     Decimal   @db.Decimal(14,2) // negative for depreciation, positive for appreciation
+accumulated_amount Decimal   @db.Decimal(14,2) // running total (signed)
+accumulation_type    accumulation_type    @default(DEPRECIATION)
+
+// Audit trail
+created_at         DateTime @default(now())
+updated_at         DateTime @updatedAt
+
+// Relations
+fixed_asset        fixed_asset @relation(fields: [fixed_asset_id], references: [id], onDelete: Cascade)
+
+@@index([fixed_asset_id])
+@@index([period_start, period_end])
+}
+
+// END OF FINANCE MAIN SCHEMA

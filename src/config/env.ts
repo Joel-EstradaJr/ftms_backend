@@ -35,13 +35,16 @@ interface Config {
   corsOrigins: string[];
   rateLimitWindowMs: number;
   rateLimitMax: number;
+  
+  // Authentication
+  enableAuth: boolean;
 }
 
 export const config: Config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   
-  databaseUrl: process.env.DATABASE_URL!,
+  databaseUrl: process.env.FINANCE_MAIN_DATABASE_URL!,
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   
   jwtSecret: process.env.JWT_SECRET || '8f7b3a2c9d4e6f8a0b1c2d3e4f5g6h7i',
@@ -60,11 +63,14 @@ export const config: Config = {
   corsOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3002,http://localhost:4003,http://localhost:4004').split(','),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  
+  // Authentication - defaults to true for security, set ENABLE_AUTH=false to disable for testing
+  enableAuth: process.env.ENABLE_AUTH !== 'false',
 };
 
 // Validate required environment variables
 const requiredEnvVars = [
-  'DATABASE_URL',
+  'FINANCE_MAIN_DATABASE_URL',
   'HR_API_EMPLOYEES_URL',
   'HR_API_PAYROLL_URL',
   'OP_API_BUSTRIP_URL',
