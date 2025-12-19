@@ -1,5 +1,4 @@
-// FINANCE'S MAIN SCHEMA - REVENUE, EXPENSE, PAYABLES, RECEIVABLES, INSTALLMENTS, BUDGET ALLOCATION & APPROVAL, PRUCHASE REQUEST APPROVAL, REFUND_REPLACEMENT APPROVAL & TRACKING, PAYROLL, (FIXED) ASSET DEPRECIATION & ACCUMULATION AND DISPOSAL, CHART OF ACCOUNTS, JOURNAL ENTRY, EXTERNAL DATA CACHE TABLES
-// ============================================================================
+// FINANCE'S MAIN SCHEMA - REVENUE, EXPENSE, PAYABLES, RECEIVABLES, INSTALLMENTS, BUDGET ALLOCATION & APPROVAL, PRUCHASE REQUEST APPROVAL, ORDER TRACKING W/ REFUND / REPLACEMENT, PAYROLL, (FIXED) ASSET DEPRECIATION & ACCUMULATION AND DISPOSAL, CHART OF ACCOUNTS, JOURNAL ENTRY, EXTERNAL DATA CACHE TABLES// ============================================================================
 
 generator client {
 provider = "prisma-client-js"
@@ -100,23 +99,6 @@ SEMI_MONTHLY
 enum budget_status {
 ACTIVE
 INACTIVE
-}
-
-enum refund_replacement_finance_status {
-PENDING                       // Request received from Inventory
-UNDER_REVIEW                  // Finance reviewing the request
-APPROVED                      // Finance approved refund/replacement
-REJECTED                      // Finance rejected the request
-IN_PROGRESS                   // Contacting supplier, processing
-COMPLETED                     // All items processed
-PARTIALLY_COMPLETED           // Some items completed
-CLOSED                        // Request closed
-}
-
-enum refund_replacement_action {
-REFUND                        // Return money, adjust expense
-REPLACEMENT                   // Get replacement items
-NO_ACTION                     // Close without action
 }
 
 enum asset_status {
@@ -799,7 +781,6 @@ installment_payments            expense_installment_payment[]
 payrolls                        payroll[]
 budget_usage                    budget_usage[]
 
-refund_replacements             refund_replacement_finance[]
 expense_adjustments             expense_adjustment[]
 
 // Indexes
@@ -1300,98 +1281,6 @@ is_deleted              Boolean   @default(false)
 }
 
 // ============================================================================
-// REFUND/REPLACEMENT FINANCE TRACKING
-// ============================================================================
-model refund_replacement_finance {
-// Fields
-id                            Int                                 @id @default(autoincrement())
-request_code                  String                              @unique  // From Inventory microservice
-order_ref                     String                              // Reference to order.order_code
-expense_id                    Int?                                // Linked expense
-status                        refund_replacement_finance_status   @default(PENDING)
-request_type                  String                              // REFUND or REPLACEMENT (from Inventory)
-issue_description             String                              @db.Text
-total_affected_amount         Decimal                             @db.Decimal(12, 2)
-approved_amount               Decimal?                            @db.Decimal(12, 2)  // Amount Finance approved for refund
-finance_remarks               String?                             @db.Text
-supplier_contact_notes        String?                             @db.Text
-
-// Relations
-expense                       expense?  @relation(fields: [expense_id], references: [id], onDelete: SetNull)
-items                         refund_replacement_item_finance[]
-adjustments                   expense_adjustment[]
-
-// Indexes
-@@index([request_code])
-@@index([order_ref])
-@@index([expense_id])
-@@index([status])
-@@index([is_deleted])
-@@index([created_at])
-
-// Audit Trail
-created_by                    String?
-created_at                    DateTime  @default(now())
-updated_by                    String?
-updated_at                    DateTime  @updatedAt
-approved_by                   String?
-approved_at                   DateTime?
-rejected_by                   String?
-rejected_at                   DateTime?
-closed_by                     String?
-closed_at                     DateTime?
-deleted_by                    String?
-deleted_at                    DateTime?
-is_deleted                    Boolean   @default(false)
-}
-
-// ============================================================================
-// REFUND/REPLACEMENT ITEM-LEVEL FINANCE TRACKING
-// ============================================================================
-model refund_replacement_item_finance {
-// Fields
-id                            Int                           @id @default(autoincrement())
-refund_replacement_id         Int
-item_ref_from_inventory       String                        // Reference to inventory's refund_replacement_item.id
-order_item_ref                String                        // Reference to order_item.id from Inventory
-external_item_ref             String                        // Reference to item.item_code
-item_name                     String
-affected_quantity             Decimal                       @db.Decimal(12, 2)
-unit_price                    Decimal                       @db.Decimal(12, 2)
-total_amount                  Decimal                       @db.Decimal(12, 2)
-
-// Finance decision per item
-finance_action                refund_replacement_action?    // REFUND, REPLACEMENT, NO_ACTION
-approved_refund_amount        Decimal?                      @db.Decimal(12, 2)
-expected_replacement_quantity Decimal?                      @db.Decimal(12, 2)
-
-// Issue details
-missing_quantity              Decimal?                      @db.Decimal(12, 2)
-damaged_quantity              Decimal?                      @db.Decimal(12, 2)
-issue_description             String?                       @db.Text
-finance_notes                 String?                       @db.Text
-
-// Status tracking
-status                        String                        @default("PENDING")  // Mirrors Inventory statuses
-
-// Relations
-refund_replacement            refund_replacement_finance @relation(fields: [refund_replacement_id], references: [id], onDelete: Cascade)
-
-// Indexes
-@@index([refund_replacement_id])
-@@index([item_ref_from_inventory])
-@@index([order_item_ref])
-@@index([external_item_ref])
-@@index([status])
-@@index([is_deleted])
-
-// Audit Trail
-created_at                    DateTime  @default(now())
-updated_at                    DateTime  @updatedAt
-is_deleted                    Boolean   @default(false)
-}
-
-// ============================================================================
 // DISPOSAL REVENUE TRACKING
 // ============================================================================
 
@@ -1451,7 +1340,6 @@ model expense_adjustment {
 // Fields
 id                        Int                           @id @default(autoincrement())
 expense_id                Int
-refund_replacement_id     Int?                          // Optional link to refund/replacement
 adjustment_code           String                        @unique
 adjustment_type           String                        // REFUND, CORRECTION, REVERSAL
 original_amount           Decimal                       @db.Decimal(12, 2)
@@ -1462,12 +1350,10 @@ journal_entry_id          Int?                          // Link to adjustment JE
 
 // Relations
 expense                   expense @relation(fields: [expense_id], references: [id], onDelete: Cascade)
-refund_replacement        refund_replacement_finance? @relation(fields: [refund_replacement_id], references: [id], onDelete: SetNull)
 journal_entry             journal_entry? @relation(fields: [journal_entry_id], references: [id], onDelete: SetNull)
 
 // Indexes
 @@index([expense_id])
-@@index([refund_replacement_id])
 @@index([adjustment_code])
 @@index([adjustment_type])
 @@index([journal_entry_id])

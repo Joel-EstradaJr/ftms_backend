@@ -46,3 +46,7 @@ ocr_service
 
 # Docs
 /docs/
+
+
+dist/
+*.map

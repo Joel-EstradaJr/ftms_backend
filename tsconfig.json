@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": ["ES2020"],
+    "lib": ["ES2015", "ES2020"],
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "./dist",
@@ -11,14 +11,23 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
     "types": ["node"],
+    "typeRoots": ["./node_modules/@types"],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "app", "components", "lib", "public", ".next"]
+  "exclude": ["node_modules", "dist", "app", "components", "lib", "public", ".next"],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs",
+      "target": "ES2020"
+    },
+    "files": true,
+    "transpileOnly": false
+  }
 }
