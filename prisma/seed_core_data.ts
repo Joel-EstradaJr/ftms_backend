@@ -21,11 +21,11 @@ const prisma = new PrismaClient();
  * Maps account type names to their numeric prefixes and default normal balance
  */
 const ACCOUNT_TYPE_CONFIG = {
-  Assets: { prefix: '1', normalBalance: 'DEBIT' as normal_balance },
-  Liabilities: { prefix: '2', normalBalance: 'CREDIT' as normal_balance },
+  Asset: { prefix: '1', normalBalance: 'DEBIT' as normal_balance },
+  Liability: { prefix: '2', normalBalance: 'CREDIT' as normal_balance },
   Equity: { prefix: '3', normalBalance: 'CREDIT' as normal_balance },
   Revenue: { prefix: '4', normalBalance: 'CREDIT' as normal_balance },
-  Expenses: { prefix: '5', normalBalance: 'DEBIT' as normal_balance },
+  Expense: { prefix: '5', normalBalance: 'DEBIT' as normal_balance },
 };
 
 /**
@@ -33,7 +33,7 @@ const ACCOUNT_TYPE_CONFIG = {
  * Each entry includes name, optional description, and optional custom code suffix
  */
 const COA_DATA: Record<string, Array<{ name: string; description?: string; customSuffix?: string }>> = {
-  Assets: [
+  Asset: [
     { name: 'Cash on Hand', description: 'Physical cash held in the office' },
     { name: 'Petty Cash Fund', description: 'Small amounts for minor expenses' },
     { name: 'BDO Bank - Current Account', description: 'Primary checking account' },
@@ -52,7 +52,7 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     { name: 'Accumulated Depreciation - Buses', description: 'Contra-asset for bus depreciation' },
     { name: 'Accumulated Depreciation - Equipment', description: 'Contra-asset for equipment depreciation' },
   ],
-  Liabilities: [
+  Liability: [
     { name: 'Accounts Payable - Suppliers', description: 'Amounts owed to suppliers' },
     { name: 'Accounts Payable - Employees', description: 'Salaries and wages payable' },
     { name: 'Accrued Expenses Payable', description: 'Expenses incurred but not yet paid' },
@@ -80,7 +80,7 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     { name: 'Sales Discounts', description: 'Discounts given to customers (contra-revenue)' },
     { name: 'Miscellaneous Income', description: 'Other income' },
   ],
-  Expenses: [
+  Expense: [
     { name: 'Fuel Expense', description: 'Diesel and other fuel costs' },
     { name: 'Toll Expense', description: 'Highway and bridge tolls' },
     { name: 'Parking Expense', description: 'Parking fees' },
@@ -217,12 +217,18 @@ async function seedAccountTypes() {
   console.log('🌱 Seeding Account Types...');
 
   for (const [name, config] of Object.entries(ACCOUNT_TYPE_CONFIG)) {
+    // Check if account type exists by name OR code
     const existing = await prisma.account_type.findFirst({
-      where: { name, is_deleted: false },
+      where: { 
+        OR: [
+          { name, is_deleted: false },
+          { code: config.prefix, is_deleted: false }
+        ]
+      },
     });
 
     if (existing) {
-      console.log(`  ⏭️  Account Type "${name}" already exists (ID: ${existing.id})`);
+      console.log(`  ⏭️  Account Type "${name}" already exists (ID: ${existing.id}, Code: ${existing.code})`);
       continue;
     }
 

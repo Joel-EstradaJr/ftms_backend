@@ -103,30 +103,56 @@ export class ChartOfAccountService {
     const skip = (validPage - 1) * validLimit;
 
     // Build where clause
-    const where: any = {};
+    const where: any = {
+      AND: []
+    };
     
     // Filter by archived status
     if (!includeArchived) {
-      where.is_deleted = false;
+      where.AND.push({ is_deleted: false });
     }
 
     // Filter by account type
     if (accountTypeId) {
-      where.account_type_id = accountTypeId;
+      where.AND.push({ account_type_id: accountTypeId });
     }
 
-    // Search filter (account_code or account_name)
+    // Search filter (account_code, account_name, description, and account_type.name)
     if (search && search.trim()) {
-      where.OR = [
+      const searchConditions = [
         { account_code: { contains: search.trim(), mode: 'insensitive' } },
         { account_name: { contains: search.trim(), mode: 'insensitive' } },
+        { description: { contains: search.trim(), mode: 'insensitive' } },
+        { account_type: { name: { contains: search.trim(), mode: 'insensitive' } } },
       ];
+      
+      // Add normal_balance search if the search term matches DEBIT or CREDIT
+      const searchUpper = search.trim().toUpperCase();
+      if (searchUpper === 'DEBIT' || searchUpper.includes('DEB')) {
+        searchConditions.push({ normal_balance: 'DEBIT' });
+      }
+      if (searchUpper === 'CREDIT' || searchUpper.includes('CRED')) {
+        searchConditions.push({ normal_balance: 'CREDIT' });
+      }
+      
+      // Add status search if the search term matches Active or Archived
+      if (searchUpper.includes('ACTIVE') || searchUpper.includes('ACT')) {
+        searchConditions.push({ is_deleted: false });
+      }
+      if (searchUpper.includes('ARCHIVE') || searchUpper.includes('ARCH') || searchUpper.includes('INACTIVE')) {
+        searchConditions.push({ is_deleted: true });
+      }
+      
+      where.AND.push({ OR: searchConditions });
     }
+
+    // Clean up empty AND array
+    const finalWhere = where.AND.length > 0 ? where : {};
 
     // Execute query with join to account_type
     const [records, total] = await Promise.all([
       prisma.chart_of_account.findMany({
-        where,
+        where: finalWhere,
         include: {
           account_type: {
             select: {
@@ -140,7 +166,7 @@ export class ChartOfAccountService {
         skip,
         take: validLimit,
       }),
-      prisma.chart_of_account.count({ where }),
+      prisma.chart_of_account.count({ where: finalWhere }),
     ]);
 
     // Map to DTO format
