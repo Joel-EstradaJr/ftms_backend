@@ -1,0 +1,703 @@
+/**
+ * Payroll Period Service
+ * SERVICE LAYER: Core business/domain logic, orchestrate DB/cache/integrations
+ * 
+ * Responsibilities:
+ * - All business logic and domain rules
+ * - Orchestrate database operations
+ * - Call external integrations (HR client)
+ * - Use helper functions from lib
+ * - Transaction management
+ * - Audit logging
+ * 
+ * Does NOT:
+ * - Handle HTTP requests/responses (controllers do this)
+ * - Contain utility functions (those go in lib)
+ * - Make direct HTTP calls (integrations do this)
+ */
+
+import { prisma } from '../config/database';
+import { AuditLogClient } from '../integrations/audit/audit.client';
+import { HRPayrollClient } from '../integrations/hr/payroll.client';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import { logger } from '../config/logger';
+import { payroll_period_status, payroll_status, rate_type } from '@prisma/client';
+import {
+  CreatePayrollPeriodDTO,
+  UpdatePayrollPeriodDTO,
+  PayrollPeriodQueryDTO,
+  PayrollPeriodListResponseDTO,
+  PayrollPeriodDetailDTO,
+  PayrollPeriodStatsDTO,
+  ProcessPayrollDTO,
+  ProcessPayrollResultDTO,
+  PayrollEmployeeDetailDTO,
+  PayslipDTO,
+  PayrollItemDTO,
+} from '../types/payroll.types';
+import {
+  calculateAttendanceStats,
+  calculateTotalBenefits,
+  calculateTotalDeductions,
+  calculateGrossPay,
+  calculateNetPay,
+  formatEmployeeFullName,
+  isDateRangeOverlapping,
+} from '../../lib/payroll/payrollHelpers';
+
+export class PayrollPeriodService {
+  /**
+   * Create new payroll period
+   */
+  async createPayrollPeriod(
+    data: CreatePayrollPeriodDTO,
+    userId: string,
+    userInfo?: any,
+    req?: any
+  ) {
+    try {
+      // Check for overlapping periods
+      const overlap = await prisma.payroll_period.findFirst({
+        where: {
+          is_deleted: false,
+          OR: [
+            {
+              AND: [
+                { period_start: { lte: new Date(data.period_start) } },
+                { period_end: { gte: new Date(data.period_start) } },
+              ],
+            },
+            {
+              AND: [
+                { period_start: { lte: new Date(data.period_end) } },
+                { period_end: { gte: new Date(data.period_end) } },
+              ],
+            },
+          ],
+        },
+      });
+
+      if (overlap) {
+        throw new ValidationError(
+          `Period overlaps with existing period: ${overlap.payroll_period_code}`
+        );
+      }
+
+      const period = await prisma.payroll_period.create({
+        data: {
+          payroll_period_code: data.payroll_period_code,
+          period_start: new Date(data.period_start),
+          period_end: new Date(data.period_end),
+          status: payroll_period_status.DRAFT,
+          created_by: userId,
+        },
+      });
+
+      await AuditLogClient.logCreate(
+        'Payroll Period Management',
+        { id: period.id, code: period.payroll_period_code },
+        period,
+        {
+          id: userId,
+          name: userInfo?.username || userId,
+          role: userInfo?.role || 'admin',
+        },
+        req
+      );
+
+      logger.info(`Payroll period ${period.payroll_period_code} created by ${userId}`);
+      return period;
+    } catch (error) {
+      logger.error('Error creating payroll period:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * List all payroll periods with filters and pagination
+   */
+  async listPayrollPeriods(query: PayrollPeriodQueryDTO): Promise<PayrollPeriodListResponseDTO> {
+    try {
+      const {
+        period_start,
+        period_end,
+        status,
+        is_deleted = false,
+        search,
+        page = 1,
+        limit = 10,
+      } = query;
+
+      const where: any = {
+        is_deleted,
+      };
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (period_start || period_end) {
+        where.period_start = {};
+        if (period_start) {
+          where.period_start.gte = new Date(period_start);
+        }
+        if (period_end) {
+          where.period_start.lte = new Date(period_end);
+        }
+      }
+
+      // Search across multiple fields
+      if (search && search.trim()) {
+        where.OR = [
+          { payroll_period_code: { contains: search.trim(), mode: 'insensitive' } },
+        ];
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [periods, total] = await Promise.all([
+        prisma.payroll_period.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { period_start: 'desc' },
+        }),
+        prisma.payroll_period.count({ where }),
+      ]);
+
+      const data = periods.map((p) => ({
+        id: p.id,
+        payroll_period_code: p.payroll_period_code,
+        period_start: p.period_start.toISOString(),
+        period_end: p.period_end.toISOString(),
+        total_employees: p.total_employees || 0,
+        total_gross: p.total_gross.toString(),
+        total_deductions: p.total_deductions.toString(),
+        total_net: p.total_net.toString(),
+        status: p.status,
+        approved_by: p.approved_by,
+        approved_at: p.approved_at?.toISOString() || null,
+        created_at: p.created_at.toISOString(),
+      }));
+
+      return {
+        data,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      logger.error('Error listing payroll periods:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get payroll period by ID with all employee payroll details
+   */
+  async getPayrollPeriodById(id: number): Promise<PayrollPeriodDetailDTO> {
+    try {
+      const period = await prisma.payroll_period.findUnique({
+        where: { id },
+        include: {
+          payrolls: {
+            include: {
+              employee: true,
+              payroll_items: {
+                include: {
+                  item_type: true,
+                },
+              },
+              payroll_attendances: true,
+            },
+          },
+        },
+      });
+
+      if (!period) {
+        throw new NotFoundError(`Payroll period with ID ${id} not found`);
+      }
+
+      if (period.is_deleted) {
+        throw new NotFoundError(`Payroll period with ID ${id} has been deleted`);
+      }
+
+      // Map payrolls to employee details
+      const payrolls: PayrollEmployeeDetailDTO[] = period.payrolls.map((p) => {
+        const attendance = p.payroll_attendances || [];
+        const presentCount = attendance.filter((a) => a.status === 'Present').length;
+        const absentCount = attendance.filter((a) => a.status === 'Absent').length;
+        const lateCount = attendance.filter((a) => a.status === 'Late').length;
+        const overtimeHours = attendance
+          .filter((a) => a.status === 'Overtime')
+          .reduce((sum, a) => sum + (parseFloat(a.hours?.toString() || '0')), 0);
+
+        return {
+          id: p.id,
+          payroll_code: `PAY-${p.id}`,
+          employee_number: p.employee_number,
+          employee_name: `${p.employee.first_name} ${p.employee.last_name}`,
+          department: p.employee.department || '',
+          position: p.employee.position || '',
+          rate_type: p.rate_type,
+          basic_rate: p.basic_rate?.toString() || '0',
+          gross_pay: p.gross_pay.toString(),
+          total_deductions: p.total_deductions.toString(),
+          net_pay: p.net_pay.toString(),
+          status: p.status,
+          present_count: presentCount,
+          absent_count: absentCount,
+          late_count: lateCount,
+          overtime_hours: overtimeHours,
+        };
+      });
+
+      return {
+        id: period.id,
+        payroll_period_code: period.payroll_period_code,
+        period_start: period.period_start.toISOString(),
+        period_end: period.period_end.toISOString(),
+        status: period.status,
+        total_employees: period.total_employees || 0,
+        total_gross: period.total_gross.toString(),
+        total_deductions: period.total_deductions.toString(),
+        total_net: period.total_net.toString(),
+        approved_by: period.approved_by,
+        approved_at: period.approved_at?.toISOString() || null,
+        created_by: period.created_by,
+        created_at: period.created_at.toISOString(),
+        payrolls,
+      };
+    } catch (error) {
+      logger.error(`Error fetching payroll period ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update payroll period
+   */
+  async updatePayrollPeriod(
+    id: number,
+    updates: UpdatePayrollPeriodDTO,
+    userId: string,
+    userInfo?: any,
+    req?: any
+  ) {
+    try {
+      const oldPeriod = await prisma.payroll_period.findUnique({ where: { id } });
+
+      if (!oldPeriod) {
+        throw new NotFoundError(`Payroll period with ID ${id} not found`);
+      }
+
+      if (oldPeriod.status === payroll_period_status.RELEASED) {
+        throw new ValidationError('Cannot update released payroll period');
+      }
+
+      const updateData: any = { ...updates };
+
+      if (updates.period_start) {
+        updateData.period_start = new Date(updates.period_start);
+      }
+      if (updates.period_end) {
+        updateData.period_end = new Date(updates.period_end);
+      }
+
+      const newPeriod = await prisma.payroll_period.update({
+        where: { id },
+        data: updateData,
+      });
+
+      await AuditLogClient.logUpdate(
+        'Payroll Period Management',
+        { id, code: newPeriod.payroll_period_code },
+        oldPeriod,
+        newPeriod,
+        {
+          id: userId,
+          name: userInfo?.username || userId,
+          role: userInfo?.role || 'admin',
+        },
+        req
+      );
+
+      logger.info(`Payroll period ${id} updated by ${userId}`);
+      return newPeriod;
+    } catch (error) {
+      logger.error(`Error updating payroll period ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete payroll period (soft delete)
+   */
+  async deletePayrollPeriod(
+    id: number,
+    userId: string,
+    reason: string,
+    userInfo?: any,
+    req?: any
+  ) {
+    try {
+      const period = await prisma.payroll_period.findUnique({ where: { id } });
+
+      if (!period) {
+        throw new NotFoundError(`Payroll period with ID ${id} not found`);
+      }
+
+      if (period.status === payroll_period_status.RELEASED) {
+        throw new ValidationError('Cannot delete released payroll period');
+      }
+
+      await prisma.payroll_period.update({
+        where: { id },
+        data: { is_deleted: true },
+      });
+
+      await AuditLogClient.logDelete(
+        'Payroll Period Management',
+        { id, code: period.payroll_period_code },
+        period,
+        {
+          id: userId,
+          name: userInfo?.username || userId,
+          role: userInfo?.role || 'admin',
+        },
+        reason,
+        req
+      );
+
+      logger.info(`Payroll period ${id} deleted by ${userId}, reason: ${reason}`);
+    } catch (error) {
+      logger.error(`Error deleting payroll period ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process payroll for a period - fetch employees from HR and create payroll records
+   */
+  async processPayroll(
+    data: ProcessPayrollDTO,
+    userId: string,
+    userInfo?: any,
+    req?: any
+  ): Promise<ProcessPayrollResultDTO> {
+    try {
+      const period = await prisma.payroll_period.findUnique({
+        where: { id: data.payroll_period_id },
+      });
+
+      if (!period) {
+        throw new NotFoundError(`Payroll period with ID ${data.payroll_period_id} not found`);
+      }
+
+      if (period.status !== payroll_period_status.DRAFT) {
+        throw new ValidationError('Can only process draft payroll periods');
+      }
+
+      // Fetch employees from HR
+      const employees = await HRPayrollClient.getEmployeesForPayroll(
+        new Date(data.period_start),
+        new Date(data.period_end)
+      );
+
+      // Filter employees if specific list provided
+      const employeesToProcess = data.employee_numbers
+        ? employees.filter((e) => data.employee_numbers!.includes(e.employeeNumber))
+        : employees.filter((e) => e.employeeStatus === 'active');
+
+      const errors: { employee_number: string; error: string }[] = [];
+      let totalGross = 0;
+      let totalDeductions = 0;
+      let totalNet = 0;
+      let processedCount = 0;
+
+      // Process each employee
+      for (const emp of employeesToProcess) {
+        try {
+          const basicRate = parseFloat(emp.basicRate || '0');
+          const benefits = calculateTotalBenefits(emp.benefits);
+          const deductions = calculateTotalDeductions(emp.deductions);
+          const grossPay = calculateGrossPay(basicRate, benefits);
+          const netPay = calculateNetPay(grossPay, deductions);
+
+          const attendanceStats = calculateAttendanceStats(emp.attendances);
+
+          // Create payroll record
+          const payroll = await prisma.payroll.create({
+            data: {
+              payroll_period_id: data.payroll_period_id,
+              employee_number: emp.employeeNumber,
+              rate_type: rate_type.MONTHLY,
+              basic_rate: basicRate,
+              gross_pay: grossPay,
+              total_deductions: deductions,
+              net_pay: netPay,
+              status: payroll_status.PENDING,
+              created_by: userId,
+            },
+          });
+
+          // Create payroll items (benefits)
+          for (const benefit of emp.benefits.filter((b) => b.isActive)) {
+            await prisma.payroll_item.create({
+              data: {
+                payroll_id: payroll.id,
+                item_type_id: 1, // TODO: Map benefit type to item_type_id
+                amount: parseFloat(benefit.value),
+                category: 'BENEFIT',
+                description: benefit.benefitType.name,
+              },
+            });
+          }
+
+          // Create payroll items (deductions)
+          for (const deduction of emp.deductions.filter((d) => d.isActive)) {
+            await prisma.payroll_item.create({
+              data: {
+                payroll_id: payroll.id,
+                item_type_id: 2, // TODO: Map deduction type to item_type_id
+                amount: parseFloat(deduction.value),
+                category: 'DEDUCTION',
+                description: deduction.deductionType.name,
+              },
+            });
+          }
+
+          // Create attendance records
+          for (const attendance of emp.attendances) {
+            await prisma.payroll_attendance.create({
+              data: {
+                payroll_id: payroll.id,
+                date: new Date(attendance.date),
+                status: attendance.status,
+                hours: attendance.status === 'Overtime' ? 1 : 0, // Simplified
+              },
+            });
+          }
+
+          totalGross += grossPay;
+          totalDeductions += deductions;
+          totalNet += netPay;
+          processedCount++;
+        } catch (error) {
+          errors.push({
+            employee_number: emp.employeeNumber,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      // Update period totals
+      await prisma.payroll_period.update({
+        where: { id: data.payroll_period_id },
+        data: {
+          total_employees: processedCount,
+          total_gross: totalGross,
+          total_deductions: totalDeductions,
+          total_net: totalNet,
+          status: payroll_period_status.PROCESSING,
+        },
+      });
+
+      logger.info(`Processed payroll for period ${data.payroll_period_id}: ${processedCount} employees`);
+
+      return {
+        success: true,
+        payroll_period_id: data.payroll_period_id,
+        total_processed: processedCount,
+        total_employees: employeesToProcess.length,
+        total_gross: totalGross.toString(),
+        total_deductions: totalDeductions.toString(),
+        total_net: totalNet.toString(),
+        errors,
+      };
+    } catch (error) {
+      logger.error('Error processing payroll:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Release payroll period (mark as released)
+   */
+  async releasePayrollPeriod(id: number, userId: string, userInfo?: any, req?: any) {
+    try {
+      const period = await prisma.payroll_period.findUnique({ where: { id } });
+
+      if (!period) {
+        throw new NotFoundError(`Payroll period with ID ${id} not found`);
+      }
+
+      if (period.status !== payroll_period_status.PROCESSING) {
+        throw new ValidationError('Can only release processed payroll periods');
+      }
+
+      const updatedPeriod = await prisma.payroll_period.update({
+        where: { id },
+        data: {
+          status: payroll_period_status.RELEASED,
+          approved_by: userId,
+          approved_at: new Date(),
+        },
+      });
+
+      // Update all payrolls to APPROVED
+      await prisma.payroll.updateMany({
+        where: { payroll_period_id: id },
+        data: { status: payroll_status.APPROVED },
+      });
+
+      await AuditLogClient.log({
+        moduleName: 'Payroll Period Management',
+        action: 'RELEASE',
+        performedBy: userId,
+        performedByName: userInfo?.username,
+        performedByRole: userInfo?.role,
+        recordId: id.toString(),
+        recordCode: period.payroll_period_code,
+        newValues: updatedPeriod,
+        ipAddress: req?.ip,
+        userAgent: req?.headers?.['user-agent'],
+      });
+
+      logger.info(`Payroll period ${id} released by ${userId}`);
+      return updatedPeriod;
+    } catch (error) {
+      logger.error(`Error releasing payroll period ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get payroll statistics
+   */
+  async getPayrollStats(): Promise<PayrollPeriodStatsDTO> {
+    try {
+      const [totalPeriods, releasedCount, pendingCount, totals, byStatus] = await Promise.all([
+        prisma.payroll_period.count({ where: { is_deleted: false } }),
+        prisma.payroll_period.count({
+          where: { is_deleted: false, status: payroll_period_status.RELEASED },
+        }),
+        prisma.payroll_period.count({
+          where: {
+            is_deleted: false,
+            status: { in: [payroll_period_status.DRAFT, payroll_period_status.PROCESSING] },
+          },
+        }),
+        prisma.payroll_period.aggregate({
+          where: { is_deleted: false },
+          _sum: { total_net: true, total_employees: true },
+        }),
+        prisma.payroll_period.groupBy({
+          by: ['status'],
+          where: { is_deleted: false },
+          _sum: { total_net: true },
+          _count: true,
+        }),
+      ]);
+
+      return {
+        total_periods: totalPeriods,
+        released_count: releasedCount,
+        pending_count: pendingCount,
+        total_net_pay: totals._sum.total_net?.toString() || '0',
+        total_employees: totals._sum.total_employees || 0,
+        by_status: byStatus.map((s) => ({
+          status: s.status,
+          count: s._count,
+          total_net: s._sum.total_net?.toString() || '0',
+        })),
+      };
+    } catch (error) {
+      logger.error('Error getting payroll stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get payslip for a specific employee payroll
+   */
+  async getPayslip(payrollId: number): Promise<PayslipDTO> {
+    try {
+      const payroll = await prisma.payroll.findUnique({
+        where: { id: payrollId },
+        include: {
+          payroll_period: true,
+          employee: true,
+          payroll_items: {
+            include: { item_type: true },
+          },
+          payroll_attendances: true,
+        },
+      });
+
+      if (!payroll) {
+        throw new NotFoundError(`Payroll with ID ${payrollId} not found`);
+      }
+
+      const attendanceStats = {
+        present: payroll.payroll_attendances.filter((a) => a.status === 'Present').length,
+        absent: payroll.payroll_attendances.filter((a) => a.status === 'Absent').length,
+        late: payroll.payroll_attendances.filter((a) => a.status === 'Late').length,
+        overtime: payroll.payroll_attendances
+          .filter((a) => a.status === 'Overtime')
+          .reduce((sum, a) => sum + parseFloat(a.hours?.toString() || '0'), 0),
+      };
+
+      const benefits: PayrollItemDTO[] = payroll.payroll_items
+        .filter((i) => i.category === 'BENEFIT')
+        .map((i) => ({
+          name: i.item_type.name,
+          category: 'BENEFIT',
+          amount: i.amount.toString(),
+          quantity: i.quantity?.toString(),
+          rate: i.rate?.toString(),
+          description: i.description || undefined,
+        }));
+
+      const deductions: PayrollItemDTO[] = payroll.payroll_items
+        .filter((i) => i.category === 'DEDUCTION')
+        .map((i) => ({
+          name: i.item_type.name,
+          category: 'DEDUCTION',
+          amount: i.amount.toString(),
+          quantity: i.quantity?.toString(),
+          rate: i.rate?.toString(),
+          description: i.description || undefined,
+        }));
+
+      return {
+        company_name: 'Your Company Name', // TODO: Get from config
+        period_start: payroll.payroll_period.period_start.toISOString(),
+        period_end: payroll.payroll_period.period_end.toISOString(),
+        release_date: payroll.payroll_period.approved_at?.toISOString() || new Date().toISOString(),
+        payroll_code: `PAY-${payroll.id}`,
+        employee_name: `${payroll.employee.first_name} ${payroll.employee.last_name}`,
+        employee_number: payroll.employee_number,
+        department: payroll.employee.department || '',
+        position: payroll.employee.position || '',
+        basic_rate: payroll.basic_rate?.toString() || '0',
+        rate_type: payroll.rate_type,
+        benefits,
+        deductions,
+        total_gross_pay: payroll.gross_pay.toString(),
+        total_deductions: payroll.total_deductions.toString(),
+        net_pay: payroll.net_pay.toString(),
+        present_count: attendanceStats.present,
+        absent_count: attendanceStats.absent,
+        late_count: attendanceStats.late,
+        total_overtime_hours: attendanceStats.overtime,
+      };
+    } catch (error) {
+      logger.error(`Error generating payslip for payroll ${payrollId}:`, error);
+      throw error;
+    }
+  }
+}
