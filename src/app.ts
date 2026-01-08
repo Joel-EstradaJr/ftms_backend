@@ -20,6 +20,7 @@ import { errorHandler } from './middleware/errorHandler';
 // import staffPayableRoutes from './routes/staff/payable.routes';
 // import staffLoanRoutes from './routes/staff/loan.routes';
 import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
+import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 
 // Integration routes (for microservices)
 import integrationRoutes from './routes/integration';
@@ -77,6 +78,7 @@ export const createApp = (): Application => {
   
   // Admin routes (Full CRUD + additional actions)
   app.use('/api/v1/admin', chartOfAccountsRoutes);
+  app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
   
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors
