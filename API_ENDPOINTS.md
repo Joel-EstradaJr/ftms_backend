@@ -35,9 +35,15 @@
 
 | Method | Route | Full URL | Description |
 |--------|-------|----------|-------------|
-| GET | `/api/v1/admin/chart-of-accounts` | `http://localhost:4000/api/v1/admin/chart-of-accounts` | Get all chart of accounts |
-| POST | `/api/v1/admin/account-types` | `http://localhost:4000/api/v1/admin/account-types` | Create new account type |
+| GET | `/api/v1/admin/chart-of-accounts` | `http://localhost:4000/api/v1/admin/chart-of-accounts` | List all chart of accounts with filtering, search, pagination |
+| GET | `/api/v1/admin/chart-of-accounts/:id` | `http://localhost:4000/api/v1/admin/chart-of-accounts/:id` | Get single chart of account details |
+| GET | `/api/v1/admin/chart-of-accounts/suggest-code/:accountTypeId` | `http://localhost:4000/api/v1/admin/chart-of-accounts/suggest-code/:accountTypeId` | Get suggested next account code |
 | POST | `/api/v1/admin/chart-of-accounts` | `http://localhost:4000/api/v1/admin/chart-of-accounts` | Create new chart of account |
+| PATCH | `/api/v1/admin/chart-of-accounts/:id` | `http://localhost:4000/api/v1/admin/chart-of-accounts/:id` | Update chart of account |
+| PATCH | `/api/v1/admin/chart-of-accounts/:id/archive` | `http://localhost:4000/api/v1/admin/chart-of-accounts/:id/archive` | Archive chart of account (soft delete) |
+| PATCH | `/api/v1/admin/chart-of-accounts/:id/restore` | `http://localhost:4000/api/v1/admin/chart-of-accounts/:id/restore` | Restore archived chart of account |
+| DELETE | `/api/v1/admin/chart-of-accounts/:id` | `http://localhost:4000/api/v1/admin/chart-of-accounts/:id` | Hard delete chart of account |
+| POST | `/api/v1/admin/account-types` | `http://localhost:4000/api/v1/admin/account-types` | Create new account type |
 
 ### Payroll Periods
 
