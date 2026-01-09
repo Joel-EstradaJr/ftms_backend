@@ -11,27 +11,25 @@ export class JournalEntryService {
     try {
       const entry = await prisma.journal_entry.create({
         data: {
-          referenceNo: data.referenceNo,
-          entryDate: new Date(data.entryDate),
+          code: data.code || data.referenceNo,
+          reference: data.reference || data.referenceNo,
+          date: new Date(data.entryDate || data.date),
           description: data.description,
-          debitAmount: data.debitAmount.toString(),
-          creditAmount: data.creditAmount.toString(),
-          accountCode: data.accountCode,
-          linkedEntityType: data.linkedEntityType,
-          linkedEntityId: data.linkedEntityId,
-          createdBy: userId,
+          total_debit: data.debitAmount?.toString() || '0',
+          total_credit: data.creditAmount?.toString() || '0',
+          created_by: userId,
         },
       });
 
       await AuditLogClient.logCreate(
         'Journal Entry',
-        { id: entry.id, code: entry.referenceNo },
+        { id: entry.id, code: entry.code },
         entry,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         req
       );
 
-      logger.info(`Journal entry created: ${entry.referenceNo}`);
+      logger.info(`Journal entry created: ${entry.code}`);
       return entry;
     } catch (error) {
       logger.error('Error creating journal entry:', error);
@@ -63,7 +61,7 @@ export class JournalEntryService {
           where,
           skip,
           take: limit,
-          orderBy: { entryDate: 'desc' },
+          orderBy: { date: 'desc' },
         }),
         prisma.journal_entry.count({ where }),
       ]);
@@ -113,14 +111,14 @@ export class JournalEntryService {
 
       await AuditLogClient.logUpdate(
         'Journal Entry',
-        { id, code: updatedEntry.referenceNo },
+        { id, code: updatedEntry.code },
         oldEntry,
         updatedEntry,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         req
       );
 
-      logger.info(`Journal entry updated: ${updatedEntry.referenceNo}`);
+      logger.info(`Journal entry updated: ${updatedEntry.code}`);
       return updatedEntry;
     } catch (error) {
       logger.error('Error updating journal entry:', error);
@@ -139,21 +137,21 @@ export class JournalEntryService {
         where: { id },
         data: {
           is_deleted: true,
-          deletedBy: userId,
-          deletedAt: new Date(),
+          deleted_by: userId,
+          deleted_at: new Date(),
         },
       });
 
       await AuditLogClient.logDelete(
         'Journal Entry',
-        { id, code: entry.referenceNo },
+        { id, code: entry.code },
         entry,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         reason,
         req
       );
 
-      logger.info(`Journal entry deleted: ${entry.referenceNo}`);
+      logger.info(`Journal entry deleted: ${entry.code}`);
     } catch (error) {
       logger.error('Error deleting journal entry:', error);
       throw error;

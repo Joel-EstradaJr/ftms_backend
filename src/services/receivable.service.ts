@@ -11,29 +11,28 @@ export class ReceivableService {
     try {
       const receivable = await prisma.receivable.create({
         data: {
-          referenceCode: data.referenceCode,
-          entityName: data.entityName,
-          entityType: data.entityType,
+          code: data.code || data.referenceCode,
+          debtor_name: data.debtor_name || data.entityName,
           description: data.description,
-          amountDue: data.amountDue.toString(),
-          remainingBalance: data.amountDue.toString(),
-          dueDate: new Date(data.dueDate),
-          frequency: data.frequency,
-          interestRate: data.interestRate?.toString(),
-          collectionStatus: 'pending',
-          createdBy: userId,
+          total_amount: data.total_amount?.toString() || data.amountDue?.toString(),
+          balance: data.total_amount?.toString() || data.amountDue?.toString(),
+          due_date: data.due_date ? new Date(data.due_date) : (data.dueDate ? new Date(data.dueDate) : null),
+          installment_plan: data.installment_plan || data.frequency,
+          interest_rate: data.interest_rate?.toString() || data.interestRate?.toString(),
+          status: 'PENDING',
+          created_by: userId,
         },
       });
 
       await AuditLogClient.logCreate(
         'Account Receivable',
-        { id: receivable.id, code: receivable.referenceCode },
+        { id: receivable.id, code: receivable.code },
         receivable,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         req
       );
 
-      logger.info(`Receivable created: ${receivable.referenceCode}`);
+      logger.info(`Receivable created: ${receivable.code}`);
       return receivable;
     } catch (error) {
       logger.error('Error creating receivable:', error);
@@ -48,10 +47,8 @@ export class ReceivableService {
     try {
       const where: any = { is_deleted: false };
 
-      if (filters.entityName) where.entityName = { contains: filters.entityName };
-      if (filters.entityType) where.entityType = filters.entityType;
-      if (filters.collectionStatus) where.collectionStatus = filters.collectionStatus;
-      if (filters.isSettled !== undefined) where.isSettled = filters.isSettled === 'true';
+      if (filters.debtor_name) where.debtor_name = { contains: filters.debtor_name };
+      if (filters.status) where.status = filters.status;
 
       const skip = (page - 1) * limit;
       const [receivables, total] = await Promise.all([
@@ -59,7 +56,7 @@ export class ReceivableService {
           where,
           skip,
           take: limit,
-          orderBy: { dueDate: 'desc' },
+          orderBy: { due_date: 'desc' },
         }),
         prisma.receivable.count({ where }),
       ]);
@@ -97,12 +94,12 @@ export class ReceivableService {
     try {
       const oldReceivable = await this.getReceivableById(id);
 
-      const updateData: any = { ...updates, updatedBy: userId };
-      if (updates.amountDue) updateData.amountDue = updates.amountDue.toString();
-      if (updates.amountPaid) updateData.amountPaid = updates.amountPaid.toString();
-      if (updates.remainingBalance) updateData.remainingBalance = updates.remainingBalance.toString();
-      if (updates.interestRate) updateData.interestRate = updates.interestRate.toString();
-      if (updates.dueDate) updateData.dueDate = new Date(updates.dueDate);
+      const updateData: any = { ...updates, updated_by: userId };
+      if (updates.total_amount) updateData.total_amount = updates.total_amount.toString();
+      if (updates.paid_amount) updateData.paid_amount = updates.paid_amount.toString();
+      if (updates.balance) updateData.balance = updates.balance.toString();
+      if (updates.interest_rate) updateData.interest_rate = updates.interest_rate.toString();
+      if (updates.due_date) updateData.due_date = new Date(updates.due_date);
 
       const newReceivable = await prisma.receivable.update({
         where: { id },
@@ -111,14 +108,14 @@ export class ReceivableService {
 
       await AuditLogClient.logUpdate(
         'Account Receivable',
-        { id, code: newReceivable.referenceCode },
+        { id, code: newReceivable.code },
         oldReceivable,
         newReceivable,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         req
       );
 
-      logger.info(`Receivable updated: ${newReceivable.referenceCode}`);
+      logger.info(`Receivable updated: ${newReceivable.code}`);
       return newReceivable;
     } catch (error) {
       logger.error('Error updating receivable:', error);
@@ -137,21 +134,21 @@ export class ReceivableService {
         where: { id },
         data: {
           is_deleted: true,
-          deletedBy: userId,
-          deletedAt: new Date(),
+          deleted_by: userId,
+          deleted_at: new Date(),
         },
       });
 
       await AuditLogClient.logDelete(
         'Account Receivable',
-        { id, code: receivable.referenceCode },
+        { id, code: receivable.code },
         receivable,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         reason,
         req
       );
 
-      logger.info(`Receivable deleted: ${receivable.referenceCode}`);
+      logger.info(`Receivable deleted: ${receivable.code}`);
     } catch (error) {
       logger.error('Error deleting receivable:', error);
       throw error;
@@ -165,32 +162,32 @@ export class ReceivableService {
     try {
       const receivable = await this.getReceivableById(id);
 
-      if (receivable.isSettled) {
-        throw new ValidationError('Receivable is already settled');
+      if (receivable.status === 'PAID') {
+        throw new ValidationError('Receivable is already fully collected');
       }
 
-      const currentPaid = parseFloat(receivable.amountPaid?.toString() || '0');
+      const currentPaid = parseFloat(receivable.paid_amount?.toString() || '0');
       const payment = parseFloat(paymentAmount.toString());
       const newPaid = currentPaid + payment;
 
-      const amountDue = parseFloat(receivable.amountDue.toString());
-      const newBalance = amountDue - newPaid;
+      const totalAmount = parseFloat(receivable.total_amount.toString());
+      const newBalance = totalAmount - newPaid;
 
       if (newBalance < 0) {
         throw new ValidationError('Payment amount exceeds remaining balance');
       }
 
-      const isSettled = newBalance === 0;
-      const collectionStatus = isSettled ? 'paid' : newBalance < amountDue ? 'partial' : 'pending';
+      const newStatus = newBalance === 0 ? 'PAID' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
 
       const updated = await prisma.receivable.update({
         where: { id },
         data: {
-          amountPaid: newPaid.toString(),
-          remainingBalance: newBalance.toString(),
-          isSettled,
-          collectionStatus,
-          updatedBy: userId,
+          paid_amount: newPaid.toString(),
+          balance: newBalance.toString(),
+          status: newStatus,
+          last_payment_date: new Date(),
+          last_payment_amount: payment.toString(),
+          updated_by: userId,
         },
       });
 
@@ -198,16 +195,16 @@ export class ReceivableService {
         moduleName: 'Account Receivable',
         action: 'PAYMENT_RECORDED',
         recordId: id.toString(),
-        recordCode: receivable.referenceCode,
+        recordCode: receivable.code,
         performedBy: userId,
         performedByName: userInfo?.username,
         performedByRole: userInfo?.role,
-        newValues: { paymentAmount: payment, newBalance, isSettled },
+        newValues: { paymentAmount: payment, newBalance, status: newStatus },
         ipAddress: req?.ip,
         userAgent: req?.headers?.['user-agent'],
       });
 
-      logger.info(`Payment recorded for receivable: ${receivable.referenceCode}`);
+      logger.info(`Payment recorded for receivable: ${receivable.code}`);
       return updated;
     } catch (error) {
       logger.error('Error recording payment:', error);

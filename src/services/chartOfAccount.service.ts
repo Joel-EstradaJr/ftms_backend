@@ -126,24 +126,24 @@ export class ChartOfAccountService {
         { account_type: { name: { contains: search.trim(), mode: 'insensitive' } } },
       ];
       
+      where.AND.push({ OR: searchConditions });
+      
       // Add normal_balance search if the search term matches DEBIT or CREDIT
       const searchUpper = search.trim().toUpperCase();
       if (searchUpper === 'DEBIT' || searchUpper.includes('DEB')) {
-        searchConditions.push({ normal_balance: 'DEBIT' });
+        where.AND.push({ normal_balance: 'DEBIT' });
       }
       if (searchUpper === 'CREDIT' || searchUpper.includes('CRED')) {
-        searchConditions.push({ normal_balance: 'CREDIT' });
+        where.AND.push({ normal_balance: 'CREDIT' });
       }
       
       // Add status search if the search term matches Active or Archived
       if (searchUpper.includes('ACTIVE') || searchUpper.includes('ACT')) {
-        searchConditions.push({ is_deleted: false });
+        where.AND.push({ is_deleted: false });
       }
       if (searchUpper.includes('ARCHIVE') || searchUpper.includes('ARCH') || searchUpper.includes('INACTIVE')) {
-        searchConditions.push({ is_deleted: true });
+        where.AND.push({ is_deleted: true });
       }
-      
-      where.AND.push({ OR: searchConditions });
     }
 
     // Clean up empty AND array
@@ -170,7 +170,7 @@ export class ChartOfAccountService {
     ]);
 
     // Map to DTO format
-    const data: ChartOfAccountListItemDTO[] = records.map(record => ({
+    const data: ChartOfAccountListItemDTO[] = records.map((record: any) => ({
       id: record.id,
       account_code: record.account_code,
       account_name: record.account_name,

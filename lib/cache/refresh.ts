@@ -45,7 +45,7 @@ export async function refreshCaches(baseUrl = process.env.NEXT_PUBLIC_BASE_URL |
   const now = new Date();
 
   // Replace datasets transactionally per table to avoid partial states
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const anyTx = tx as any;
     // BusTripCache: replace all rows
     await anyTx.busTripCache.deleteMany({});

@@ -41,14 +41,18 @@ export class ExpenseService {
    */
   async createExpense(data: CreateExpenseDTO, userId: string, userInfo?: any, req?: any) {
     try {
+      const createData: any = {
+        ...data,
+        amount: data.amount.toString(),
+        date_recorded: new Date(data.dateRecorded || new Date()),
+        created_by: userId,
+      };
+      
+      // Remove any invalid fields
+      delete createData.dateRecorded;
+      
       const expense = await prisma.expense.create({
-        data: {
-          ...data,
-          amount: data.amount.toString(),
-          date_recorded: new Date(data.dateRecorded),
-          createdBy: userId,
-          createdAt: new Date(),
-        },
+        data: createData,
       });
 
       // Audit log
@@ -219,8 +223,8 @@ export class ExpenseService {
         where: { id },
         data: {
           is_deleted: true,
-          deletedBy: userId,
-          deletedAt: new Date(),
+          deleted_by: userId,
+          deleted_at: new Date(),
         },
       });
 
