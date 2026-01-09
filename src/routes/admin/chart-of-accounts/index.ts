@@ -35,6 +35,10 @@ router.delete('/chart-of-accounts/:id', chartController.deleteChartOfAccount);
 
 // ========== ACCOUNT TYPES ENDPOINTS ==========
 
+// GET endpoints - retrieve Account Types
+router.get('/account-types', accountTypeController.getAllAccountTypes);
+router.get('/account-types/:id', accountTypeController.getAccountTypeById);
+
 // POST endpoints - create new Account Type
 router.post('/account-types', accountTypeController.createAccountType);
 

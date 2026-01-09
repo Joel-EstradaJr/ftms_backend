@@ -6,6 +6,34 @@ import { ValidationError } from '../utils/errors';
 
 export class AccountTypeService {
   /**
+   * Get all active account types.
+   * Used for populating dropdowns and form selectors.
+   */
+  async getAllAccountTypes() {
+    return prisma.account_type.findMany({
+      where: { is_deleted: false },
+      orderBy: { code: 'asc' },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        description: true,
+      },
+    });
+  }
+
+  /**
+   * Get a single account type by ID.
+   */
+  async getById(id: number) {
+    const record = await prisma.account_type.findFirst({
+      where: { id, is_deleted: false },
+    });
+    if (!record) throw new ValidationError('Account type not found');
+    return record;
+  }
+
+  /**
    * Create or revive an account type.
    * Soft-deleted records are treated as available (Requirement #5).
    */

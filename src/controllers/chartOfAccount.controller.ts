@@ -154,7 +154,7 @@ export class ChartOfAccountController {
         throw new ValidationError('Invalid chart of account ID');
       }
 
-      const record = await this.service.restore(id);
+      const record = await this.service.restore(id, req.user?.sub);
 
       res.status(200).json({ 
         success: true, 
