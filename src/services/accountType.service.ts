@@ -1,6 +1,6 @@
 // Business logic for Account Type management.
 // Services encapsulate domain rules separate from HTTP layer (controllers).
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../config/database';
 import { AccountTypeCreateDTO } from '../types/accountType.types';
 import { ValidationError } from '../utils/errors';
 

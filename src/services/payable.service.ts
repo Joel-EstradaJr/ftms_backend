@@ -11,29 +11,28 @@ export class PayableService {
     try {
       const payable = await prisma.payable.create({
         data: {
-          referenceCode: data.referenceCode,
-          entityName: data.entityName,
-          entityType: data.entityType,
+          code: data.code || data.referenceCode,
+          creditor_name: data.creditor_name || data.entityName,
           description: data.description,
-          amountDue: data.amountDue.toString(),
-          remainingBalance: data.amountDue.toString(),
-          dueDate: new Date(data.dueDate),
-          frequency: data.frequency,
-          interestRate: data.interestRate?.toString(),
-          paymentStatus: 'pending',
-          createdBy: userId,
+          total_amount: data.total_amount?.toString() || data.amountDue?.toString(),
+          balance: data.total_amount?.toString() || data.amountDue?.toString(),
+          due_date: data.due_date ? new Date(data.due_date) : (data.dueDate ? new Date(data.dueDate) : null),
+          installment_plan: data.installment_plan || data.frequency,
+          interest_rate: data.interest_rate?.toString() || data.interestRate?.toString(),
+          status: 'PENDING',
+          created_by: userId,
         },
       });
 
       await AuditLogClient.logCreate(
         'Account Payable',
-        { id: payable.id, code: payable.referenceCode },
+        { id: payable.id, code: payable.code },
         payable,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         req
       );
 
-      logger.info(`Payable created: ${payable.referenceCode}`);
+      logger.info(`Payable created: ${payable.code}`);
       return payable;
     } catch (error) {
       logger.error('Error creating payable:', error);
@@ -48,10 +47,8 @@ export class PayableService {
     try {
       const where: any = { is_deleted: false };
 
-      if (filters.entityName) where.entityName = { contains: filters.entityName };
-      if (filters.entityType) where.entityType = filters.entityType;
-      if (filters.paymentStatus) where.paymentStatus = filters.paymentStatus;
-      if (filters.isSettled !== undefined) where.isSettled = filters.isSettled === 'true';
+      if (filters.creditor_name) where.creditor_name = { contains: filters.creditor_name };
+      if (filters.status) where.status = filters.status;
 
       const skip = (page - 1) * limit;
       const [payables, total] = await Promise.all([
@@ -59,7 +56,7 @@ export class PayableService {
           where,
           skip,
           take: limit,
-          orderBy: { dueDate: 'desc' },
+          orderBy: { due_date: 'desc' },
         }),
         prisma.payable.count({ where }),
       ]);
@@ -97,12 +94,12 @@ export class PayableService {
     try {
       const oldPayable = await this.getPayableById(id);
 
-      const updateData: any = { ...updates, updatedBy: userId };
-      if (updates.amountDue) updateData.amountDue = updates.amountDue.toString();
-      if (updates.amountPaid) updateData.amountPaid = updates.amountPaid.toString();
-      if (updates.remainingBalance) updateData.remainingBalance = updates.remainingBalance.toString();
-      if (updates.interestRate) updateData.interestRate = updates.interestRate.toString();
-      if (updates.dueDate) updateData.dueDate = new Date(updates.dueDate);
+      const updateData: any = { ...updates, updated_by: userId };
+      if (updates.total_amount) updateData.total_amount = updates.total_amount.toString();
+      if (updates.paid_amount) updateData.paid_amount = updates.paid_amount.toString();
+      if (updates.balance) updateData.balance = updates.balance.toString();
+      if (updates.interest_rate) updateData.interest_rate = updates.interest_rate.toString();
+      if (updates.due_date) updateData.due_date = new Date(updates.due_date);
 
       const newPayable = await prisma.payable.update({
         where: { id },
@@ -111,14 +108,14 @@ export class PayableService {
 
       await AuditLogClient.logUpdate(
         'Account Payable',
-        { id, code: newPayable.referenceCode },
+        { id, code: newPayable.code },
         oldPayable,
         newPayable,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         req
       );
 
-      logger.info(`Payable updated: ${newPayable.referenceCode}`);
+      logger.info(`Payable updated: ${newPayable.code}`);
       return newPayable;
     } catch (error) {
       logger.error('Error updating payable:', error);
@@ -137,21 +134,21 @@ export class PayableService {
         where: { id },
         data: {
           is_deleted: true,
-          deletedBy: userId,
-          deletedAt: new Date(),
+          deleted_by: userId,
+          deleted_at: new Date(),
         },
       });
 
       await AuditLogClient.logDelete(
         'Account Payable',
-        { id, code: payable.referenceCode },
+        { id, code: payable.code },
         payable,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         reason,
         req
       );
 
-      logger.info(`Payable deleted: ${payable.referenceCode}`);
+      logger.info(`Payable deleted: ${payable.code}`);
     } catch (error) {
       logger.error('Error deleting payable:', error);
       throw error;
@@ -165,32 +162,32 @@ export class PayableService {
     try {
       const payable = await this.getPayableById(id);
 
-      if (payable.isSettled) {
-        throw new ValidationError('Payable is already settled');
+      if (payable.status === 'PAID') {
+        throw new ValidationError('Payable is already fully paid');
       }
 
-      const currentPaid = parseFloat(payable.amountPaid?.toString() || '0');
+      const currentPaid = parseFloat(payable.paid_amount?.toString() || '0');
       const payment = parseFloat(paymentAmount.toString());
       const newPaid = currentPaid + payment;
 
-      const amountDue = parseFloat(payable.amountDue.toString());
-      const newBalance = amountDue - newPaid;
+      const totalAmount = parseFloat(payable.total_amount.toString());
+      const newBalance = totalAmount - newPaid;
 
       if (newBalance < 0) {
         throw new ValidationError('Payment amount exceeds remaining balance');
       }
 
-      const isSettled = newBalance === 0;
-      const paymentStatus = isSettled ? 'paid' : newBalance < amountDue ? 'partial' : 'pending';
+      const newStatus = newBalance === 0 ? 'PAID' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
 
       const updated = await prisma.payable.update({
         where: { id },
         data: {
-          amountPaid: newPaid.toString(),
-          remainingBalance: newBalance.toString(),
-          isSettled,
-          paymentStatus,
-          updatedBy: userId,
+          paid_amount: newPaid.toString(),
+          balance: newBalance.toString(),
+          status: newStatus,
+          last_payment_date: new Date(),
+          last_payment_amount: payment.toString(),
+          updated_by: userId,
         },
       });
 
@@ -198,16 +195,16 @@ export class PayableService {
         moduleName: 'Account Payable',
         action: 'PAYMENT_RECORDED',
         recordId: id.toString(),
-        recordCode: payable.referenceCode,
+        recordCode: payable.code,
         performedBy: userId,
         performedByName: userInfo?.username,
         performedByRole: userInfo?.role,
-        newValues: { paymentAmount: payment, newBalance, isSettled },
+        newValues: { paymentAmount: payment, newBalance, status: newStatus },
         ipAddress: req?.ip,
         userAgent: req?.headers?.['user-agent'],
       });
 
-      logger.info(`Payment recorded for payable: ${payable.referenceCode}`);
+      logger.info(`Payment recorded for payable: ${payable.code}`);
       return updated;
     } catch (error) {
       logger.error('Error recording payment:', error);
