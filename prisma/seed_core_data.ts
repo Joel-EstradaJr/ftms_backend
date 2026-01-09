@@ -2,11 +2,11 @@
  * Core Data Seeder for Finance Management System
  * 
  * This file seeds essential reference data including:
- * - Account Types (Assets, Liabilities, Equity, Revenue, Expenses)
+ * - Account Types (Asset, Liability, Revenue, Expense)
  * - Chart of Accounts with auto-generated account codes
  * 
  * Account Code Generation Rules:
- * - Account Type Prefix: Assets=1, Liabilities=2, Equity=3, Revenue=4, Expenses=5
+ * - Account Type Prefix: Asset=1, Liability=2, Revenue=3, Expense=4
  * - Auto-increment last 3 digits by 5 (e.g., 1000, 1005, 1010)
  * - Ensures uniqueness excluding soft-deleted records
  * - Handles overflow by finding the lowest available code within the type prefix
@@ -23,9 +23,8 @@ const prisma = new PrismaClient();
 const ACCOUNT_TYPE_CONFIG = {
   Asset: { prefix: '1', normalBalance: 'DEBIT' as normal_balance },
   Liability: { prefix: '2', normalBalance: 'CREDIT' as normal_balance },
-  Equity: { prefix: '3', normalBalance: 'CREDIT' as normal_balance },
-  Revenue: { prefix: '4', normalBalance: 'CREDIT' as normal_balance },
-  Expense: { prefix: '5', normalBalance: 'DEBIT' as normal_balance },
+  Revenue: { prefix: '3', normalBalance: 'CREDIT' as normal_balance },
+  Expense: { prefix: '4', normalBalance: 'DEBIT' as normal_balance },
 };
 
 /**
@@ -60,11 +59,6 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     { name: 'Loans Payable - Banks', description: 'Bank loans and financing' },
     { name: 'Loans Payable - Others', description: 'Other loans payable' },
     { name: 'Unearned Revenue - Rental Deposits', description: 'Advance payments for rentals' },
-  ],
-  Equity: [
-    { name: "Owner's Capital", description: 'Owner equity investment' },
-    { name: 'Retained Earnings', description: 'Accumulated profits retained in business' },
-    { name: 'Current Year Profit/Loss', description: 'Net income for current period' },
   ],
   Revenue: [
     { name: 'Trip Revenue - Boundary', description: 'Fixed daily rental from drivers' },

@@ -192,4 +192,242 @@ export class ChartOfAccountService {
       },
     };
   }
+
+  /**
+   * Get a single Chart of Account by ID with additional details.
+   * Includes linked journal entry lines count.
+   */
+  async getById(id: number) {
+    const record = await prisma.chart_of_account.findUnique({
+      where: { id },
+      include: {
+        account_type: {
+          select: {
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            journal_lines: true,
+          },
+        },
+      },
+    });
+
+    if (!record) {
+      throw new ValidationError('Chart of account not found');
+    }
+
+    return {
+      id: record.id,
+      account_code: record.account_code,
+      account_name: record.account_name,
+      account_type_name: record.account_type.name,
+      account_type_id: record.account_type_id,
+      normal_balance: record.normal_balance,
+      description: record.description,
+      status: record.is_deleted ? 'Archived' : 'Active',
+      linked_entries_count: record._count.journal_lines,
+      created_by: record.created_by,
+      created_at: record.created_at,
+      updated_by: record.updated_by,
+      updated_at: record.updated_at,
+      archived_by: record.archived_by,
+      archived_at: record.archived_at,
+    };
+  }
+
+  /**
+   * Update a Chart of Account by ID.
+   * Validates uniqueness constraints and account code format.
+   */
+  async update(id: number, updates: Partial<ChartOfAccountCreateDTO> & { account_code?: string }, actorId?: string) {
+    // Fetch existing record
+    const existing = await prisma.chart_of_account.findUnique({ where: { id } });
+    if (!existing) {
+      throw new ValidationError('Chart of account not found');
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      updated_by: actorId,
+    };
+
+    // Handle account_type_id change
+    let accountType = null as any;
+    if (updates.account_type_id && updates.account_type_id !== existing.account_type_id) {
+      accountType = await prisma.account_type.findFirst({ 
+        where: { id: updates.account_type_id, is_deleted: false } 
+      });
+      if (!accountType) {
+        throw new ValidationError('Account type not found or deleted');
+      }
+      updateData.account_type_id = updates.account_type_id;
+    } else {
+      // Keep existing account type
+      accountType = await prisma.account_type.findFirst({ 
+        where: { id: existing.account_type_id, is_deleted: false } 
+      });
+    }
+
+    // Handle account_code update (only last 3 digits editable)
+    if (updates.account_code && updates.account_code !== existing.account_code) {
+      const accountTypeCode = accountType.code;
+      
+      // Validate format: must start with account type code
+      if (!updates.account_code.startsWith(accountTypeCode)) {
+        throw new ValidationError(`Account code must start with '${accountTypeCode}'`);
+      }
+
+      // Extract and validate suffix (last 3 digits)
+      const suffix = updates.account_code.slice(accountTypeCode.length);
+      if (!/^\d{3}$/.test(suffix)) {
+        throw new ValidationError('Account code suffix must be exactly 3 digits');
+      }
+
+      // Check uniqueness within the same account type
+      const codeConflict = await prisma.chart_of_account.findFirst({
+        where: {
+          account_code: updates.account_code,
+          account_type_id: updateData.account_type_id || existing.account_type_id,
+          is_deleted: false,
+          NOT: { id },
+        },
+      });
+      if (codeConflict) {
+        throw new ValidationError('Account code already exists for this account type');
+      }
+
+      updateData.account_code = updates.account_code;
+    }
+
+    // Handle account_name update
+    if (updates.account_name && updates.account_name !== existing.account_name) {
+      // Check uniqueness within the account type (current or new)
+      const nameConflict = await prisma.chart_of_account.findFirst({
+        where: {
+          account_name: updates.account_name,
+          account_type_id: updateData.account_type_id || existing.account_type_id,
+          is_deleted: false,
+          NOT: { id },
+        },
+      });
+      if (nameConflict) {
+        throw new ValidationError('Account name already exists for this account type');
+      }
+
+      updateData.account_name = updates.account_name;
+    }
+
+    // Handle other fields
+    if (updates.normal_balance !== undefined) {
+      updateData.normal_balance = updates.normal_balance;
+    }
+    if (updates.description !== undefined) {
+      updateData.description = updates.description;
+    }
+
+    return prisma.chart_of_account.update({
+      where: { id },
+      data: updateData,
+      include: {
+        account_type: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Archive a Chart of Account (soft delete).
+   * Sets is_deleted = true and records archived_by and archived_at.
+   */
+  async archive(id: number, actorId?: string) {
+    const existing = await prisma.chart_of_account.findUnique({ where: { id } });
+    if (!existing) {
+      throw new ValidationError('Chart of account not found');
+    }
+    if (existing.is_deleted) {
+      throw new ValidationError('Chart of account is already archived');
+    }
+
+    return prisma.chart_of_account.update({
+      where: { id },
+      data: {
+        is_deleted: true,
+        archived_by: actorId,
+        archived_at: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Restore an archived Chart of Account.
+   * Sets is_deleted = false and clears archived_by and archived_at.
+   */
+  async restore(id: number) {
+    const existing = await prisma.chart_of_account.findUnique({ where: { id } });
+    if (!existing) {
+      throw new ValidationError('Chart of account not found');
+    }
+    if (!existing.is_deleted) {
+      throw new ValidationError('Chart of account is not archived');
+    }
+
+    return prisma.chart_of_account.update({
+      where: { id },
+      data: {
+        is_deleted: false,
+        archived_by: null,
+        archived_at: null,
+      },
+    });
+  }
+
+  /**
+   * Hard delete a Chart of Account.
+   * Only allowed for archived records.
+   * Records deleted_by and deleted_at before deletion.
+   */
+  async delete(id: number, actorId?: string) {
+    const existing = await prisma.chart_of_account.findUnique({ where: { id } });
+    if (!existing) {
+      throw new ValidationError('Chart of account not found');
+    }
+    if (!existing.is_deleted) {
+      throw new ValidationError('Chart of account must be archived before deletion');
+    }
+
+    // Record deletion audit before hard delete
+    await prisma.chart_of_account.update({
+      where: { id },
+      data: {
+        deleted_by: actorId,
+        deleted_at: new Date(),
+      },
+    });
+
+    // Perform hard delete
+    return prisma.chart_of_account.delete({
+      where: { id },
+    });
+  }
+
+  /**
+   * Get the next suggested account code for a given account type.
+   * Used by frontend to pre-fill the account code field.
+   */
+  async getSuggestedAccountCode(accountTypeId: number): Promise<string> {
+    const accountType = await prisma.account_type.findFirst({
+      where: { id: accountTypeId, is_deleted: false },
+    });
+    if (!accountType) {
+      throw new ValidationError('Account type not found or deleted');
+    }
+
+    const { code } = await this.generateAccountCode(accountType.id, accountType.code);
+    return code;
+  }
 }

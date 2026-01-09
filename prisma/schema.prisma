@@ -86,7 +86,9 @@ enum payroll_period_status {
 DRAFT     // or PENDING
 PARTIAL   //e.g. 3 out of 5 employees
 RELEASED
-}enum rate_type {	
+}
+
+enum rate_type {	
 MONTHLY	
 DAILY	
 WEEKLY	
@@ -447,13 +449,15 @@ chart_of_accounts chart_of_account[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by    String?	
-created_at    DateTime  @default(now())	
-updated_by    String?	
-updated_at    DateTime  @updatedAt	
-deleted_by    String?	
-deleted_at    DateTime?	
-is_deleted    Boolean   @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model chart_of_account {	
@@ -484,7 +488,9 @@ journal_lines   journal_entry_line[]
 created_by      String?	
 created_at      DateTime       @default(now())	
 updated_by      String?	
-updated_at      DateTime       @updatedAt	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
 deleted_by      String?	
 deleted_at      DateTime?	
 is_deleted      Boolean        @default(false)	
@@ -529,13 +535,15 @@ expense_adjustments       expense_adjustment[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by       String?	
-created_at       DateTime       @default(now())	
-updated_by       String?	
-updated_at       DateTime       @updatedAt	
-deleted_by       String?	
-deleted_at       DateTime?	
-is_deleted       Boolean        @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model journal_entry_line {	
@@ -559,13 +567,15 @@ account          chart_of_account @relation(fields: [account_id], references: [i
 @@index([created_at])	
 	
 // Audit Trail	
-created_by       String?	
-created_at       DateTime @default(now())	
-updated_by       String?	
-updated_at       DateTime @updatedAt	
-deleted_by       String?	
-deleted_at       DateTime?	
-is_deleted       Boolean  @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 // ============================================================================	
@@ -588,13 +598,15 @@ revenues    revenue[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by  String?	
-created_at  DateTime @default(now())	
-updated_by  String?	
-updated_at  DateTime @updatedAt	
-deleted_by  String?	
-deleted_at  DateTime?	
-is_deleted  Boolean  @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model revenue {	
@@ -614,7 +626,7 @@ rental_trip_assignment_id       String?
 receivable_id                   Int?	
 payment_method                  String?	
 payment_reference               String?	
-journal_entry_id                Int?                    @unique	
+journal_entry_id                Int?        @unique                   
 disposal_ref            String?  // Inventory disposal_code	
 	
 // Relations	
@@ -643,13 +655,15 @@ disposal_revenues       disposal_revenue[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by                      String?	
-created_at                      DateTime @default(now())	
-updated_by                      String?	
-updated_at                      DateTime @updatedAt	
-deleted_by                      String?	
-deleted_at                      DateTime?	
-is_deleted                      Boolean  @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model receivable {	
@@ -684,13 +698,15 @@ installment_schedule   revenue_installment_schedule[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by             String?	
-created_at             DateTime @default(now())	
-updated_by             String?	
-updated_at             DateTime @updatedAt	
-deleted_by             String?	
-deleted_at             DateTime?	
-is_deleted             Boolean  @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model revenue_installment_schedule {	
@@ -718,8 +734,15 @@ payments            revenue_installment_payment[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_at          DateTime           @default(now())	
-updated_at          DateTime           @updatedAt	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model revenue_installment_payment {	
@@ -731,7 +754,7 @@ amount_paid       Decimal  @db.Decimal(12, 2)
 payment_date      DateTime @default(now())	
 payment_method    String?	
 payment_reference String?	
-journal_entry_id  Int?	
+journal_entry_id                Int?        @unique  
 	
 // Relations	
 installment       revenue_installment_schedule @relation(fields: [installment_id], references: [id], onDelete: Cascade)	
@@ -745,7 +768,15 @@ journal_entry     journal_entry? @relation(fields: [journal_entry_id], reference
 @@index([installment_id, payment_date])	
 	
 // Audit Trail	
-created_at        DateTime @default(now())	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 // ============================================================================	
@@ -768,13 +799,15 @@ expenses    expense[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by  String?	
-created_at  DateTime @default(now())	
-updated_by  String?	
-updated_at  DateTime @updatedAt	
-deleted_by  String?	
-deleted_at  DateTime?	
-is_deleted  Boolean  @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model expense {	
@@ -794,7 +827,7 @@ rental_trip_assignment_id       String?
 payable_id                      Int?	
 payment_method                  String?	
 payment_reference               String?	
-journal_entry_id                Int?                    @unique	
+journal_entry_id                Int?                    	
 	
 order_ref                       String?   // Reference to Inventory order.order_code	
 purchase_request_ref            String?   // Reference to PR for traceability	
@@ -831,13 +864,15 @@ expense_adjustments             expense_adjustment[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by                      String?	
-created_at                      DateTime @default(now())	
-updated_by                      String?	
-updated_at                      DateTime @updatedAt	
-deleted_by                      String?	
-deleted_at                      DateTime?	
-is_deleted                      Boolean  @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model payable {	
@@ -872,14 +907,16 @@ installment_schedule   expense_installment_schedule[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by             String?	
-created_at             DateTime @default(now())	
-updated_by             String?	
-updated_at             DateTime @updatedAt	
-deleted_by             String?	
-deleted_at             DateTime?	
-is_deleted             Boolean  @default(false)	
-}	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
+}		
 	
 model expense_installment_schedule {	
 // Fields	
@@ -906,9 +943,16 @@ payments            expense_installment_payment[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_at          DateTime           @default(now())	
-updated_at          DateTime           @updatedAt	
-}	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
+}		
 	
 model expense_installment_payment {	
 // Fields	
@@ -933,7 +977,15 @@ journal_entry     journal_entry? @relation(fields: [journal_entry_id], reference
 @@index([installment_id, payment_date])	
 	
 // Audit Trail	
-created_at        DateTime @default(now())	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 // ============================================================================	
@@ -952,7 +1004,6 @@ total_deductions Decimal                @db.Decimal(12, 2) @default(0)
 total_net        Decimal                @db.Decimal(12, 2) @default(0)	
 approved_by      String?	
 approved_at      DateTime?	
-is_deleted       Boolean                @default(false)	
 	
 // Relations	
 payrolls         payroll[]	
@@ -964,9 +1015,16 @@ payrolls         payroll[]
 @@index([is_deleted])	
 	
 // Audit Trail	
-created_by       String?	
-created_at       DateTime               @default(now())	
-}	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
+}		
 	
 model payroll {	
 // Fields	
@@ -980,7 +1038,7 @@ total_deductions  Decimal        @db.Decimal(12, 2) @default(0)
 net_pay           Decimal        @db.Decimal(12, 2) @default(0)	
 status            payroll_status @default(PENDING)	
 expense_id        Int?	
-journal_entry_id  Int?	
+journal_entry_id                Int?        @unique  
 	
 // Relations	
 payroll_period    payroll_period @relation(fields: [payroll_period_id], references: [id])	
@@ -998,8 +1056,15 @@ payroll_attendances payroll_attendance[]
 @@index([journal_entry_id])	
 	
 // Audit Trail	
-created_by        String?	
-created_at        DateTime       @default(now())	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model payroll_item_type {	
@@ -1041,7 +1106,15 @@ item_type    payroll_item_type @relation(fields: [item_type_id], references: [id
 @@index([category])	
 	
 // Audit Trail	
-created_at   DateTime @default(now())	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model payroll_attendance {	
@@ -1061,7 +1134,15 @@ payroll      payroll @relation(fields: [payroll_id], references: [id], onDelete:
 @@index([status])	
 	
 // Audit Trail	
-created_at   DateTime @default(now())	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 // ============================================================================	
@@ -1091,14 +1172,16 @@ purchase_requests       purchase_request_approval[]
 @@index([created_at])	
 	
 // Audit Trail	
-created_by         String?	
-created_at         DateTime  @default(now())	
-updated_by         String?	
-updated_at         DateTime  @updatedAt	
-deleted_by         String?	
-deleted_at         DateTime?	
-is_deleted         Boolean   @default(false)	
-}	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
+}		
 	
 model department_budget_cycle {	
 // Fields	
@@ -1122,7 +1205,15 @@ budget            department_budget @relation(fields: [budget_id], references: [
 @@index([budget_id])	
 	
 // Audit Trail	
-created_at        DateTime @default(now())	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model approved_budget_request {	
@@ -1146,12 +1237,14 @@ budget          department_budget @relation(fields: [budget_id], references: [id
 	
 // Audit Trail	
 created_by      String?	
-created_at      DateTime @default(now())	
+created_at      DateTime       @default(now())	
 updated_by      String?	
-updated_at      DateTime @updatedAt	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
 deleted_by      String?	
 deleted_at      DateTime?	
-is_deleted      Boolean  @default(false)	
+is_deleted      Boolean        @default(false)	
 }	
 	
 model direct_budget_allocation {	
@@ -1174,14 +1267,16 @@ budget           department_budget @relation(fields: [budget_id], references: [i
 @@index([created_at])	
 	
 // Audit Trail	
-created_by       String?	
-created_at       DateTime @default(now())	
-updated_by       String?	
-updated_at       DateTime @updatedAt	
-deleted_by       String?	
-deleted_at       DateTime?	
-is_deleted       Boolean  @default(false)	
-}	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
+}		
 	
 model budget_usage {	
 // Fields	
@@ -1209,13 +1304,15 @@ expense             expense? @relation(fields: [expense_id], references: [id], o
 @@index([created_at])	
 	
 // Audit Trail	
-created_by          String?	
-created_at          DateTime @default(now())	
-updated_by          String?	
-updated_at          DateTime @updatedAt	
-deleted_by          String?	
-deleted_at          DateTime?	
-is_deleted          Boolean  @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 // ============================================================================	
@@ -1262,11 +1359,13 @@ items                   purchase_request_item_finance[]
 created_by              String?	
 created_at              DateTime  @default(now())	
 updated_by              String?	
-updated_at              DateTime  @updatedAt	
+updated_at              DateTime?  @updatedAt	
 approved_by             String?	
 approved_at             DateTime?	
 rejected_by             String?	
-rejected_at             DateTime?	
+rejected_at             DateTime?
+archived_at             DateTime?
+archived_by             String?	
 deleted_by              String?	
 deleted_at              DateTime?	
 is_deleted              Boolean   @default(false)	
@@ -1309,9 +1408,15 @@ purchase_request        purchase_request_approval @relation(fields: [purchase_re
 @@index([is_deleted])	
 	
 // Audit Trail	
-created_at              DateTime  @default(now())	
-updated_at              DateTime  @updatedAt	
-is_deleted              Boolean   @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 }	
 	
 // ============================================================================	
@@ -1350,13 +1455,15 @@ is_revenue_recorded     Boolean   @default(false)
 is_asset_updated        Boolean   @default(false)	
 	
 // Audit Trail	
-created_by              String?	
-created_at              DateTime  @default(now())	
-updated_by              String?	
-updated_at              DateTime  @updatedAt	
-deleted_by              String?	
-deleted_at              DateTime?	
-is_deleted              Boolean   @default(false)	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 	
 // Indexes	
 @@index([disposal_ref])	
@@ -1383,7 +1490,7 @@ original_amount           Decimal                       @db.Decimal(12, 2)
 adjustment_amount         Decimal                       @db.Decimal(12, 2)  // Negative for refunds	
 new_amount                Decimal                       @db.Decimal(12, 2)	
 reason                    String                        @db.Text	
-journal_entry_id          Int?                          // Link to adjustment JE	
+journal_entry_id                Int?        @unique     // Link to adjustment JE	
 	
 // Relations	
 expense                   expense @relation(fields: [expense_id], references: [id], onDelete: Cascade)	
@@ -1404,6 +1511,8 @@ updated_by                String?
 updated_at                DateTime  @updatedAt	
 approved_by               String?	
 approved_at               DateTime?	
+archived_at               DateTime?
+archived_by               String?
 deleted_by                String?	
 deleted_at                DateTime?	
 is_deleted                Boolean   @default(false)	
@@ -1442,21 +1551,23 @@ unit_code  String     // references unit code of Inventory's units of measure
 quantity  Decimal    @db.Decimal(14,2)	
 	
 status                 asset_status @default(ACTIVE)	
-remarks                    String                        @db.Text	
+remarks                    String?                        @db.Text	
 	
 disposal_ref            String?          // inventory disposal	
 disposal_date           DateTime?        // When asset was disposed	
 disposal_value          Decimal?         @db.Decimal(14, 2)  // Actual disposal amount	
 disposal_gain_loss      Decimal?         @db.Decimal(14, 2)  // Gain or loss on disposal: disposal_value - (acquisition_cost + Accumulated Appreciation – Accumulated Depreciation)	
 	
-// Audit trail	
-created_by             String?	
-created_at             DateTime   @default(now())	
-updated_by             String?	
-updated_at             DateTime   @updatedAt	
-deleted_by             String?	
-deleted_at             DateTime?	
-is_deleted             Boolean    @default(false)	
+// Audit Trail	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?	
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 	
 // Relations	
 type                   asset_type @relation(fields: [asset_type_id], references: [id])	
@@ -1479,9 +1590,16 @@ monthly_amount     Decimal   @db.Decimal(14,2) // negative for depreciation, pos
 accumulated_amount Decimal   @db.Decimal(14,2) // running total (signed)	
 accumulation_type    accumulation_type    @default(DEPRECIATION)	
 	
-// Audit trail	
-created_at         DateTime @default(now())	
-updated_at         DateTime @updatedAt	
+// Audit Trail	
+created_by      String?	
+created_at      DateTime       @default(now())	
+updated_by      String?	
+updated_at      DateTime?       @updatedAt
+archived_by     String?	
+archived_at     DateTime?		
+deleted_by      String?	
+deleted_at      DateTime?	
+is_deleted      Boolean        @default(false)	
 	
 // Relations	
 fixed_asset        fixed_asset @relation(fields: [fixed_asset_id], references: [id], onDelete: Cascade)	
