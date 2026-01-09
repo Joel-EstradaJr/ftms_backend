@@ -15,9 +15,9 @@ async function retry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1000): Prom
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
-  return res.json();
+  return await res.json() as T;
 }
 
 export async function refreshCaches(baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000") {

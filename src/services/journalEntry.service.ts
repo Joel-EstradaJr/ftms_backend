@@ -9,7 +9,7 @@ export class JournalEntryService {
    */
   async createJournalEntry(data: any, userId: string, userInfo?: any, req?: any) {
     try {
-      const entry = await prisma.journalEntry.create({
+      const entry = await prisma.journal_entry.create({
         data: {
           referenceNo: data.referenceNo,
           entryDate: new Date(data.entryDate),
@@ -44,7 +44,7 @@ export class JournalEntryService {
    */
   async listJournalEntries(filters: any, page = 1, limit = 10) {
     try {
-      const where: any = { isDeleted: false };
+      const where: any = { is_deleted: false };
 
       // Date range filtering
       if (filters.dateFrom || filters.dateTo) {
@@ -59,13 +59,13 @@ export class JournalEntryService {
 
       const skip = (page - 1) * limit;
       const [entries, total] = await Promise.all([
-        prisma.journalEntry.findMany({
+        prisma.journal_entry.findMany({
           where,
           skip,
           take: limit,
           orderBy: { entryDate: 'desc' },
         }),
-        prisma.journalEntry.count({ where }),
+        prisma.journal_entry.count({ where }),
       ]);
 
       return {
@@ -87,8 +87,8 @@ export class JournalEntryService {
    * Get a journal entry by ID
    */
   async getJournalEntryById(id: number) {
-    const entry = await prisma.journalEntry.findUnique({ where: { id } });
-    if (!entry || entry.isDeleted) {
+    const entry = await prisma.journal_entry.findUnique({ where: { id } });
+    if (!entry || entry.is_deleted) {
       throw new NotFoundError(`Journal entry ${id} not found`);
     }
     return entry;
@@ -106,22 +106,22 @@ export class JournalEntryService {
       if (updates.creditAmount) updateData.creditAmount = updates.creditAmount.toString();
       if (updates.entryDate) updateData.entryDate = new Date(updates.entryDate);
 
-      const newEntry = await prisma.journalEntry.update({
+      const updatedEntry = await prisma.journal_entry.update({
         where: { id },
         data: updateData,
       });
 
       await AuditLogClient.logUpdate(
         'Journal Entry',
-        { id, code: newEntry.referenceNo },
+        { id, code: updatedEntry.referenceNo },
         oldEntry,
-        newEntry,
+        updatedEntry,
         { id: userId, name: userInfo?.username, role: userInfo?.role },
         req
       );
 
-      logger.info(`Journal entry updated: ${newEntry.referenceNo}`);
-      return newEntry;
+      logger.info(`Journal entry updated: ${updatedEntry.referenceNo}`);
+      return updatedEntry;
     } catch (error) {
       logger.error('Error updating journal entry:', error);
       throw error;
@@ -135,10 +135,10 @@ export class JournalEntryService {
     try {
       const entry = await this.getJournalEntryById(id);
 
-      await prisma.journalEntry.update({
+      await prisma.journal_entry.update({
         where: { id },
         data: {
-          isDeleted: true,
+          is_deleted: true,
           deletedBy: userId,
           deletedAt: new Date(),
         },

@@ -233,15 +233,15 @@ export class PayrollPeriodService {
         const lateCount = attendance.filter((a) => a.status === 'Late').length;
         const overtimeHours = attendance
           .filter((a) => a.status === 'Overtime')
-          .reduce((sum, a) => sum + (parseFloat(a.hours?.toString() || '0')), 0);
+          .reduce((sum, a) => sum + (parseFloat(a.hours_worked?.toString() || '0')), 0);
 
         return {
           id: p.id,
           payroll_code: `PAY-${p.id}`,
           employee_number: p.employee_number,
           employee_name: `${p.employee.first_name} ${p.employee.last_name}`,
-          department: p.employee.department || '',
-          position: p.employee.position || '',
+          department: p.employee.department_name || '',
+          position: p.employee.position_name || '',
           rate_type: p.rate_type,
           basic_rate: p.basic_rate?.toString() || '0',
           gross_pay: p.gross_pay.toString(),
@@ -502,7 +502,7 @@ export class PayrollPeriodService {
           total_gross: totalGross,
           total_deductions: totalDeductions,
           total_net: totalNet,
-          status: payroll_period_status.PROCESSING,
+          status: payroll_period_status.PARTIAL,
         },
       });
 
@@ -535,7 +535,7 @@ export class PayrollPeriodService {
         throw new NotFoundError(`Payroll period with ID ${id} not found`);
       }
 
-      if (period.status !== payroll_period_status.PROCESSING) {
+      if (period.status === payroll_period_status.DRAFT) {
         throw new ValidationError('Can only release processed payroll periods');
       }
 
@@ -548,10 +548,10 @@ export class PayrollPeriodService {
         },
       });
 
-      // Update all payrolls to APPROVED
+      // Update all payrolls to RELEASED
       await prisma.payroll.updateMany({
         where: { payroll_period_id: id },
-        data: { status: payroll_status.APPROVED },
+        data: { status: payroll_status.RELEASED },
       });
 
       await AuditLogClient.log({
@@ -588,7 +588,7 @@ export class PayrollPeriodService {
         prisma.payroll_period.count({
           where: {
             is_deleted: false,
-            status: { in: [payroll_period_status.DRAFT, payroll_period_status.PROCESSING] },
+            status: { in: [payroll_period_status.DRAFT, payroll_period_status.PARTIAL] },
           },
         }),
         prisma.payroll_period.aggregate({
@@ -648,7 +648,7 @@ export class PayrollPeriodService {
         late: payroll.payroll_attendances.filter((a) => a.status === 'Late').length,
         overtime: payroll.payroll_attendances
           .filter((a) => a.status === 'Overtime')
-          .reduce((sum, a) => sum + parseFloat(a.hours?.toString() || '0'), 0),
+          .reduce((sum, a) => sum + parseFloat(a.hours_worked?.toString() || '0'), 0),
       };
 
       const benefits: PayrollItemDTO[] = payroll.payroll_items
@@ -681,8 +681,8 @@ export class PayrollPeriodService {
         payroll_code: `PAY-${payroll.id}`,
         employee_name: `${payroll.employee.first_name} ${payroll.employee.last_name}`,
         employee_number: payroll.employee_number,
-        department: payroll.employee.department || '',
-        position: payroll.employee.position || '',
+        department: payroll.employee.department_name || '',
+        position: payroll.employee.position_name || '',
         basic_rate: payroll.basic_rate?.toString() || '0',
         rate_type: payroll.rate_type,
         benefits,

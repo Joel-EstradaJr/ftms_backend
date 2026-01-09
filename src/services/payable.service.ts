@@ -9,7 +9,7 @@ export class PayableService {
    */
   async createPayable(data: any, userId: string, userInfo?: any, req?: any) {
     try {
-      const payable = await prisma.accountPayable.create({
+      const payable = await prisma.payable.create({
         data: {
           referenceCode: data.referenceCode,
           entityName: data.entityName,
@@ -46,7 +46,7 @@ export class PayableService {
    */
   async listPayables(filters: any, page = 1, limit = 10) {
     try {
-      const where: any = { isDeleted: false };
+      const where: any = { is_deleted: false };
 
       if (filters.entityName) where.entityName = { contains: filters.entityName };
       if (filters.entityType) where.entityType = filters.entityType;
@@ -55,13 +55,13 @@ export class PayableService {
 
       const skip = (page - 1) * limit;
       const [payables, total] = await Promise.all([
-        prisma.accountPayable.findMany({
+        prisma.payable.findMany({
           where,
           skip,
           take: limit,
           orderBy: { dueDate: 'desc' },
         }),
-        prisma.accountPayable.count({ where }),
+        prisma.payable.count({ where }),
       ]);
 
       return {
@@ -83,8 +83,8 @@ export class PayableService {
    * Get a payable by ID
    */
   async getPayableById(id: number) {
-    const payable = await prisma.accountPayable.findUnique({ where: { id } });
-    if (!payable || payable.isDeleted) {
+    const payable = await prisma.payable.findUnique({ where: { id } });
+    if (!payable || payable.is_deleted) {
       throw new NotFoundError(`Payable ${id} not found`);
     }
     return payable;
@@ -104,7 +104,7 @@ export class PayableService {
       if (updates.interestRate) updateData.interestRate = updates.interestRate.toString();
       if (updates.dueDate) updateData.dueDate = new Date(updates.dueDate);
 
-      const newPayable = await prisma.accountPayable.update({
+      const newPayable = await prisma.payable.update({
         where: { id },
         data: updateData,
       });
@@ -133,10 +133,10 @@ export class PayableService {
     try {
       const payable = await this.getPayableById(id);
 
-      await prisma.accountPayable.update({
+      await prisma.payable.update({
         where: { id },
         data: {
-          isDeleted: true,
+          is_deleted: true,
           deletedBy: userId,
           deletedAt: new Date(),
         },
@@ -183,7 +183,7 @@ export class PayableService {
       const isSettled = newBalance === 0;
       const paymentStatus = isSettled ? 'paid' : newBalance < amountDue ? 'partial' : 'pending';
 
-      const updated = await prisma.accountPayable.update({
+      const updated = await prisma.payable.update({
         where: { id },
         data: {
           amountPaid: newPaid.toString(),
