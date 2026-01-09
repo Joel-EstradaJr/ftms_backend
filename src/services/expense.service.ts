@@ -45,7 +45,7 @@ export class ExpenseService {
         data: {
           ...data,
           amount: data.amount.toString(),
-          dateRecorded: new Date(data.dateRecorded),
+          date_recorded: new Date(data.dateRecorded),
           createdBy: userId,
           createdAt: new Date(),
         },
@@ -78,7 +78,7 @@ export class ExpenseService {
   async listExpenses(filters: ExpenseFilters, page: number = 1, limit: number = 10) {
     try {
       const where: any = {
-        isDeleted: filters.isDeleted ?? false,
+        is_deleted: filters.isDeleted ?? false,
       };
 
       if (filters.category) {
@@ -110,7 +110,7 @@ export class ExpenseService {
           where,
           skip,
           take: limit,
-          orderBy: { dateRecorded: 'desc' },
+          orderBy: { date_recorded: 'desc' },
         }),
         prisma.expense.count({ where }),
       ]);
@@ -143,7 +143,7 @@ export class ExpenseService {
         throw new NotFoundError(`Expense with ID ${id} not found`);
       }
 
-      if (expense.isDeleted) {
+      if (expense.is_deleted) {
         throw new NotFoundError(`Expense with ID ${id} has been deleted`);
       }
 
@@ -178,7 +178,7 @@ export class ExpenseService {
       }
 
       if (updates.dateRecorded) {
-        updateData.dateRecorded = new Date(updates.dateRecorded);
+        updateData.date_recorded = new Date(updates.dateRecorded);
       }
 
       const newExpense = await prisma.expense.update({
@@ -218,7 +218,7 @@ export class ExpenseService {
       await prisma.expense.update({
         where: { id },
         data: {
-          isDeleted: true,
+          is_deleted: true,
           deletedBy: userId,
           deletedAt: new Date(),
         },
@@ -255,8 +255,9 @@ export class ExpenseService {
       const updatedExpense = await prisma.expense.update({
         where: { id },
         data: {
-          approvedBy: userId,
-          approvedAt: new Date(),
+          approval_status: 'APPROVED',
+          updated_by: userId,
+          updated_at: new Date(),
         },
       });
 
@@ -292,9 +293,10 @@ export class ExpenseService {
       const updatedExpense = await prisma.expense.update({
         where: { id },
         data: {
-          rejectedBy: userId,
-          rejectedAt: new Date(),
-          remarks: reason,
+          approval_status: 'REJECTED',
+          description: reason,
+          updated_by: userId,
+          updated_at: new Date(),
         },
       });
 
@@ -326,24 +328,24 @@ export class ExpenseService {
   async getExpenseStats(filters: ExpenseFilters) {
     try {
       const where: any = {
-        isDeleted: false,
+        is_deleted: false,
       };
 
       if (filters.category) {
-        where.category = filters.category;
+        where.expense_type_id = filters.category;
       }
 
       if (filters.dateFrom || filters.dateTo) {
-        where.dateRecorded = {};
+        where.date_recorded = {};
         if (filters.dateFrom) {
-          where.dateRecorded.gte = new Date(filters.dateFrom);
+          where.date_recorded.gte = new Date(filters.dateFrom);
         }
         if (filters.dateTo) {
-          where.dateRecorded.lte = new Date(filters.dateTo);
+          where.date_recorded.lte = new Date(filters.dateTo);
         }
       }
 
-      const [total, byCategory, byDepartment] = await Promise.all([
+      const [total, byExpenseType] = await Promise.all([
         prisma.expense.aggregate({
           where,
           _sum: {
@@ -352,16 +354,8 @@ export class ExpenseService {
           _count: true,
         }),
         prisma.expense.groupBy({
-          by: ['category'],
+          by: ['expense_type_id'],
           where,
-          _sum: {
-            amount: true,
-          },
-          _count: true,
-        }),
-        prisma.expense.groupBy({
-          by: ['department'],
-          where: { ...where, department: { not: null } },
           _sum: {
             amount: true,
           },
@@ -374,8 +368,7 @@ export class ExpenseService {
           amount: total._sum.amount || 0,
           count: total._count,
         },
-        byCategory,
-        byDepartment,
+        byExpenseType,
       };
     } catch (error) {
       logger.error('Error getting expense stats:', error);

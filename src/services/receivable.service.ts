@@ -9,7 +9,7 @@ export class ReceivableService {
    */
   async createReceivable(data: any, userId: string, userInfo?: any, req?: any) {
     try {
-      const receivable = await prisma.accountReceivable.create({
+      const receivable = await prisma.receivable.create({
         data: {
           referenceCode: data.referenceCode,
           entityName: data.entityName,
@@ -46,7 +46,7 @@ export class ReceivableService {
    */
   async listReceivables(filters: any, page = 1, limit = 10) {
     try {
-      const where: any = { isDeleted: false };
+      const where: any = { is_deleted: false };
 
       if (filters.entityName) where.entityName = { contains: filters.entityName };
       if (filters.entityType) where.entityType = filters.entityType;
@@ -55,13 +55,13 @@ export class ReceivableService {
 
       const skip = (page - 1) * limit;
       const [receivables, total] = await Promise.all([
-        prisma.accountReceivable.findMany({
+        prisma.receivable.findMany({
           where,
           skip,
           take: limit,
           orderBy: { dueDate: 'desc' },
         }),
-        prisma.accountReceivable.count({ where }),
+        prisma.receivable.count({ where }),
       ]);
 
       return {
@@ -83,8 +83,8 @@ export class ReceivableService {
    * Get a receivable by ID
    */
   async getReceivableById(id: number) {
-    const receivable = await prisma.accountReceivable.findUnique({ where: { id } });
-    if (!receivable || receivable.isDeleted) {
+    const receivable = await prisma.receivable.findUnique({ where: { id } });
+    if (!receivable || receivable.is_deleted) {
       throw new NotFoundError(`Receivable ${id} not found`);
     }
     return receivable;
@@ -104,7 +104,7 @@ export class ReceivableService {
       if (updates.interestRate) updateData.interestRate = updates.interestRate.toString();
       if (updates.dueDate) updateData.dueDate = new Date(updates.dueDate);
 
-      const newReceivable = await prisma.accountReceivable.update({
+      const newReceivable = await prisma.receivable.update({
         where: { id },
         data: updateData,
       });
@@ -133,10 +133,10 @@ export class ReceivableService {
     try {
       const receivable = await this.getReceivableById(id);
 
-      await prisma.accountReceivable.update({
+      await prisma.receivable.update({
         where: { id },
         data: {
-          isDeleted: true,
+          is_deleted: true,
           deletedBy: userId,
           deletedAt: new Date(),
         },
@@ -183,7 +183,7 @@ export class ReceivableService {
       const isSettled = newBalance === 0;
       const collectionStatus = isSettled ? 'paid' : newBalance < amountDue ? 'partial' : 'pending';
 
-      const updated = await prisma.accountReceivable.update({
+      const updated = await prisma.receivable.update({
         where: { id },
         data: {
           amountPaid: newPaid.toString(),

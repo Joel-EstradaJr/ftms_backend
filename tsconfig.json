@@ -5,7 +5,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -20,8 +20,8 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "app", "components", "lib", "public", ".next"],
+  "include": ["src/**/*", "lib/**/*"],
+  "exclude": ["node_modules", "dist", "app", "components", "public", ".next", "**/*.disabled", "**/*.disabled/**", "lib/admin.disabled/**", "lib/expenses.disabled/**", "**/*.bak"],
   "ts-node": {
     "compilerOptions": {
       "module": "commonjs",

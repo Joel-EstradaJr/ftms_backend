@@ -40,7 +40,7 @@ export interface ChartOfAccountListItemDTO {
   description: string | null; // Short preview
   status: 'Active' | 'Archived'; // Derived from is_deleted
   created_at: Date;
-  updated_at: Date;
+  updated_at: Date | null;
 }
 
 // Paginated response wrapper
