@@ -44,7 +44,7 @@ export const config: Config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   
-  databaseUrl: process.env.FINANCE_MAIN_DATABASE_URL!,
+  databaseUrl: process.env.DATABASE_URL!,
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   
   jwtSecret: process.env.JWT_SECRET || '8f7b3a2c9d4e6f8a0b1c2d3e4f5g6h7i',
@@ -70,7 +70,7 @@ export const config: Config = {
 
 // Validate required environment variables
 const requiredEnvVars = [
-  'FINANCE_MAIN_DATABASE_URL',
+  'DATABASE_URL',
   'HR_API_EMPLOYEES_URL',
   'HR_API_PAYROLL_URL',
   'OP_API_BUSTRIP_URL',
