@@ -2,7 +2,7 @@
 CREATE TYPE "normal_balance" AS ENUM ('DEBIT', 'CREDIT');
 
 -- CreateEnum
-CREATE TYPE "journal_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+CREATE TYPE "journal_status" AS ENUM ('DRAFT', 'APPROVED', 'REJECTED');
 
 -- CreateEnum
 CREATE TYPE "revenue_status" AS ENUM ('PENDING', 'RECORDED', 'OVERDUE', 'CANCELLED');
@@ -26,10 +26,10 @@ CREATE TYPE "expense_approval_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED'
 CREATE TYPE "installment_status" AS ENUM ('PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED', 'WRITTEN_OFF');
 
 -- CreateEnum
-CREATE TYPE "payroll_status" AS ENUM ('PENDING', 'APPROVED', 'POSTED');
+CREATE TYPE "payroll_status" AS ENUM ('PENDING', 'RELEASED');
 
 -- CreateEnum
-CREATE TYPE "payroll_period_status" AS ENUM ('OPEN', 'LOCKED', 'APPROVED', 'POSTED');
+CREATE TYPE "payroll_period_status" AS ENUM ('DRAFT', 'PARTIAL', 'RELEASED');
 
 -- CreateEnum
 CREATE TYPE "rate_type" AS ENUM ('MONTHLY', 'DAILY', 'WEEKLY', 'SEMI_MONTHLY');
@@ -38,22 +38,31 @@ CREATE TYPE "rate_type" AS ENUM ('MONTHLY', 'DAILY', 'WEEKLY', 'SEMI_MONTHLY');
 CREATE TYPE "budget_status" AS ENUM ('ACTIVE', 'INACTIVE');
 
 -- CreateEnum
-CREATE TYPE "refund_replacement_finance_status" AS ENUM ('PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED', 'PARTIALLY_COMPLETED', 'CLOSED');
-
--- CreateEnum
-CREATE TYPE "refund_replacement_action" AS ENUM ('REFUND', 'REPLACEMENT', 'NO_ACTION');
-
--- CreateEnum
-CREATE TYPE "asset_status" AS ENUM ('ACTIVE', 'INACTIVE', 'FULLY_DEPRECIATED');
+CREATE TYPE "asset_status" AS ENUM ('PENDING', 'ACTIVE', 'FULLY_DEPRECIATED', 'DISPOSED');
 
 -- CreateEnum
 CREATE TYPE "accumulation_type" AS ENUM ('APPRECIATION', 'DEPRECIATION');
+
+-- CreateEnum
+CREATE TYPE "disposal_type_enum" AS ENUM ('ITEM', 'BUS', 'FIXED_ASSET');
+
+-- CreateEnum
+CREATE TYPE "disposal_method_enum" AS ENUM ('FOR_SALE', 'SCRAPPED', 'DONATED', 'TRANSFERRED', 'WRITTEN_OFF');
 
 -- CreateEnum
 CREATE TYPE "purchase_request_approval_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'ADJUSTED', 'CLOSED');
 
 -- CreateEnum
 CREATE TYPE "pr_item_finance_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'ADJUSTED', 'CLOSED');
+
+-- CreateEnum
+CREATE TYPE "entry_type" AS ENUM ('AUTO_GENERATED', 'MANUAL');
+
+-- CreateEnum
+CREATE TYPE "budget_cycle_type" AS ENUM ('MONTHLY', 'ONE_TIME');
+
+-- CreateEnum
+CREATE TYPE "budget_allocation_type" AS ENUM ('INCREASE', 'DECREASE', 'USAGE');
 
 -- CreateTable
 CREATE TABLE "employees_cache" (
@@ -242,7 +251,9 @@ CREATE TABLE "account_type" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -261,7 +272,9 @@ CREATE TABLE "chart_of_account" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -278,7 +291,8 @@ CREATE TABLE "journal_entry" (
     "description" TEXT,
     "total_debit" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "total_credit" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "status" "journal_status" NOT NULL DEFAULT 'PENDING',
+    "status" "journal_status" NOT NULL DEFAULT 'DRAFT',
+    "entry_type" "entry_type" NOT NULL DEFAULT 'AUTO_GENERATED',
     "approved_by" TEXT,
     "approved_at" TIMESTAMP(3),
     "rejected_by" TEXT,
@@ -288,7 +302,9 @@ CREATE TABLE "journal_entry" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -308,7 +324,9 @@ CREATE TABLE "journal_entry_line" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -325,7 +343,9 @@ CREATE TABLE "revenue_type" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -355,7 +375,9 @@ CREATE TABLE "revenue" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -384,7 +406,9 @@ CREATE TABLE "receivable" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -402,8 +426,15 @@ CREATE TABLE "revenue_installment_schedule" (
     "amount_paid" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "balance" DECIMAL(12,2) NOT NULL,
     "status" "installment_status" NOT NULL DEFAULT 'PENDING',
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "revenue_installment_schedule_pkey" PRIMARY KEY ("id")
 );
@@ -418,7 +449,15 @@ CREATE TABLE "revenue_installment_payment" (
     "payment_method" TEXT,
     "payment_reference" TEXT,
     "journal_entry_id" INTEGER,
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "revenue_installment_payment_pkey" PRIMARY KEY ("id")
 );
@@ -432,7 +471,9 @@ CREATE TABLE "expense_type" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -465,7 +506,9 @@ CREATE TABLE "expense" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -494,7 +537,9 @@ CREATE TABLE "payable" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -512,8 +557,15 @@ CREATE TABLE "expense_installment_schedule" (
     "amount_paid" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "balance" DECIMAL(12,2) NOT NULL,
     "status" "installment_status" NOT NULL DEFAULT 'PENDING',
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "expense_installment_schedule_pkey" PRIMARY KEY ("id")
 );
@@ -528,7 +580,15 @@ CREATE TABLE "expense_installment_payment" (
     "payment_method" TEXT,
     "payment_reference" TEXT,
     "journal_entry_id" INTEGER,
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "expense_installment_payment_pkey" PRIMARY KEY ("id")
 );
@@ -536,18 +596,25 @@ CREATE TABLE "expense_installment_payment" (
 -- CreateTable
 CREATE TABLE "payroll_period" (
     "id" SERIAL NOT NULL,
+    "payroll_period_code" TEXT NOT NULL,
     "period_start" TIMESTAMP(3) NOT NULL,
     "period_end" TIMESTAMP(3) NOT NULL,
-    "status" "payroll_period_status" NOT NULL DEFAULT 'OPEN',
+    "status" "payroll_period_status" NOT NULL DEFAULT 'DRAFT',
     "total_employees" INTEGER,
     "total_gross" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "total_deductions" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "total_net" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "approved_by" TEXT,
     "approved_at" TIMESTAMP(3),
-    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "payroll_period_pkey" PRIMARY KEY ("id")
 );
@@ -567,6 +634,13 @@ CREATE TABLE "payroll" (
     "journal_entry_id" INTEGER,
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "payroll_pkey" PRIMARY KEY ("id")
 );
@@ -593,7 +667,15 @@ CREATE TABLE "payroll_item" (
     "rate" DECIMAL(12,2),
     "description" TEXT,
     "category" TEXT NOT NULL,
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "payroll_item_pkey" PRIMARY KEY ("id")
 );
@@ -605,7 +687,15 @@ CREATE TABLE "payroll_attendance" (
     "date" TIMESTAMP(3) NOT NULL,
     "status" TEXT NOT NULL,
     "hours_worked" DECIMAL(5,2),
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "payroll_attendance_pkey" PRIMARY KEY ("id")
 );
@@ -622,7 +712,9 @@ CREATE TABLE "department_budget" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -634,13 +726,25 @@ CREATE TABLE "department_budget" (
 CREATE TABLE "department_budget_cycle" (
     "id" SERIAL NOT NULL,
     "budget_id" INTEGER NOT NULL,
-    "cycle_year" INTEGER NOT NULL,
-    "cycle_month" INTEGER NOT NULL,
+    "cycle_type" "budget_cycle_type" NOT NULL DEFAULT 'MONTHLY',
+    "start_date" TIMESTAMP(3) NOT NULL,
+    "end_date" TIMESTAMP(3),
+    "interval_count" INTEGER,
     "starting_budget" DECIMAL(14,2) NOT NULL,
     "used_budget" DECIMAL(14,2) NOT NULL DEFAULT 0,
     "remaining_budget" DECIMAL(14,2) NOT NULL DEFAULT 0,
     "carry_over_amount" DECIMAL(14,2) NOT NULL DEFAULT 0,
+    "reserved_budget" DECIMAL(14,2) NOT NULL DEFAULT 0,
+    "is_active" BOOLEAN NOT NULL DEFAULT false,
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "department_budget_cycle_pkey" PRIMARY KEY ("id")
 );
@@ -656,7 +760,9 @@ CREATE TABLE "approved_budget_request" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -671,11 +777,14 @@ CREATE TABLE "direct_budget_allocation" (
     "allocated_amount" DECIMAL(14,2) NOT NULL,
     "allocation_date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "allocated_by" TEXT,
+    "budget_allocation_type" "budget_allocation_type" NOT NULL DEFAULT 'INCREASE',
     "description" TEXT,
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -697,7 +806,9 @@ CREATE TABLE "budget_usage" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -724,11 +835,13 @@ CREATE TABLE "purchase_request_approval" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
     "approved_by" TEXT,
     "approved_at" TIMESTAMP(3),
     "rejected_by" TEXT,
     "rejected_at" TIMESTAMP(3),
+    "archived_at" TIMESTAMP(3),
+    "archived_by" TEXT,
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -755,67 +868,17 @@ CREATE TABLE "purchase_request_item_finance" (
     "supplier_item_ref" TEXT,
     "finance_notes" TEXT,
     "rejection_reason" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
-
-    CONSTRAINT "purchase_request_item_finance_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "refund_replacement_finance" (
-    "id" SERIAL NOT NULL,
-    "request_code" TEXT NOT NULL,
-    "order_ref" TEXT NOT NULL,
-    "expense_id" INTEGER,
-    "status" "refund_replacement_finance_status" NOT NULL DEFAULT 'PENDING',
-    "request_type" TEXT NOT NULL,
-    "issue_description" TEXT NOT NULL,
-    "total_affected_amount" DECIMAL(12,2) NOT NULL,
-    "approved_amount" DECIMAL(12,2),
-    "finance_remarks" TEXT,
-    "supplier_contact_notes" TEXT,
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "approved_by" TEXT,
-    "approved_at" TIMESTAMP(3),
-    "rejected_by" TEXT,
-    "rejected_at" TIMESTAMP(3),
-    "closed_by" TEXT,
-    "closed_at" TIMESTAMP(3),
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
-    CONSTRAINT "refund_replacement_finance_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "refund_replacement_item_finance" (
-    "id" SERIAL NOT NULL,
-    "refund_replacement_id" INTEGER NOT NULL,
-    "item_ref_from_inventory" TEXT NOT NULL,
-    "order_item_ref" TEXT NOT NULL,
-    "external_item_ref" TEXT NOT NULL,
-    "item_name" TEXT NOT NULL,
-    "affected_quantity" DECIMAL(12,2) NOT NULL,
-    "unit_price" DECIMAL(12,2) NOT NULL,
-    "total_amount" DECIMAL(12,2) NOT NULL,
-    "finance_action" "refund_replacement_action",
-    "approved_refund_amount" DECIMAL(12,2),
-    "expected_replacement_quantity" DECIMAL(12,2),
-    "missing_quantity" DECIMAL(12,2),
-    "damaged_quantity" DECIMAL(12,2),
-    "issue_description" TEXT,
-    "finance_notes" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
-
-    CONSTRAINT "refund_replacement_item_finance_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "purchase_request_item_finance_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -823,8 +886,8 @@ CREATE TABLE "disposal_revenue" (
     "id" SERIAL NOT NULL,
     "disposal_ref" TEXT NOT NULL,
     "revenue_id" INTEGER,
-    "disposal_type" TEXT NOT NULL,
-    "disposal_method" TEXT NOT NULL,
+    "disposal_type" "disposal_type_enum" NOT NULL,
+    "disposal_method" "disposal_method_enum" NOT NULL,
     "item_ref" TEXT,
     "item_name" TEXT,
     "quantity" DECIMAL(12,2),
@@ -837,7 +900,9 @@ CREATE TABLE "disposal_revenue" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -849,7 +914,6 @@ CREATE TABLE "disposal_revenue" (
 CREATE TABLE "expense_adjustment" (
     "id" SERIAL NOT NULL,
     "expense_id" INTEGER NOT NULL,
-    "refund_replacement_id" INTEGER,
     "adjustment_code" TEXT NOT NULL,
     "adjustment_type" TEXT NOT NULL,
     "original_amount" DECIMAL(12,2) NOT NULL,
@@ -863,6 +927,8 @@ CREATE TABLE "expense_adjustment" (
     "updated_at" TIMESTAMP(3) NOT NULL,
     "approved_by" TEXT,
     "approved_at" TIMESTAMP(3),
+    "archived_at" TIMESTAMP(3),
+    "archived_by" TEXT,
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -889,8 +955,12 @@ CREATE TABLE "fixed_asset" (
     "asset_name" TEXT NOT NULL,
     "acquisition_date" TIMESTAMP(3) NOT NULL,
     "acquisition_cost" DECIMAL(14,2) NOT NULL,
-    "estimated_life_years" INTEGER NOT NULL,
+    "useful_life" INTEGER NOT NULL,
+    "location" TEXT NOT NULL,
+    "unit_code" TEXT NOT NULL,
+    "quantity" DECIMAL(14,2) NOT NULL,
     "status" "asset_status" NOT NULL DEFAULT 'ACTIVE',
+    "remarks" TEXT,
     "disposal_ref" TEXT,
     "disposal_date" TIMESTAMP(3),
     "disposal_value" DECIMAL(14,2),
@@ -898,7 +968,9 @@ CREATE TABLE "fixed_asset" (
     "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_by" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
     "deleted_by" TEXT,
     "deleted_at" TIMESTAMP(3),
     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -915,8 +987,15 @@ CREATE TABLE "asset_accumulation" (
     "monthly_amount" DECIMAL(14,2) NOT NULL,
     "accumulated_amount" DECIMAL(14,2) NOT NULL,
     "accumulation_type" "accumulation_type" NOT NULL DEFAULT 'DEPRECIATION',
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_by" TEXT,
+    "updated_at" TIMESTAMP(3),
+    "archived_by" TEXT,
+    "archived_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "asset_accumulation_pkey" PRIMARY KEY ("id")
 );
@@ -1213,6 +1292,9 @@ CREATE INDEX "revenue_installment_schedule_created_at_idx" ON "revenue_installme
 CREATE UNIQUE INDEX "revenue_installment_schedule_receivable_id_installment_numb_key" ON "revenue_installment_schedule"("receivable_id", "installment_number");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "revenue_installment_payment_journal_entry_id_key" ON "revenue_installment_payment"("journal_entry_id");
+
+-- CreateIndex
 CREATE INDEX "revenue_installment_payment_installment_id_idx" ON "revenue_installment_payment"("installment_id");
 
 -- CreateIndex
@@ -1244,9 +1326,6 @@ CREATE INDEX "expense_type_created_at_idx" ON "expense_type"("created_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "expense_code_key" ON "expense"("code");
-
--- CreateIndex
-CREATE UNIQUE INDEX "expense_journal_entry_id_key" ON "expense"("journal_entry_id");
 
 -- CreateIndex
 CREATE INDEX "expense_code_idx" ON "expense"("code");
@@ -1354,6 +1433,9 @@ CREATE INDEX "payroll_period_status_idx" ON "payroll_period"("status");
 CREATE INDEX "payroll_period_is_deleted_idx" ON "payroll_period"("is_deleted");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "payroll_journal_entry_id_key" ON "payroll"("journal_entry_id");
+
+-- CreateIndex
 CREATE INDEX "payroll_payroll_period_id_idx" ON "payroll"("payroll_period_id");
 
 -- CreateIndex
@@ -1415,12 +1497,6 @@ CREATE INDEX "department_budget_created_at_idx" ON "department_budget"("created_
 
 -- CreateIndex
 CREATE INDEX "department_budget_cycle_budget_id_idx" ON "department_budget_cycle"("budget_id");
-
--- CreateIndex
-CREATE INDEX "department_budget_cycle_cycle_year_cycle_month_idx" ON "department_budget_cycle"("cycle_year", "cycle_month");
-
--- CreateIndex
-CREATE INDEX "department_budget_cycle_budget_id_cycle_year_cycle_month_idx" ON "department_budget_cycle"("budget_id", "cycle_year", "cycle_month");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "approved_budget_request_request_code_key" ON "approved_budget_request"("request_code");
@@ -1510,45 +1586,6 @@ CREATE INDEX "purchase_request_item_finance_status_idx" ON "purchase_request_ite
 CREATE INDEX "purchase_request_item_finance_is_deleted_idx" ON "purchase_request_item_finance"("is_deleted");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "refund_replacement_finance_request_code_key" ON "refund_replacement_finance"("request_code");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_finance_request_code_idx" ON "refund_replacement_finance"("request_code");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_finance_order_ref_idx" ON "refund_replacement_finance"("order_ref");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_finance_expense_id_idx" ON "refund_replacement_finance"("expense_id");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_finance_status_idx" ON "refund_replacement_finance"("status");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_finance_is_deleted_idx" ON "refund_replacement_finance"("is_deleted");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_finance_created_at_idx" ON "refund_replacement_finance"("created_at");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_item_finance_refund_replacement_id_idx" ON "refund_replacement_item_finance"("refund_replacement_id");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_item_finance_item_ref_from_inventory_idx" ON "refund_replacement_item_finance"("item_ref_from_inventory");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_item_finance_order_item_ref_idx" ON "refund_replacement_item_finance"("order_item_ref");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_item_finance_external_item_ref_idx" ON "refund_replacement_item_finance"("external_item_ref");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_item_finance_status_idx" ON "refund_replacement_item_finance"("status");
-
--- CreateIndex
-CREATE INDEX "refund_replacement_item_finance_is_deleted_idx" ON "refund_replacement_item_finance"("is_deleted");
-
--- CreateIndex
 CREATE UNIQUE INDEX "disposal_revenue_disposal_ref_key" ON "disposal_revenue"("disposal_ref");
 
 -- CreateIndex
@@ -1562,6 +1599,9 @@ CREATE INDEX "disposal_revenue_fixed_asset_id_idx" ON "disposal_revenue"("fixed_
 
 -- CreateIndex
 CREATE INDEX "disposal_revenue_disposal_type_idx" ON "disposal_revenue"("disposal_type");
+
+-- CreateIndex
+CREATE INDEX "disposal_revenue_disposal_method_idx" ON "disposal_revenue"("disposal_method");
 
 -- CreateIndex
 CREATE INDEX "disposal_revenue_is_revenue_recorded_idx" ON "disposal_revenue"("is_revenue_recorded");
@@ -1579,10 +1619,10 @@ CREATE INDEX "disposal_revenue_created_at_idx" ON "disposal_revenue"("created_at
 CREATE UNIQUE INDEX "expense_adjustment_adjustment_code_key" ON "expense_adjustment"("adjustment_code");
 
 -- CreateIndex
-CREATE INDEX "expense_adjustment_expense_id_idx" ON "expense_adjustment"("expense_id");
+CREATE UNIQUE INDEX "expense_adjustment_journal_entry_id_key" ON "expense_adjustment"("journal_entry_id");
 
 -- CreateIndex
-CREATE INDEX "expense_adjustment_refund_replacement_id_idx" ON "expense_adjustment"("refund_replacement_id");
+CREATE INDEX "expense_adjustment_expense_id_idx" ON "expense_adjustment"("expense_id");
 
 -- CreateIndex
 CREATE INDEX "expense_adjustment_adjustment_code_idx" ON "expense_adjustment"("adjustment_code");
@@ -1768,12 +1808,6 @@ ALTER TABLE "purchase_request_approval" ADD CONSTRAINT "purchase_request_approva
 ALTER TABLE "purchase_request_item_finance" ADD CONSTRAINT "purchase_request_item_finance_purchase_request_id_fkey" FOREIGN KEY ("purchase_request_id") REFERENCES "purchase_request_approval"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "refund_replacement_finance" ADD CONSTRAINT "refund_replacement_finance_expense_id_fkey" FOREIGN KEY ("expense_id") REFERENCES "expense"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "refund_replacement_item_finance" ADD CONSTRAINT "refund_replacement_item_finance_refund_replacement_id_fkey" FOREIGN KEY ("refund_replacement_id") REFERENCES "refund_replacement_finance"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "disposal_revenue" ADD CONSTRAINT "disposal_revenue_revenue_id_fkey" FOREIGN KEY ("revenue_id") REFERENCES "revenue"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1781,9 +1815,6 @@ ALTER TABLE "disposal_revenue" ADD CONSTRAINT "disposal_revenue_fixed_asset_id_f
 
 -- AddForeignKey
 ALTER TABLE "expense_adjustment" ADD CONSTRAINT "expense_adjustment_expense_id_fkey" FOREIGN KEY ("expense_id") REFERENCES "expense"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "expense_adjustment" ADD CONSTRAINT "expense_adjustment_refund_replacement_id_fkey" FOREIGN KEY ("refund_replacement_id") REFERENCES "refund_replacement_finance"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "expense_adjustment" ADD CONSTRAINT "expense_adjustment_journal_entry_id_fkey" FOREIGN KEY ("journal_entry_id") REFERENCES "journal_entry"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -1568,7 +1568,6 @@ archived_at     DateTime?
 deleted_by      String?	
 deleted_at      DateTime?	
 is_deleted      Boolean        @default(false)	
-}	
 	
 // Relations	
 type                   asset_type @relation(fields: [asset_type_id], references: [id])	
@@ -1601,7 +1600,6 @@ archived_at     DateTime?
 deleted_by      String?	
 deleted_at      DateTime?	
 is_deleted      Boolean        @default(false)	
-}	
 	
 // Relations	
 fixed_asset        fixed_asset @relation(fields: [fixed_asset_id], references: [id], onDelete: Cascade)	
