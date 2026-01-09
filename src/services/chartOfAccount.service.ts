@@ -1,6 +1,6 @@
 // Domain service for Chart of Accounts creation and code generation logic.
 // Contains business rules separate from controllers to keep HTTP handling thin.
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../config/database';
 import { 
   ChartOfAccountCreateDTO, 
   ChartOfAccountQueryDTO,
