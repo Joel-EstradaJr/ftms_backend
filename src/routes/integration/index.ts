@@ -4,11 +4,15 @@
 
 import { Router } from 'express';
 import budgetRoutes from './budget.routes';
+import payrollRoutes from './payroll.routes';
 
 const router = Router();
 
 // Budget microservice integration routes
 router.use('/budgets', budgetRoutes);
+
+// Payroll microservice integration routes
+router.use('/', payrollRoutes);
 
 // Health check for integration endpoints
 router.get('/health', (req, res) => {
