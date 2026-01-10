@@ -1,6 +1,7 @@
 /**
  * INTEGRATION PAYROLL CONTROLLER
  * Handles payroll data retrieval for external systems
+ * Supports semi-monthly period-based payroll batches
  */
 
 import { Request, Response } from 'express';
@@ -8,19 +9,42 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+/**
+ * Calculate semi-monthly payroll periods
+ * Period 1: 1st to 15th
+ * Period 2: 16th to end of month
+ */
+function getSemiMonthlyPeriods(year?: number, month?: number) {
+  const now = new Date();
+  const targetYear = year || now.getFullYear();
+  const targetMonth = month !== undefined ? month : now.getMonth();
+
+  const period1Start = new Date(targetYear, targetMonth, 1);
+  const period1End = new Date(targetYear, targetMonth, 15);
+  
+  const period2Start = new Date(targetYear, targetMonth, 16);
+  const period2End = new Date(targetYear, targetMonth + 1, 0); // Last day of month
+
+  return {
+    period1: { start: period1Start, end: period1End },
+    period2: { start: period2Start, end: period2End }
+  };
+}
+
 export class IntegrationPayrollController {
   /**
    * GET /api/integration/hr_payroll
-   * Returns payroll data for employees (excluding Driver and PAO)
+   * Returns payroll data grouped by period (semi-monthly)
    * 
    * Query Parameters:
    * - payroll_period_start: Filter by period start date
    * - payroll_period_end: Filter by period end date
    * - employee_number: Filter by specific employee
+   * - grouped: If true, returns data grouped by period (default: false for backward compatibility)
    */
   async getHrPayroll(req: Request, res: Response): Promise<void> {
     try {
-      const { payroll_period_start, payroll_period_end, employee_number } = req.query;
+      const { payroll_period_start, payroll_period_end, employee_number, grouped } = req.query;
 
       // Build where clause
       const where: any = {
@@ -58,15 +82,14 @@ export class IntegrationPayrollController {
         },
       });
 
-      // Filter out Driver and PAO roles if needed
+      // Filter out Driver and PAO roles
       const filteredRecords = payrollRecords.filter(record => {
         const position = record.employee?.position_name?.toLowerCase() || '';
         return !position.includes('driver') && !position.includes('pao');
       });
 
-      // Transform to match required payload structure
-      const response = filteredRecords.map(record => {
-        // Map rate_type enum to display format
+      // Transform individual records
+      const transformedRecords = filteredRecords.map(record => {
         const rateTypeMap: Record<string, string> = {
           MONTHLY: 'Monthly',
           DAILY: 'Daily',
@@ -74,12 +97,18 @@ export class IntegrationPayrollController {
           SEMI_MONTHLY: 'Semi-Monthly',
         };
 
+        const presentDays = record.attendances.filter(a => a.status === 'Present').length;
+
         return {
-          payroll_period_start: payroll_period_start || '',
-          payroll_period_end: payroll_period_end || '',
+          payroll_period_start: record.payroll_period_start.toISOString().split('T')[0],
+          payroll_period_end: record.payroll_period_end.toISOString().split('T')[0],
           employee_number: record.employee_number,
+          employee_name: record.employee?.first_name 
+            ? `${record.employee.first_name} ${record.employee.last_name || ''}`.trim()
+            : record.employee_number,
           basic_rate: record.basic_rate?.toString() || '0',
           rate_type: rateTypeMap[record.rate_type] || record.rate_type,
+          present_days: presentDays,
           attendances: record.attendances.map(att => ({
             date: att.date.toISOString().split('T')[0],
             status: att.status,
@@ -109,9 +138,75 @@ export class IntegrationPayrollController {
         };
       });
 
-      res.json(response);
+      // If grouped=true, group by period
+      if (grouped === 'true') {
+        const groupedByPeriod = new Map<string, any[]>();
+        
+        transformedRecords.forEach(record => {
+          const periodKey = `${record.payroll_period_start}_${record.payroll_period_end}`;
+          if (!groupedByPeriod.has(periodKey)) {
+            groupedByPeriod.set(periodKey, []);
+          }
+          groupedByPeriod.get(periodKey)!.push(record);
+        });
+
+        const batches = Array.from(groupedByPeriod.entries()).map(([periodKey, employees]) => {
+          const [start, end] = periodKey.split('_');
+          return {
+            payroll_period_start: start,
+            payroll_period_end: end,
+            total_employees: employees.length,
+            employees: employees,
+          };
+        });
+
+        res.json(batches);
+      } else {
+        // Return individual records (backward compatibility)
+        res.json(transformedRecords);
+      }
     } catch (error) {
       console.error('Error fetching payroll data:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  /**
+   * GET /api/integration/hr_payroll/periods
+   * Returns available semi-monthly payroll periods
+   */
+  async getPayrollPeriods(req: Request, res: Response): Promise<void> {
+    try {
+      const { year, month } = req.query;
+      
+      const targetYear = year ? parseInt(year as string) : new Date().getFullYear();
+      const targetMonth = month !== undefined ? parseInt(month as string) : new Date().getMonth();
+
+      const periods = getSemiMonthlyPeriods(targetYear, targetMonth);
+
+      res.json({
+        year: targetYear,
+        month: targetMonth + 1,
+        periods: [
+          {
+            period: 1,
+            start: periods.period1.start.toISOString().split('T')[0],
+            end: periods.period1.end.toISOString().split('T')[0],
+            description: '1st to 15th'
+          },
+          {
+            period: 2,
+            start: periods.period2.start.toISOString().split('T')[0],
+            end: periods.period2.end.toISOString().split('T')[0],
+            description: '16th to End of Month'
+          }
+        ]
+      });
+    } catch (error) {
+      console.error('Error fetching payroll periods:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error',
