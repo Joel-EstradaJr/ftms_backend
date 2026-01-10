@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "tsx prisma/seed_core_data.ts"
+    "prisma:seed": "tsx prisma/seed_core_data.ts",
+    "prisma:seed:journal": "tsx prisma/seed_journal_entries.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",

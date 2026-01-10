@@ -21,6 +21,8 @@ import { errorHandler } from './middleware/errorHandler';
 // import staffLoanRoutes from './routes/staff/loan.routes';
 import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
+import adminJournalEntriesRoutes from './routes/admin/journal-entries';
+import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 
 // Integration routes (for microservices)
 import integrationRoutes from './routes/integration';
@@ -79,6 +81,7 @@ export const createApp = (): Application => {
   // Admin routes (Full CRUD + additional actions)
   app.use('/api/v1/admin', chartOfAccountsRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
+  app.use('/api/v1/admin/journal-entries', adminJournalEntriesRoutes);
   
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors
@@ -87,7 +90,7 @@ export const createApp = (): Application => {
   // app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
   // app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
   // app.use('/api/v1/staff/budgets', staffBudgetRoutes);
-  // app.use('/api/v1/staff/journalEntries', staffJournalEntryRoutes);
+  app.use('/api/v1/staff/journal-entries', staffJournalEntryRoutes);
   // app.use('/api/v1/staff/assets', staffAssetRoutes);
   // app.use('/api/v1/staff/receivables', staffReceivableRoutes);
   // app.use('/api/v1/staff/payables', staffPayableRoutes);

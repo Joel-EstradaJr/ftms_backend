@@ -20,8 +20,8 @@ CREDIT
 	
 enum journal_status {	
 DRAFT	
-APPROVED	
-REJECTED	
+POSTED	
+REVERSED	
 }	
 	
 enum revenue_status {	
@@ -1379,13 +1379,13 @@ pr_item_ref_from_inv    String                    // Reference to inventory micr
 external_item_ref       String                    // Reference to inventory item.item_code	
 item_name               String                    // Denormalized	
 requested_quantity      Decimal                   @db.Decimal(12, 2)	
-requested_unit_price    Decimal                   @db.Decimal(12, 2)	
+requested_unit_cost    Decimal                   @db.Decimal(12, 2)	
 requested_total         Decimal                   @db.Decimal(12, 2)	
 	
 // Finance decision per item	
 status                  pr_item_finance_status    @default(PENDING)	
 approved_quantity       Decimal?                  @db.Decimal(12, 2)	
-approved_unit_price     Decimal?                  @db.Decimal(12, 2)	
+approved_unit_cost     Decimal?                  @db.Decimal(12, 2)	
 approved_total          Decimal?                  @db.Decimal(12, 2)	
 	
 // Supplier assignment	

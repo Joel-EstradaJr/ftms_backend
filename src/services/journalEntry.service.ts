@@ -46,14 +46,40 @@ export class JournalEntryService {
 
       // Date range filtering
       if (filters.dateFrom || filters.dateTo) {
-        where.entryDate = {};
-        if (filters.dateFrom) where.entryDate.gte = new Date(filters.dateFrom);
-        if (filters.dateTo) where.entryDate.lte = new Date(filters.dateTo);
+        where.date = {};
+        if (filters.dateFrom) where.date.gte = new Date(filters.dateFrom);
+        if (filters.dateTo) where.date.lte = new Date(filters.dateTo);
       }
 
-      // Account filtering
-      if (filters.accountCode) where.accountCode = { contains: filters.accountCode };
-      if (filters.linkedEntityType) where.linkedEntityType = filters.linkedEntityType;
+      // Status filtering
+      if (filters.status) {
+        where.status = filters.status;
+      }
+
+      // Entry type filtering
+      if (filters.entry_type) {
+        where.entry_type = filters.entry_type;
+      }
+
+      // Code search
+      if (filters.code) {
+        where.code = { contains: filters.code, mode: 'insensitive' };
+      }
+
+      // Reference search
+      if (filters.reference) {
+        where.reference = { contains: filters.reference, mode: 'insensitive' };
+      }
+
+      // Description search
+      if (filters.description) {
+        where.description = { contains: filters.description, mode: 'insensitive' };
+      }
+
+      // Include archived/deleted if specified
+      if (filters.includeArchived === 'true' || filters.includeArchived === true) {
+        delete where.is_deleted;
+      }
 
       const skip = (page - 1) * limit;
       const [entries, total] = await Promise.all([
@@ -62,12 +88,69 @@ export class JournalEntryService {
           skip,
           take: limit,
           orderBy: { date: 'desc' },
+          include: {
+            lines: {
+              include: {
+                account: {
+                  select: {
+                    id: true,
+                    account_code: true,
+                    account_name: true,
+                    account_type_id: true,
+                    normal_balance: true,
+                  },
+                },
+              },
+            },
+          },
         }),
         prisma.journal_entry.count({ where }),
       ]);
 
+      // Transform data for frontend
+      const transformedEntries = entries.map(entry => ({
+        journal_entry_id: entry.id.toString(),
+        code: entry.code,
+        date: entry.date.toISOString().split('T')[0],
+        posting_date: entry.approved_at ? entry.approved_at.toISOString().split('T')[0] : undefined,
+        reference: entry.reference,
+        description: entry.description,
+        total_debit: parseFloat(entry.total_debit.toString()),
+        total_credit: parseFloat(entry.total_credit.toString()),
+        status: entry.status,
+        entry_type: entry.entry_type,
+        is_balanced: Math.abs(parseFloat(entry.total_debit.toString()) - parseFloat(entry.total_credit.toString())) < 0.01,
+        is_deleted: entry.is_deleted,
+        created_at: entry.created_at,
+        created_by: entry.created_by,
+        updated_at: entry.updated_at,
+        approved_by: entry.approved_by,
+        approved_at: entry.approved_at,
+        journal_lines: entry.lines.map(line => ({
+          line_id: line.id.toString(),
+          journal_entry_id: entry.id.toString(),
+          account_id: line.account.id.toString(),
+          account_code: line.account.account_code,
+          account_name: line.account.account_name,
+          account: {
+            account_id: line.account.id.toString(),
+            account_code: line.account.account_code,
+            account_name: line.account.account_name,
+            account_type: line.account.account_type_id,
+            normal_balance: line.account.normal_balance,
+            is_active: !line.account.is_deleted,
+          },
+          line_number: line.line_number,
+          description: line.description,
+          debit: parseFloat(line.debit.toString()),
+          credit: parseFloat(line.credit.toString()),
+          debit_amount: parseFloat(line.debit.toString()),
+          credit_amount: parseFloat(line.credit.toString()),
+        })),
+      }));
+
       return {
-        data: entries,
+        data: transformedEntries,
         pagination: {
           page,
           limit,
@@ -82,14 +165,94 @@ export class JournalEntryService {
   }
 
   /**
-   * Get a journal entry by ID
+   * Get a journal entry by ID with full details for View Modal
    */
   async getJournalEntryById(id: number) {
-    const entry = await prisma.journal_entry.findUnique({ where: { id } });
+    const entry = await prisma.journal_entry.findUnique({
+      where: { id },
+      include: {
+        lines: {
+          include: {
+            account: {
+              select: {
+                id: true,
+                account_code: true,
+                account_name: true,
+                account_type_id: true,
+                normal_balance: true,
+                is_deleted: true,
+              },
+            },
+          },
+          orderBy: {
+            line_number: 'asc',
+          },
+        },
+        reversal_of: {
+          select: {
+            id: true,
+            code: true,
+          },
+        },
+        reversals: {
+          select: {
+            id: true,
+            code: true,
+          },
+        },
+      },
+    });
+
     if (!entry || entry.is_deleted) {
       throw new NotFoundError(`Journal entry ${id} not found`);
     }
-    return entry;
+
+    // Transform to match frontend expectations
+    return {
+      journal_entry_id: entry.id.toString(),
+      journal_number: entry.code,
+      code: entry.code,
+      status: entry.status,
+      entry_type: entry.entry_type,
+      transaction_date: entry.date.toISOString().split('T')[0],
+      posting_date: entry.approved_at ? entry.approved_at.toISOString().split('T')[0] : undefined,
+      reference_number: entry.reference,
+      description: entry.description,
+      source_module: entry.entry_type === 'AUTO_GENERATED' ? 'Auto Generated' : 'Manual Entry',
+      source_id: entry.reference,
+      created_by: entry.created_by,
+      created_at: entry.created_at.toISOString(),
+      posted_by: entry.approved_by,
+      posted_at: entry.approved_at ? entry.approved_at.toISOString() : undefined,
+      updated_at: entry.updated_at ? entry.updated_at.toISOString() : undefined,
+      updated_by: entry.updated_by,
+      reversed_by_id: entry.reversal_of_id,
+      attachments: [], // Add attachments support if needed
+      journal_lines: entry.lines.map(line => ({
+        line_id: line.id.toString(),
+        account_id: line.account.id.toString(),
+        account_code: line.account.account_code,
+        account_name: line.account.account_name,
+        line_description: line.description,
+        description: line.description,
+        debit_amount: parseFloat(line.debit.toString()),
+        credit_amount: parseFloat(line.credit.toString()),
+        debit: parseFloat(line.debit.toString()),
+        credit: parseFloat(line.credit.toString()),
+        line_number: line.line_number,
+        account: {
+          account_id: line.account.id.toString(),
+          account_code: line.account.account_code,
+          account_name: line.account.account_name,
+          account_type: line.account.account_type_id as any,
+          normal_balance: line.account.normal_balance,
+          is_active: !line.account.is_deleted,
+        },
+      })),
+      total_debit: parseFloat(entry.total_debit.toString()),
+      total_credit: parseFloat(entry.total_credit.toString()),
+      is_balanced: Math.abs(parseFloat(entry.total_debit.toString()) - parseFloat(entry.total_credit.toString())) < 0.01,
+    };
   }
 
   /**
