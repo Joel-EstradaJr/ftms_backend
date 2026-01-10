@@ -98,6 +98,7 @@ export class JournalEntryService {
                     account_name: true,
                     account_type_id: true,
                     normal_balance: true,
+                    is_deleted: true,
                   },
                 },
               },
