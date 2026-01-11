@@ -6,6 +6,12 @@
 
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import {
+  fetchAndSyncPayrollFromHR,
+  syncPayrollForPeriod,
+  getPayrollByPeriod,
+  getPayrollByEmployee,
+} from '../../../lib/hr/payrollSync';
 
 const prisma = new PrismaClient();
 
@@ -210,6 +216,162 @@ export class IntegrationPayrollController {
       res.status(500).json({
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  /**
+   * POST /api/integration/hr_payroll/fetch-and-sync
+   * Fetch payroll data from HR API and sync to database
+   * 
+   * Body:
+   * - period_start: string (YYYY-MM-DD) - required
+   * - period_end: string (YYYY-MM-DD) - required
+   * - employee_number: string - optional
+   */
+  async fetchAndSyncPayroll(req: Request, res: Response): Promise<void> {
+    try {
+      const { period_start, period_end, employee_number } = req.body;
+
+      if (!period_start || !period_end) {
+        res.status(400).json({
+          error: 'Missing required fields: period_start, period_end',
+        });
+        return;
+      }
+
+      console.log(`🔄 Fetching payroll from HR: ${period_start} to ${period_end}`);
+      
+      const result = await fetchAndSyncPayrollFromHR(
+        period_start,
+        period_end,
+        employee_number
+      );
+
+      res.json({
+        message: 'Payroll sync completed',
+        ...result,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Payroll fetch and sync failed:', error);
+      res.status(500).json({
+        error: 'Failed to fetch and sync payroll',
+        details: error.message,
+      });
+    }
+  }
+
+  /**
+   * POST /api/integration/hr_payroll/sync-period/:id
+   * Recalculate totals for existing payroll period
+   * 
+   * Params:
+   * - id: number - payroll period ID
+   */
+  async syncPeriod(req: Request, res: Response): Promise<void> {
+    try {
+      const periodId = parseInt(req.params.id);
+
+      if (isNaN(periodId)) {
+        res.status(400).json({ error: 'Invalid period ID' });
+        return;
+      }
+
+      const result = await syncPayrollForPeriod(periodId);
+
+      res.json({
+        message: 'Payroll period synced successfully',
+        ...result,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Payroll period sync failed:', error);
+      res.status(500).json({
+        error: 'Failed to sync payroll period',
+        details: error.message,
+      });
+    }
+  }
+
+  /**
+   * GET /api/integration/hr_payroll/by-period
+   * Get payroll data for a specific period
+   * 
+   * Query:
+   * - period_start: string (YYYY-MM-DD) - required
+   * - period_end: string (YYYY-MM-DD) - required
+   */
+  async getByPeriod(req: Request, res: Response): Promise<void> {
+    try {
+      const { period_start, period_end } = req.query;
+
+      if (!period_start || !period_end) {
+        res.status(400).json({
+          error: 'Missing required query params: period_start, period_end',
+        });
+        return;
+      }
+
+      const payroll = await getPayrollByPeriod(
+        period_start as string,
+        period_end as string
+      );
+
+      if (!payroll) {
+        res.status(404).json({
+          error: 'Payroll period not found',
+        });
+        return;
+      }
+
+      res.json({
+        payroll_period: payroll,
+        employee_count: payroll.payrolls.length,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Get payroll by period failed:', error);
+      res.status(500).json({
+        error: 'Failed to get payroll by period',
+        details: error.message,
+      });
+    }
+  }
+
+  /**
+   * GET /api/integration/hr_payroll/by-employee/:employeeNumber
+   * Get payroll history for specific employee
+   * 
+   * Params:
+   * - employeeNumber: string - employee number
+   * 
+   * Query (optional):
+   * - period_start: string (YYYY-MM-DD)
+   * - period_end: string (YYYY-MM-DD)
+   */
+  async getByEmployee(req: Request, res: Response): Promise<void> {
+    try {
+      const { employeeNumber } = req.params;
+      const { period_start, period_end } = req.query;
+
+      const payrolls = await getPayrollByEmployee(
+        employeeNumber,
+        period_start as string,
+        period_end as string
+      );
+
+      res.json({
+        employee_number: employeeNumber,
+        payroll_count: payrolls.length,
+        payrolls,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Get payroll by employee failed:', error);
+      res.status(500).json({
+        error: 'Failed to get payroll by employee',
+        details: error.message,
       });
     }
   }

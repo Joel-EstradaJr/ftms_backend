@@ -31,4 +31,37 @@ router.get('/hr_payroll', controller.getHrPayroll);
  */
 router.get('/hr_payroll/periods', controller.getPayrollPeriods);
 
+/**
+ * POST /api/integration/hr_payroll/fetch-and-sync
+ * Fetch payroll data from HR API and sync to database
+ * 
+ * Body:
+ * - period_start: string (YYYY-MM-DD) - required
+ * - period_end: string (YYYY-MM-DD) - required
+ * - employee_number: string - optional
+ */
+router.post('/hr_payroll/fetch-and-sync', controller.fetchAndSyncPayroll.bind(controller));
+
+/**
+ * POST /api/integration/hr_payroll/sync-period/:id
+ * Recalculate totals for existing payroll period
+ */
+router.post('/hr_payroll/sync-period/:id', controller.syncPeriod.bind(controller));
+
+/**
+ * GET /api/integration/hr_payroll/by-period
+ * Get payroll data for a specific period
+ * 
+ * Query:
+ * - period_start: string (YYYY-MM-DD) - required
+ * - period_end: string (YYYY-MM-DD) - required
+ */
+router.get('/hr_payroll/by-period', controller.getByPeriod.bind(controller));
+
+/**
+ * GET /api/integration/hr_payroll/by-employee/:employeeNumber
+ * Get payroll history for specific employee
+ */
+router.get('/hr_payroll/by-employee/:employeeNumber', controller.getByEmployee.bind(controller));
+
 export default router;

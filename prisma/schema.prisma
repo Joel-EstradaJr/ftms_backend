@@ -1,4 +1,4 @@
-// FINANCE'S MAIN SCHEMA - REVENUE, EXPENSE, PAYABLES, RECEIVABLES, INSTALLMENTS, BUDGET ALLOCATION & APPROVAL, PRUCHASE REQUEST APPROVAL, ORDER TRACKING W/ REFUND / REPLACEMENT, PAYROLL, (FIXED) ASSET DEPRECIATION & ACCUMULATION AND DISPOSAL, CHART OF ACCOUNTS, JOURNAL ENTRY, EXTERNAL DATA CACHE TABLES	
+// FINANCE'S MAIN SCHEMA - REVENUE, EXPENSE, PAYABLES, RECEIVABLES, INSTALLMENTS, BUDGET ALLOCATION & APPROVAL, PURCHASE REQUEST APPROVAL, ORDER TRACKING W/ REFUND / REPLACEMENT, PAYROLL, (FIXED) ASSET DEPRECIATION & ACCUMULATION AND DISPOSAL, CHART OF ACCOUNTS, JOURNAL ENTRY, OPERATIONS TRIP DATA	
 // ============================================================================	
 	
 generator client {	
@@ -159,106 +159,83 @@ USAGE //can only be triggered or selected through purchase request
 }	
 	
 // ============================================================================	
-// CACHE TABLES (External System Data)	
+// OPERATIONS & HR DATA (External Systems)	
 // ============================================================================	
 model employees_cache {	
-// Fields	
+// Fields from HR System	
 employee_number   String    @id	
 first_name        String?	
 middle_name       String?	
 last_name         String?	
-suffix            String?	
+suffix            String?   // Not provided by HR, kept for compatibility	
 phone_number      String?	
-position_id       String	
+position_id       String?   // Derived or empty, HR only provides position name	
 position_name     String	
-department_id     String	
+department_id     Int	
 department_name   String	
+barangay          String?   // NEW: From HR system	
+zip_code          String?   // NEW: From HR system	
 last_synced_at    DateTime  @default(now())	
 is_deleted        Boolean   @default(false)	
 	
 // Relations	
-operational_trips operational_trip_employee[]	
-rental_trips      rental_trip_employee[]	
-payroll_cache     payroll_cache[]	
 payroll           payroll[]	
 	
 // Indexes	
 @@index([is_deleted])	
 @@index([last_synced_at])	
 @@index([department_id])	
+@@index([position_name])	
+@@index([department_name])	
 }	
 	
 model operational_trip {	
 // Fields	
-assignment_id        String	
-bus_trip_id          String	
-date_assigned        DateTime?	
-bus_route            String?	
-trip_fuel_expense    Decimal?   @db.Decimal(14, 2)	
-trip_revenue         Decimal?   @db.Decimal(14, 2)	
-assignment_type      String?	
-assignment_value     Decimal?   @db.Decimal(14, 2)	
-payment_method       String?	
-bus_plate_number     String?	
-bus_type             String?	
-body_builder         String?	
-body_number          String?	
-last_synced_at       DateTime   @default(now())	
-is_deleted           Boolean    @default(false)	
+assignment_id         String	
+bus_trip_id           String	
+bus_route             String?	
+is_revenue_recorded   Boolean    @default(false)	
+is_expense_recorded   Boolean    @default(false)	
+date_assigned         DateTime?	
+trip_fuel_expense     Decimal?   @db.Decimal(14, 2)	
+trip_revenue          Decimal?   @db.Decimal(14, 2)	
+assignment_type       String?    // BOUNDARY, PERCENTAGE, etc.	
+assignment_value      Decimal?   @db.Decimal(14, 2)	
+payment_method        String?    // Company_Cash, Reimbursement, etc.	
+employee_driver       String?    // Driver details (JSON or null)	
+employee_conductor    String?    // Conductor details (JSON or null)	
+bus_plate_number      String?	
+bus_type              String?    // Aircon, Non-Aircon	
+body_number           String?	
+last_synced_at        DateTime   @default(now())	
+is_deleted            Boolean    @default(false)	
 	
 // Constraints	
 @@id([assignment_id, bus_trip_id])	
 	
 // Relations	
-revenue_records      revenue[]	
-employees            operational_trip_employee[]	
-expenses             expense[]	
+revenue_records       revenue[]	
+expenses              expense[]	
 	
 // Indexes	
 @@index([date_assigned])	
 @@index([bus_route])	
 @@index([assignment_type])	
+@@index([is_revenue_recorded])	
+@@index([is_expense_recorded])	
 @@index([is_deleted])	
 @@index([last_synced_at])	
-}	
-	
-model operational_trip_employee {	
-// Fields	
-id                 Int       @id @default(autoincrement())	
-assignment_id      String	
-bus_trip_id        String	
-employee_number    String	
-first_name         String?	
-middle_name        String?	
-last_name          String?	
-suffix             String?	
-phone_number       String?	
-position_id        String?	
-position_name      String?	
-department_id      String?	
-department_name    String?	
-last_synced_at     DateTime  @default(now())	
-	
-// Relations	
-trip               operational_trip @relation(fields: [assignment_id, bus_trip_id], references: [assignment_id, bus_trip_id], onDelete: Cascade)	
-employee           employees_cache @relation(fields: [employee_number], references: [employee_number], onDelete: Cascade)	
-	
-// Indexes	
-@@index([employee_number])	
-@@index([assignment_id, bus_trip_id])	
-@@index([position_name])	
-@@index([department_name])	
+@@index([bus_plate_number])	
 }	
 	
 model rental_trip {	
-// Fields	
+// Fields from Operations System	
 assignment_id        String    @id	
 bus_plate_number     String?	
 bus_type             String?	
-body_builder         String?	
 body_number          String?	
-rental_status        String?	
-rental_destination   String?	
+rental_status        String?   // approved, completed, cancelled, etc.	
+rental_destination   String?   // Maps to rental_package from external	
 rental_start_date    DateTime?	
 rental_end_date      DateTime?	
 total_rental_amount  Decimal?  @db.Decimal(14, 2)	
@@ -268,165 +245,26 @@ down_payment_date    DateTime?
 full_payment_date    DateTime?	
 cancelled_at         DateTime?	
 cancellation_reason  String?	
-rental_fuel_expense  Decimal?  @db.Decimal(14, 2)	
+rental_fuel_expense  Decimal?  @db.Decimal(14, 2)  // May be recorded separately	
+employees            String?   // JSON array of employee assignments	
+is_revenue_recorded  Boolean   @default(false)	
+is_expense_recorded  Boolean   @default(false)	
 last_synced_at       DateTime  @default(now())	
 is_deleted           Boolean   @default(false)	
 	
 // Relations	
 revenue_records      revenue[]	
-employees            rental_trip_employee[]	
 expenses             expense[]	
 	
 // Indexes	
 @@index([rental_status])	
 @@index([rental_start_date])	
 @@index([rental_end_date])	
+@@index([is_revenue_recorded])	
+@@index([is_expense_recorded])	
 @@index([is_deleted])	
 @@index([last_synced_at])	
-}	
-	
-model rental_trip_employee {	
-// Fields	
-id                 Int       @id @default(autoincrement())	
-assignment_id      String	
-employee_number    String	
-first_name         String?	
-middle_name        String?	
-last_name          String?	
-suffix             String?	
-phone_number       String?	
-position_id        String?	
-position_name      String?	
-department_id      String?	
-department_name    String?	
-last_synced_at     DateTime  @default(now())	
-	
-// Relations	
-rental_trip        rental_trip @relation(fields: [assignment_id], references: [assignment_id], onDelete: Cascade)	
-employee           employees_cache @relation(fields: [employee_number], references: [employee_number], onDelete: Cascade)	
-	
-// Indexes	
-@@index([employee_number])	
-@@index([assignment_id])	
-@@index([position_name])	
-@@index([department_name])	
-}	
-	
-model payroll_cache {	
-// Fields	
-id                       Int       @id @default(autoincrement())	
-payroll_period_start     DateTime	
-payroll_period_end       DateTime	
-employee_number          String	
-employee_position_name   String?	
-employee_department_name String?	
-basic_rate               Decimal?  @db.Decimal(12, 2)	
-rate_type                rate_type @default(MONTHLY)	
-last_synced_at           DateTime  @default(now())	
-is_deleted               Boolean   @default(false)	
-	
-// Constraints	
-@@unique([employee_number, payroll_period_start, payroll_period_end])	
-	
-// Relations	
-attendances              payroll_attendance_cache[]	
-benefits                 payroll_benefit_cache[]	
-deductions               payroll_deduction_cache[]	
-employee                 employees_cache @relation(fields: [employee_number], references: [employee_number], onDelete: Cascade)	
-	
-// Indexes	
-@@index([employee_number])	
-@@index([payroll_period_start])	
-@@index([payroll_period_end])	
-@@index([is_deleted])	
-@@index([payroll_period_start, payroll_period_end])	
-}	
-	
-model payroll_attendance_cache {	
-// Fields	
-id             Int       @id @default(autoincrement())	
-payroll_id     Int	
-date           DateTime	
-status         String    // Present, Absent, Leave	
-last_synced_at DateTime  @default(now())	
-	
-// Relations	
-payroll        payroll_cache @relation(fields: [payroll_id], references: [id], onDelete: Cascade)	
-	
-// Indexes	
-@@index([payroll_id])	
-@@index([date])	
-@@index([status])	
-}	
-	
-model payroll_benefit_type_cache {	
-// Fields	
-id             String    @id	
-name           String	
-last_synced_at DateTime  @default(now())	
-	
-// Relations	
-benefits       payroll_benefit_cache[]	
-	
-// Indexes	
-@@index([name])	
-}	
-	
-model payroll_benefit_cache {	
-// Fields	
-id              Int       @id @default(autoincrement())	
-payroll_id      Int	
-benefit_type_id String	
-value           Decimal?  @db.Decimal(12, 2)	
-frequency       String?   // Once, Monthly, Weekly, Daily, Yearly	
-effective_date  DateTime?	
-end_date        DateTime?	
-is_active       Boolean?  @default(false)	
-last_synced_at  DateTime  @default(now())	
-	
-// Relations	
-payroll         payroll_cache @relation(fields: [payroll_id], references: [id], onDelete: Cascade)	
-benefit_type    payroll_benefit_type_cache @relation(fields: [benefit_type_id], references: [id], onDelete: Cascade)	
-	
-// Indexes	
-@@index([payroll_id])	
-@@index([benefit_type_id])	
-@@index([is_active])	
-}	
-	
-model payroll_deduction_type_cache {	
-// Fields	
-id             String    @id	
-name           String	
-last_synced_at DateTime  @default(now())	
-	
-// Relations	
-deductions     payroll_deduction_cache[]	
-	
-// Indexes	
-@@index([name])	
-}	
-	
-model payroll_deduction_cache {	
-// Fields	
-id                Int       @id @default(autoincrement())	
-payroll_id        Int	
-deduction_type_id String	
-value             Decimal?  @db.Decimal(12, 2)	
-frequency         String?	
-effective_date    DateTime?	
-end_date          DateTime?	
-is_active         Boolean?  @default(false)	
-last_synced_at    DateTime  @default(now())	
-	
-// Relations	
-payroll           payroll_cache @relation(fields: [payroll_id], references: [id], onDelete: Cascade)	
-deduction_type    payroll_deduction_type_cache @relation(fields: [deduction_type_id], references: [id], onDelete: Cascade)	
-	
-// Indexes	
-@@index([payroll_id])	
-@@index([deduction_type_id])	
-@@index([is_active])	
+@@index([bus_plate_number])	
 }	
 	
 // ============================================================================	
@@ -1062,6 +900,7 @@ payroll_attendances payroll_attendance[]
 @@index([status])	
 @@index([expense_id])	
 @@index([journal_entry_id])	
+@@unique([payroll_period_id, employee_number])
 	
 // Audit Trail	
 created_by      String?	
@@ -1103,6 +942,10 @@ quantity     Decimal? @db.Decimal(12, 2)
 rate         Decimal? @db.Decimal(12, 2)	
 description  String?	
 category     String   // EARNING, BENEFIT, DEDUCTION (cached for fast queries)	
+frequency    String?  // Once, Daily, Weekly, Monthly, Annually (from HR)	
+effective_date DateTime? // When this item becomes effective (from HR)	
+end_date     DateTime? // When this item expires (from HR)	
+is_active    Boolean  @default(true) // Active status from HR	
 	
 // Relations	
 payroll      payroll @relation(fields: [payroll_id], references: [id], onDelete: Cascade)	
@@ -1112,6 +955,7 @@ item_type    payroll_item_type @relation(fields: [item_type_id], references: [id
 @@index([payroll_id])	
 @@index([item_type_id])	
 @@index([category])	
+@@index([is_active])	
 	
 // Audit Trail	
 created_by      String?	

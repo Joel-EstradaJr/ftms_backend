@@ -193,15 +193,177 @@
 
 **Base Path:** `/api/integration`
 
-**Authentication:** Service API key required
+**Authentication:** Service API key required (recommended for production)
 
-**Purpose:** Machine-to-machine communication between microservices
+**Purpose:** Machine-to-machine communication between microservices and external system data synchronization
 
 ### Health Check
 
 | Method | Route | Full URL | Description |
 |--------|-------|----------|-------------|
 | GET | `/api/integration/health` | `http://localhost:4000/api/integration/health` | Integration service health check |
+
+### HR Integration
+
+**Path:** `/api/integration/hr`
+
+**Purpose:** Synchronize employee data from external HR system
+
+**External API:** `https://api.agilabuscorp.me/inventory/employees`
+
+| Method | Route | Full URL | Description |
+|--------|-------|----------|-------------|
+| POST | `/api/integration/hr/sync-employees` | `http://localhost:4000/api/integration/hr/sync-employees` | Manually sync employees with provided payload |
+| POST | `/api/integration/hr/fetch-and-sync` | `http://localhost:4000/api/integration/hr/fetch-and-sync` | Auto-fetch from HR API and sync to database |
+| GET | `/api/integration/hr/employees/by-department/:departmentId` | `http://localhost:4000/api/integration/hr/employees/by-department/:departmentId` | Get employees by department ID |
+| GET | `/api/integration/hr/employees/by-position` | `http://localhost:4000/api/integration/hr/employees/by-position?position=Driver` | Get employees by position name (query param) |
+
+**Request Body Example (sync-employees):**
+```json
+{
+  "employees": [
+    {
+      "employeeNumber": "EMP-2024-NKFN57",
+      "firstName": "Juan",
+      "middleName": "Reyes",
+      "lastName": "Dela Cruz",
+      "phone": "09171234567",
+      "position": "HR Officer",
+      "barangay": "Barangay Uno",
+      "zipCode": "1100",
+      "departmentId": 1,
+      "department": "Human Resource"
+    }
+  ]
+}
+```
+
+### HR Payroll Integration
+
+**Path:** `/api/integration/hr_payroll`
+
+**Purpose:** Synchronize payroll data from external HR system
+
+**External API:** `https://api.agilabuscorp.me/finance/v2/payroll-integration`
+
+| Method | Route | Full URL | Description |
+|--------|-------|----------|-------------|
+| GET | `/api/integration/hr_payroll` | `http://localhost:4000/api/integration/hr_payroll` | Get payroll data with optional filters |
+| GET | `/api/integration/hr_payroll/periods` | `http://localhost:4000/api/integration/hr_payroll/periods` | Get available semi-monthly payroll periods |
+| POST | `/api/integration/hr_payroll/fetch-and-sync` | `http://localhost:4000/api/integration/hr_payroll/fetch-and-sync` | Fetch from HR API and sync to database |
+| POST | `/api/integration/hr_payroll/sync-period/:id` | `http://localhost:4000/api/integration/hr_payroll/sync-period/:id` | Recalculate totals for existing period |
+| GET | `/api/integration/hr_payroll/by-period` | `http://localhost:4000/api/integration/hr_payroll/by-period` | Get payroll data for specific period |
+| GET | `/api/integration/hr_payroll/by-employee/:employeeNumber` | `http://localhost:4000/api/integration/hr_payroll/by-employee/:employeeNumber` | Get employee payroll history |
+
+**Request Body Example (fetch-and-sync):**
+```json
+{
+  "period_start": "2024-01-01",
+  "period_end": "2024-12-31",
+  "employee_number": "EMP-2023-FIN-001"
+}
+```
+
+**Response Example:**
+```json
+{
+  "message": "Payroll sync completed",
+  "success": true,
+  "synced": 1,
+  "errors": []
+}
+```
+
+**Query Parameters (by-period):**
+- `period_start` (required): YYYY-MM-DD
+- `period_end` (required): YYYY-MM-DD
+
+### Operations Integration - Bus Trips
+
+**Path:** `/api/integration/operations`
+
+**Purpose:** Synchronize operational bus trip data from external Operations system
+
+**External API:** `https://boms-api.agilabuscorp.me/api/Bus-Trips-Details`
+
+| Method | Route | Full URL | Description |
+|--------|-------|----------|-------------|
+| POST | `/api/integration/operations/sync-trips` | `http://localhost:4000/api/integration/operations/sync-trips` | Manually sync bus trips with provided payload |
+| POST | `/api/integration/operations/fetch-and-sync-bus-trips` | `http://localhost:4000/api/integration/operations/fetch-and-sync-bus-trips` | Auto-fetch from Operations API and sync to database |
+| GET | `/api/integration/operations/unrecorded-trips` | `http://localhost:4000/api/integration/operations/unrecorded-trips?type=all` | Get trips not yet recorded as revenue/expense (type: all/revenue/expense) |
+
+**Request Body Example (sync-trips):**
+```json
+[
+  {
+    "assignment_id": "BA-xyz",
+    "bus_trip_id": "BT-abc",
+    "bus_route": "Sapang Palay - PITX",
+    "is_revenue_recorded": false,
+    "is_expense_recorded": false,
+    "date_assigned": "2026-01-11T02:00:00.000Z",
+    "trip_fuel_expense": 320,
+    "trip_revenue": 2200,
+    "assignment_type": "PERCENTAGE",
+    "assignment_value": 0.22,
+    "payment_method": "Reimbursement",
+    "employee_driver": null,
+    "employee_conductor": null,
+    "bus_plate_number": "MPH 7643",
+    "bus_type": "Aircon",
+    "body_number": null
+  }
+]
+```
+
+### Operations Integration - Rental Trips
+
+**Path:** `/api/integration/operations`
+
+**Purpose:** Synchronize rental trip data from external Operations system
+
+**External API:** `https://boms-api.agilabuscorp.me/api/Rental-Request-Details`
+
+| Method | Route | Full URL | Description |
+|--------|-------|----------|-------------|
+| POST | `/api/integration/operations/sync-rental-trips` | `http://localhost:4000/api/integration/operations/sync-rental-trips` | Manually sync rental trips with provided payload |
+| POST | `/api/integration/operations/fetch-and-sync-rental-trips` | `http://localhost:4000/api/integration/operations/fetch-and-sync-rental-trips` | Auto-fetch from Operations API and sync to database |
+| GET | `/api/integration/operations/unrecorded-rental-trips` | `http://localhost:4000/api/integration/operations/unrecorded-rental-trips?type=all` | Get rental trips not yet recorded (type: all/revenue/expense) |
+| GET | `/api/integration/operations/rental-trips/by-status` | `http://localhost:4000/api/integration/operations/rental-trips/by-status?status=approved` | Get rental trips by status (approved/completed/cancelled) |
+
+**Request Body Example (sync-rental-trips):**
+```json
+[
+  {
+    "assignment_id": "BA-xyz",
+    "bus_plate_number": "RPH 9080",
+    "bus_type": "Non-Aircon",
+    "body_number": "Unknown",
+    "rental_status": "completed",
+    "rental_details": {
+      "rental_package": "Manila → Batangas Port",
+      "rental_start_date": "2026-01-10T00:00:00.000Z",
+      "rental_end_date": "2026-01-11T00:00:00.000Z",
+      "total_rental_amount": 12500,
+      "down_payment_amount": 5000,
+      "balance_amount": 7500,
+      "down_payment_date": "2026-01-10T00:00:00.000Z",
+      "full_payment_date": "2026-01-07T00:00:00.000Z",
+      "cancelled_at": null,
+      "cancellation_reason": null
+    },
+    "employees": [
+      {
+        "employee_id": "EMP-2019-X9K979",
+        "employee_firstName": null,
+        "employee_middleName": null,
+        "employee_lastName": null,
+        "employee_position_name": "Driver"
+      }
+    ]
+  }
+]
+```
 
 ### Budget Integration
 
@@ -218,12 +380,12 @@
 
 ### Statistics
 
-- **Total Active Endpoints:** 16
+- **Total Active Endpoints:** 33
   - General: 2
   - Admin: 11
-  - Integration: 3
+  - Integration: 20 (HR: 4, HR Payroll: 6, Operations: 7, Budget: 2, Health: 1)
 - **Total Inactive Endpoints:** 39 (Staff routes)
-- **Total Endpoints:** 55
+- **Total Endpoints:** 72
 
 ### Configuration
 
@@ -236,12 +398,26 @@
 
 ### External Service URLs
 
+**Environment Variables (.env):**
+```env
+# HR System
+HR_API_BASE_URL=https://api.agilabuscorp.me
+HR_EMPLOYEES_ENDPOINT=/inventory/employees
+HR_PAYROLL_ENDPOINT=/finance/v2/payroll-integration
+
+# Operations System
+OP_API_BASE_URL=https://boms-api.agilabuscorp.me
+OP_BUS_TRIPS_ENDPOINT=/api/Bus-Trips-Details
+OP_RENTAL_TRIPS_ENDPOINT=/api/Rental-Request-Details
+```
+
 The backend integrates with:
-- **HR Service:** `https://backends-blue.vercel.app`
-  - Employees: `/api/clean/hr_employees`
-  - Payroll: `/api/clean/hr_payroll`
-- **Operations Service:** `https://backends-blue.vercel.app`
-  - Bus Trips: `/api/clean/op_bus-trip-details`
+- **HR Service:** `https://api.agilabuscorp.me`
+  - Employees: `/inventory/employees` (Sync employee master data)
+  - Payroll: `/finance/v2/payroll-integration` (Sync payroll data with benefits/deductions)
+- **Operations Service:** `https://boms-api.agilabuscorp.me`
+  - Bus Trips: `/api/Bus-Trips-Details` (Sync operational trip data)
+  - Rental Trips: `/api/Rental-Request-Details` (Sync rental trip data)
 
 ### Notes
 
@@ -249,17 +425,48 @@ The backend integrates with:
 
 2. **Authentication:** The `ENABLE_AUTH` environment variable is currently set to `false` for testing purposes. In production, this should be enabled for security.
 
-3. **CORS Origins:** Currently configured to allow:
+3. **External Integration:** New integration endpoints have been added for syncing data from external HR and Operations systems. These endpoints support:
+   - Manual sync with provided payloads
+   - Automatic fetch and sync from external APIs
+   - Query helpers for retrieving synced data
+   - Tracking flags to prevent duplicate revenue/expense recording
+
+4. **Environment Configuration:** All external API URLs are now configured through environment variables. Update `.env` file with:
+   ```env
+   HR_API_BASE_URL=https://api.agilabuscorp.me
+   HR_EMPLOYEES_ENDPOINT=/inventory/employees
+   HR_PAYROLL_ENDPOINT=/finance/v2/payroll-integration
+   OP_API_BASE_URL=https://boms-api.agilabuscorp.me
+   OP_BUS_TRIPS_ENDPOINT=/api/Bus-Trips-Details
+   OP_RENTAL_TRIPS_ENDPOINT=/api/Rental-Request-Details
+   ```
+
+5. **Payroll Integration:** The new payroll sync feature supports:
+   - Fetching payroll data by period with optional employee filtering
+   - Automatic creation/update of payroll periods
+   - Syncing attendance records
+   - Syncing benefits and deductions with frequency tracking
+   - Automatic calculation of gross pay, deductions, and net pay
+   - Support for different rate types (Weekly, Monthly, Daily, Hourly)
+
+5. **Data Synchronization:** Integration routes sync data to:
+   - `employees_cache` table (from HR)
+   - `operational_trip` table (from Operations bus trips)
+   - `rental_trip` table (from Operations rental trips)
+   
+   These tables are then referenced by `revenue` and `expense` records for financial tracking.
+
+6. **CORS Origins:** Currently configured to allow:
    - `http://localhost:3001`
    - `http://localhost:3002`
    - `http://localhost:4003`
    - `http://localhost:4004`
 
-4. **Rate Limiting:** 
+7. **Rate Limiting:** 
    - Window: 15 minutes (900000ms)
    - Max requests: 100 per window
 
-5. **Request Body Limits:** 10MB for JSON and URL-encoded data
+8. **Request Body Limits:** 10MB for JSON and URL-encoded data
 
 ---
 
@@ -285,4 +492,10 @@ curl http://localhost:4000/
 
 ---
 
-**Last Updated:** January 9, 2026
+**Last Updated:** January 11, 2026
+
+**Recent Changes:**
+- Added 11 new integration endpoints for HR and Operations data synchronization
+- Configured external API URLs through environment variables
+- Added tracking flags for revenue/expense recording prevention
+- Updated external service documentation with current API endpoints
