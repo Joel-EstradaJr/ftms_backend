@@ -623,20 +623,24 @@ approval_status                 revenue_approval_status @default(PENDING)
 operational_trip_assignment_id  String?	
 operational_trip_bus_trip_id    String?	
 rental_trip_assignment_id       String?	
-receivable_id                   Int?	
+receivable_id                   Int?
+driver_receivable_id            Int?	
+conductor_receivable_id         Int?	
 payment_method                  String?	
 payment_reference               String?	
 journal_entry_id                Int?        @unique                   
-disposal_ref            String?  // Inventory disposal_code	
+disposal_ref                    String?  // Inventory disposal_code	
 	
 // Relations	
 revenue_type                    revenue_type @relation(fields: [revenue_type_id], references: [id])	
 operational_trip                operational_trip? @relation(fields: [operational_trip_assignment_id, operational_trip_bus_trip_id], references: [assignment_id, bus_trip_id], onDelete: SetNull)	
 rental_trip                     rental_trip? @relation(fields: [rental_trip_assignment_id], references: [assignment_id])	
-receivable                      receivable? @relation(fields: [receivable_id], references: [id])	
+receivable                      receivable? @relation("revenue_receivable", fields: [receivable_id], references: [id])
+driver_receivable               receivable? @relation("revenue_driver_receivable", fields: [driver_receivable_id], references: [id])
+conductor_receivable            receivable? @relation("revenue_conductor_receivable", fields: [conductor_receivable_id], references: [id])
 journal_entry                   journal_entry? @relation(fields: [journal_entry_id], references: [id])	
 installment_payments            revenue_installment_payment[]	
-disposal_revenues       disposal_revenue[]	
+disposal_revenues               disposal_revenue[]	
 	
 // Indexes	
 @@index([code])	
@@ -648,6 +652,8 @@ disposal_revenues       disposal_revenue[]
 @@index([approval_status, operational_trip_assignment_id, operational_trip_bus_trip_id])	
 @@index([payment_method])	
 @@index([receivable_id])	
+@@index([driver_receivable_id])	
+@@index([conductor_receivable_id])	
 @@index([rental_trip_assignment_id])	
 @@index([disposal_ref])	
 @@index([journal_entry_id])	
@@ -686,7 +692,9 @@ accrued_interest       Decimal?          @db.Decimal(12, 2) @default(0)
 last_interest_applied  DateTime?	
 	
 // Relations	
-revenue_records        revenue[]	
+revenues               revenue[] @relation("revenue_receivable")
+driver_shortage        revenue[] @relation("revenue_driver_receivable")
+conductor_shortage     revenue[] @relation("revenue_conductor_receivable")	
 installment_schedule   revenue_installment_schedule[]	
 	
 // Indexes	

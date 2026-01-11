@@ -18,7 +18,7 @@ import { HREmployeeData } from '../../types/payroll.types';
 import { logger } from '../../config/logger';
 
 export class HRPayrollClient {
-  private static readonly HR_BASE_URL = process.env.HR_API_URL || 'http://localhost:3002';
+  private static readonly HR_BASE_URL = process.env.HR_API_BASE_URL || 'http://localhost:3002';
   private static readonly HR_API_KEY = process.env.HR_API_KEY;
 
   /**

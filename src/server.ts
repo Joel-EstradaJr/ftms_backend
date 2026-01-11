@@ -2,7 +2,6 @@ import { createApp } from './app';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { prisma } from './config/database';
-import { redis } from './config/redis';
 
 const app = createApp();
 
@@ -12,21 +11,13 @@ const startServer = async () => {
     await prisma.$connect();
     logger.info('✅ Database connected successfully');
 
-    // Test Redis connection
-    try {
-      await redis.ping();
-      logger.info('✅ Redis connected successfully');
-    } catch (redisError) {
-      logger.warn('⚠️ Redis connection failed (continuing without cache):', redisError);
-    }
-
     // Start server
     const server = app.listen(config.port, () => {
       logger.info('🚀 FTMS Backend Server started successfully');
       logger.info(`📍 Port: ${config.port}`);
       logger.info(`🌍 Environment: ${config.nodeEnv}`);
       logger.info(`🏥 Health check: http://localhost:${config.port}/health`);
-      logger.info(`📚 API documentation: http://localhost:${config.port}/`);
+      logger.info(`📚 API documentation: http://localhost:${config.port}/docs`);
     });
 
     // Graceful shutdown
@@ -41,13 +32,6 @@ const startServer = async () => {
           logger.info('Database disconnected');
         } catch (err) {
           logger.error('Error disconnecting database:', err);
-        }
-
-        try {
-          await redis.quit();
-          logger.info('Redis disconnected');
-        } catch (err) {
-          logger.error('Error disconnecting Redis:', err);
         }
 
         process.exit(0);

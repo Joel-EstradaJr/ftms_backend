@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { errorHandler } from './middleware/errorHandler';
+import { setupSwagger, addDocsInfoToHealth, validateSwaggerSpec } from './middleware/swagger.middleware';
 
 // Routes
 // Temporarily commented out routes with compilation errors
@@ -27,8 +28,16 @@ import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 // Integration routes (for microservices)
 import integrationRoutes from './routes/integration';
 
+// Finance integration routes
+import financeRoutes from './routes/finance';
+
 export const createApp = (): Application => {
   const app = express();
+
+  // Validate Swagger specification on startup (if enabled)
+  if (config.enableApiDocs) {
+    validateSwaggerSpec();
+  }
 
   // Security middleware
   app.use(helmet());
@@ -51,19 +60,32 @@ export const createApp = (): Application => {
     },
   }));
 
+  // Setup Swagger/OpenAPI documentation (if enabled)
+  setupSwagger(app);
+
   // Health check
-  app.get('/health', (req, res) => {
-    res.json({
+  app.get('/health', addDocsInfoToHealth, (req, res) => {
+    const response: any = {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: config.nodeEnv,
-    });
+    };
+
+    // Add API documentation links if enabled
+    if (res.locals.docsInfo?.enabled) {
+      response.documentation = {
+        swagger_ui: res.locals.docsInfo.path,
+        openapi_spec: res.locals.docsInfo.openApiSpec,
+      };
+    }
+
+    res.json(response);
   });
 
   // API info endpoint
   app.get('/', (req, res) => {
-    res.json({
+    const response: any = {
       name: 'FTMS Backend API',
       version: '1.0.0',
       description: 'Financial Transaction Management System - Pure Backend',
@@ -71,7 +93,14 @@ export const createApp = (): Application => {
         health: '/health',
         api: '/api/v1',
       },
-    });
+    };
+
+    // Add documentation link if enabled
+    if (config.enableApiDocs) {
+      response.documentation = config.apiDocsPath;
+    }
+
+    res.json(response);
   });
 
   // ===========================
@@ -98,6 +127,9 @@ export const createApp = (): Application => {
 
   // Integration routes (machine-to-machine communication)
   app.use('/api/integration', integrationRoutes);
+
+  // Finance integration routes (external system integration)
+  app.use('/finance', financeRoutes);
 
   // 404 handler
   app.use((req, res) => {

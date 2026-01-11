@@ -43,3 +43,8 @@
     cd ftms_deployed
     npm run dev
     # Click on the link in the terminal to access the project.
+
+
+
+# Generate Token:
+npx tsx src/utils/generateToken.ts
