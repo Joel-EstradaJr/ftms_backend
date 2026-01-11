@@ -1459,5 +1459,59 @@ fixed_asset        fixed_asset @relation(fields: [fixed_asset_id], references: [
 @@index([fixed_asset_id])	
 @@index([period_start, period_end])	
 }	
-	
-// END OF FINANCE MAIN SCHEMA	
+
+// ============================================================================
+// CASH ADVANCE INTEGRATION (from EMS)
+// ============================================================================
+enum cash_advance_status {
+  PENDING
+  APPROVED
+  REJECTED
+  DISBURSED
+}
+
+enum repayment_method {
+  DEDUCTION_FROM_NEXT_PAYROLL
+  DEDUCTION_OVER_PERIODS
+}
+
+enum repayment_frequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+model cash_advance_request {
+  id                          Int                    @id @default(autoincrement())
+  request_number              String                 @unique  // CA-2026-000001 from EMS
+  employee_id                 String
+  employee_name               String
+  employee_position           String?
+  employee_department         String?
+  employee_phone              String?
+  amount                      Decimal                @db.Decimal(12, 2)
+  purpose                     String?
+  repayment_method            repayment_method
+  repayment_frequency         repayment_frequency?
+  number_of_repayment_periods Int?
+  request_type_name           String?                // e.g. "Travel Advance", "Emergency"
+  request_priority_name       String?                // e.g. "Regular", "Urgent"
+  status                      cash_advance_status    @default(PENDING)
+  approved_amount             Decimal?               @db.Decimal(12, 2)
+  rejection_reason            String?
+  reviewed_by                 String?
+  reviewed_at                 DateTime?
+  
+  // Audit
+  created_at                  DateTime               @default(now())
+  updated_at                  DateTime?              @updatedAt
+  is_deleted                  Boolean                @default(false)
+  
+  @@index([request_number])
+  @@index([employee_id])
+  @@index([status])
+  @@index([created_at])
+  @@index([is_deleted])
+}
+
+// END OF FINANCE MAIN SCHEMA

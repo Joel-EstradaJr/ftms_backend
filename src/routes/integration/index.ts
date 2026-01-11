@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import budgetRoutes from './budget.routes';
 import payrollRoutes from './payroll.routes';
+import approvalRoutes from './approval.routes';
 
 const router = Router();
 
@@ -13,6 +14,9 @@ router.use('/budgets', budgetRoutes);
 
 // Payroll microservice integration routes
 router.use('/', payrollRoutes);
+
+// Approval routes (Cash Advance from EMS)
+router.use('/approval', approvalRoutes);
 
 // Health check for integration endpoints
 router.get('/health', (req, res) => {
@@ -24,3 +28,4 @@ router.get('/health', (req, res) => {
 });
 
 export default router;
+
