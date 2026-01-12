@@ -274,3 +274,26 @@ export interface ProcessPayrollResultDTO {
     error: string;
   }[];
 }
+
+// ==================== Webhook DTOs ====================
+
+export interface PayrollWebhookEmployeeDTO {
+  employee_number: string;
+  basic_rate: number;
+  rate_type: string;
+  present_days: number;
+  basic_pay: number;
+  total_benefits: number;
+  total_deductions: number;
+  gross_pay: number;
+  net_pay: number;
+}
+
+export interface PayrollWebhookRequestDTO {
+  payroll_period_code: string;
+  payroll_period_start: string;
+  payroll_period_end: string;
+  disbursed_by: string;
+  disbursed_at?: string;
+  employees: PayrollWebhookEmployeeDTO[];
+}

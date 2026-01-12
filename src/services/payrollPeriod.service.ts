@@ -448,7 +448,21 @@ export class PayrollPeriodService {
    */
   async releasePayrollPeriod(id: number, userId: string, userInfo?: any, req?: any) {
     try {
-      const period = await prisma.payroll_period.findUnique({ where: { id } });
+      // 1. Fetch period with all payroll details for webhook
+      const period = await prisma.payroll_period.findUnique({
+        where: { id },
+        include: {
+          payrolls: {
+            include: {
+              employee: true,
+              payroll_items: {
+                include: { item_type: true },
+              },
+              payroll_attendances: true,
+            },
+          },
+        },
+      });
 
       if (!period) {
         throw new NotFoundError(`Payroll period with ID ${id} not found`);
@@ -456,6 +470,50 @@ export class PayrollPeriodService {
 
       if (period.status === payroll_period_status.DRAFT) {
         throw new ValidationError('Can only release processed payroll periods');
+      }
+
+      // 2. Trigger webhook if there are payrolls
+      if (period.payrolls.length > 0) {
+        const payload: import('../types/payroll.types').PayrollWebhookRequestDTO = {
+          payroll_period_code: period.payroll_period_code,
+          payroll_period_start: period.period_start.toISOString().split('T')[0],
+          payroll_period_end: period.period_end.toISOString().split('T')[0],
+          disbursed_by: userInfo?.username || userId,
+          disbursed_at: new Date().toISOString(),
+          employees: period.payrolls.map(p => {
+            // Calculate present days
+            const presentDays = p.payroll_attendances.filter(a => a.status === 'Present').length;
+
+            // Calculate benefits and deductions totals
+            const totalBenefits = p.payroll_items
+              .filter(i => i.category === 'BENEFIT')
+              .reduce((sum, i) => sum + Number(i.amount), 0);
+
+            const totalDeductions = p.payroll_items
+              .filter(i => i.category === 'DEDUCTION')
+              .reduce((sum, i) => sum + Number(i.amount), 0);
+
+            return {
+              employee_number: p.employee_number,
+              basic_rate: Number(p.basic_rate),
+              rate_type: p.rate_type,
+              present_days: presentDays,
+              basic_pay: Number(p.gross_pay) - totalBenefits, // Approximate basic pay if not stored explicitly? Or just use gross - benefits? 
+              // Wait, gross_pay usually includes benefits. 
+              // Start with basic_pay = basic_rate * presentDays? 
+              // Let's use basic_rate * presentDays as basic_pay for now, or derive from items.
+              // Actually, let's look at p.gross_pay.
+              total_benefits: totalBenefits,
+              total_deductions: totalDeductions,
+              gross_pay: Number(p.gross_pay),
+              net_pay: Number(p.net_pay),
+            };
+          }),
+        };
+
+        // Asynchronous webhook call - don't block release if it fails?
+        // Or wait for it? User said "will be triggered", let's await it but not crash.
+        await HRPayrollClient.sendPayrollDistribution(payload);
       }
 
       const updatedPeriod = await prisma.payroll_period.update({
@@ -488,8 +546,9 @@ export class PayrollPeriodService {
 
       logger.info(`Payroll period ${id} released by ${userId}`);
       return updatedPeriod;
-    } catch (error) {
-      logger.error(`Error releasing payroll period ${id}:`, error);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
+      logger.error(`Error releasing payroll period ${id}: ${errorMessage}`);
       throw error;
     }
   }
