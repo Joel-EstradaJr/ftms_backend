@@ -6,6 +6,7 @@ import { Router } from 'express';
 import budgetRoutes from './budget.routes';
 import payrollRoutes from './payroll.routes';
 import approvalRoutes from './approval.routes';
+import purchaseRequestRoutes from './purchaseRequest.routes';
 
 const router = Router();
 
@@ -17,6 +18,9 @@ router.use('/', payrollRoutes);
 
 // Approval routes (Cash Advance from EMS)
 router.use('/approval', approvalRoutes);
+
+// Purchase Request routes (from Purchase Request System)
+router.use('/purchase-request', purchaseRequestRoutes);
 
 // Health check for integration endpoints
 router.get('/health', (req, res) => {
