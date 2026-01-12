@@ -62,11 +62,11 @@ APPROVED    // Verified and approved
 REJECTED    // Rejected / needs correction	
 }	
 	
-enum expense_approval_status {	
-PENDING     // Auto-filled, awaiting user review/approval	
-APPROVED    // Verified and approved	
-REJECTED    // Rejected / needs correction	
-}	
+enum payment_method_enum {
+  CASH            // Cash payments
+  BANK_TRANSFER   // Bank transfers
+  ONLINE          // GCash, PayMaya, PayPal, etc.
+}
 	
 enum installment_status {	
 PENDING           // Not yet paid at all	
@@ -665,13 +665,12 @@ amount                          Decimal                 @db.Decimal(12, 2)
 date_recorded                   DateTime?	
 date_expected                   DateTime?	
 description                     String?	
-status                          expense_status          @default(PENDING)	
-approval_status                 expense_approval_status @default(PENDING)	
+status                          expense_status          @default(PENDING)
 operational_trip_assignment_id  String?	
 operational_trip_bus_trip_id    String?	
 rental_trip_assignment_id       String?	
 payable_id                      Int?	
-payment_method                  String?	
+payment_method                  payment_method_enum?
 payment_reference               String?	
 journal_entry_id                Int?                    	
 	
@@ -697,9 +696,8 @@ expense_adjustments             expense_adjustment[]
 @@index([expense_type_id])	
 @@index([date_recorded])	
 @@index([date_expected])	
-@@index([status])	
-@@index([approval_status])	
-@@index([approval_status, operational_trip_assignment_id, operational_trip_bus_trip_id])	
+@@index([status])
+@@index([operational_trip_assignment_id, operational_trip_bus_trip_id])
 @@index([payment_method])	
 @@index([payable_id])	
 @@index([order_ref])	
@@ -740,8 +738,9 @@ last_payment_date      DateTime?
 last_payment_amount    Decimal?       @db.Decimal(12, 2)	
 interest_rate          Decimal?       @db.Decimal(5, 2)	
 accrued_interest       Decimal?       @db.Decimal(12, 2) @default(0)	
-last_interest_applied  DateTime?	
-	
+last_interest_applied  DateTime?
+employee_reference     String?        // Store employee number for reimbursements
+
 // Relations	
 expense_records        expense[]	
 installment_schedule   expense_installment_schedule[]	
@@ -750,9 +749,10 @@ installment_schedule   expense_installment_schedule[]
 @@index([code])	
 @@index([creditor_name])	
 @@index([due_date])	
-@@index([status])	
-@@index([is_deleted])	
-@@index([created_at])	
+@@index([status])
+@@index([employee_reference])
+@@index([is_deleted])
+@@index([created_at])
 	
 // Audit Trail	
 created_by      String?	
