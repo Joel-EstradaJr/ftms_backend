@@ -1,6 +1,13 @@
 /**
  * PURCHASE REQUEST ROUTES
  * Integration endpoints for purchase request approval workflow
+ * 
+ * External API: PURCHASE_REQUEST_API_URL
+ * Available endpoints:
+ * - GET  /purchase-requests - Get all purchase requests
+ * - GET  /purchase-requests/:id - Get single purchase request
+ * - PATCH /purchase-requests/:id - Update purchase request (status, finance_remarks)
+ * - PATCH /purchase-request-items/:id - Update item (status, quantity, adjustmentReason)
  */
 
 import { Router } from 'express';
@@ -25,9 +32,20 @@ router.get('/status/:requestCode', purchaseRequestController.getStatusByRequestC
 
 /**
  * GET /api/integration/purchase-request/:id
- * Get single purchase request by ID
+ * Get single purchase request by ID for finance
  */
 router.get('/:id', purchaseRequestController.getPurchaseRequestById.bind(purchaseRequestController));
+
+/**
+ * PATCH /api/integration/purchase-request/:id
+ * Update a purchase request (finance can update status and finance_remarks)
+ * 
+ * Body:
+ * - status: string (optional) - PENDING, APPROVED, REJECTED, ADJUSTED, CLOSED
+ * - finance_remarks: string (optional)
+ * - updated_by: string (optional)
+ */
+router.patch('/:id', purchaseRequestController.updatePurchaseRequest.bind(purchaseRequestController));
 
 /**
  * PUT /api/integration/purchase-request/:id/approve
@@ -52,13 +70,19 @@ router.put('/:id/approve', purchaseRequestController.approveRequest.bind(purchas
 router.put('/:id/reject', purchaseRequestController.rejectRequest.bind(purchaseRequestController));
 
 /**
- * PUT /api/integration/purchase-request-item/:id
- * Update a purchase request item
+ * PATCH /api/integration/purchase-request-item/:id
+ * Update a purchase request item (finance can update item status, quantity, adjustmentReason)
  * 
  * Body:
  * - status: string (optional)
  * - quantity: number (optional)
  * - adjustmentReason: string (optional)
+ */
+router.patch('/item/:id', purchaseRequestController.updateItem.bind(purchaseRequestController));
+
+/**
+ * PUT /api/integration/purchase-request-item/:id (legacy - use PATCH instead)
+ * Update a purchase request item
  */
 router.put('/item/:id', purchaseRequestController.updateItem.bind(purchaseRequestController));
 

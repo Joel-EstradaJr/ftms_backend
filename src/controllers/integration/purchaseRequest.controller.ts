@@ -208,8 +208,58 @@ export class PurchaseRequestController {
   }
 
   /**
-   * PUT /api/integration/purchase-request-item/:id
-   * Update a purchase request item
+   * PATCH /api/integration/purchase-request/:id
+   * Update a purchase request (finance can update status and finance_remarks)
+   */
+  async updatePurchaseRequest(req: Request, res: Response): Promise<void> {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, finance_remarks, updated_by } = req.body;
+
+      if (isNaN(id)) {
+        res.status(400).json({ success: false, message: 'Invalid ID' });
+        return;
+      }
+
+      // At least one field must be provided
+      if (!status && finance_remarks === undefined) {
+        res.status(400).json({ 
+          success: false, 
+          message: 'At least one of status or finance_remarks must be provided' 
+        });
+        return;
+      }
+
+      const updated = await purchaseRequestService.updatePurchaseRequest(id, {
+        status,
+        finance_remarks,
+        updated_by,
+      });
+
+      res.json({
+        success: true,
+        message: 'Purchase request updated successfully',
+        data: updated,
+      });
+    } catch (error: any) {
+      console.error('❌ Error updating purchase request:', error);
+
+      if (error.message.includes('not found')) {
+        res.status(404).json({ success: false, message: error.message });
+        return;
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update purchase request',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * PATCH /api/integration/purchase-request-item/:id
+   * Update a purchase request item (finance can update status, quantity, adjustmentReason)
    */
   async updateItem(req: Request, res: Response): Promise<void> {
     try {

@@ -11,7 +11,7 @@ import { setupSwagger, addDocsInfoToHealth, validateSwaggerSpec } from './middle
 // Routes
 // Temporarily commented out routes with compilation errors
 // import staffRevenueRoutes from './routes/staff/revenue.routes';
-// import staffExpenseRoutes from './routes/staff/expense.routes';
+import staffExpenseRoutes from './routes/staff/expense.routes';
 // import staffPayrollRoutes from './routes/staff/payroll.routes';
 // import staffReimbursementRoutes from './routes/staff/reimbursement.routes';
 // import staffBudgetRoutes from './routes/staff/budget.routes';
@@ -23,6 +23,7 @@ import { setupSwagger, addDocsInfoToHealth, validateSwaggerSpec } from './middle
 import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 import adminJournalEntriesRoutes from './routes/admin/journal-entries';
+import operationalExpenseRoutes from './routes/admin/operational-expenses';
 import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 
 // Integration routes (for microservices)
@@ -115,7 +116,7 @@ export const createApp = (): Application => {
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors
   // app.use('/api/v1/staff/revenues', staffRevenueRoutes);
-  // app.use('/api/v1/staff/expenses', staffExpenseRoutes);
+  app.use('/api/v1/staff/expenses', staffExpenseRoutes);
   // app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
   // app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
   // app.use('/api/v1/staff/budgets', staffBudgetRoutes);
@@ -124,6 +125,9 @@ export const createApp = (): Application => {
   // app.use('/api/v1/staff/receivables', staffReceivableRoutes);
   // app.use('/api/v1/staff/payables', staffPayableRoutes);
   // app.use('/api/v1/staff/loans', staffLoanRoutes);
+
+  // Operational expense routes for frontend compatibility
+  app.use('/api/operational-trip-expenses', operationalExpenseRoutes);
 
   // Integration routes (machine-to-machine communication)
   app.use('/api/integration', integrationRoutes);

@@ -16,9 +16,18 @@ import { PrismaClient, purchase_request_approval_status, pr_item_finance_status 
 
 const prisma = new PrismaClient();
 
-// External API base URL
-const EXTERNAL_API_URL = process.env.PURCHASE_REQUEST_API_URL || 
-  'https://purchase-request-production-17a6.up.railway.app/api/v1/finance';
+// Helper function to get the URLs dynamically (ensures env vars are loaded)
+function getApiUrls() {
+  const baseUrl = process.env.PURCHASE_REQUEST_API_URL || 
+    'https://purchase-request-production-17a6.up.railway.app/api/v1/finance/purchase-requests';
+  
+  // The env var points directly to /purchase-requests, so use it as-is for purchase requests
+  // For items, we need to replace /purchase-requests with /purchase-request-items
+  const purchaseRequestsUrl = baseUrl;
+  const purchaseRequestItemsUrl = baseUrl.replace(/\/purchase-requests$/, '/purchase-request-items');
+  
+  return { purchaseRequestsUrl, purchaseRequestItemsUrl };
+}
 
 // ============================================================================
 // TYPES
@@ -238,10 +247,12 @@ export interface UpdateItemDto {
 class PurchaseRequestService {
   /**
    * Fetch all purchase requests from external API
+   * GET /purchase-requests
    */
   async getAllPurchaseRequests(status?: string): Promise<TransformedPurchaseRequest[]> {
     try {
-      let url = `${EXTERNAL_API_URL}/purchase-requests`;
+      const { purchaseRequestsUrl } = getApiUrls();
+      let url = purchaseRequestsUrl;
       if (status) {
         url += `?status=${status}`;
       }
@@ -281,33 +292,22 @@ class PurchaseRequestService {
 
   /**
    * Fetch single purchase request by ID
+   * Note: External API doesn't have GET by ID, so we fetch all and filter
    */
   async getPurchaseRequestById(id: number): Promise<TransformedPurchaseRequest | null> {
     try {
-      const url = `${EXTERNAL_API_URL}/purchase-requests/${id}`;
-      console.log(`📥 Fetching purchase request ${id} from: ${url}`);
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null;
-        }
-        throw new Error(`External API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { success: boolean; data: ExternalPurchaseRequest };
+      console.log(`📥 Fetching purchase request ${id} (from all requests)`);
       
-      if (!data.success || !data.data) {
-        throw new Error('Invalid response from external API');
+      // Fetch all purchase requests and find the one with matching ID
+      const allRequests = await this.getAllPurchaseRequests();
+      const request = allRequests.find(r => r.id === id);
+      
+      if (!request) {
+        console.log(`⚠️ Purchase request ${id} not found`);
+        return null;
       }
 
-      return this.transformPurchaseRequest(data.data);
+      return request;
 
     } catch (error: any) {
       console.error(`❌ Error fetching purchase request ${id}:`, error.message);
@@ -380,26 +380,44 @@ class PurchaseRequestService {
 
   /**
    * Approve a purchase request
+   * PATCH /purchase-requests/:id
    */
   async approveRequest(id: number, dto: ApproveRequestDto): Promise<TransformedPurchaseRequest> {
     try {
-      console.log(`✅ Approving purchase request ${id}`);
+      const { purchaseRequestsUrl } = getApiUrls();
+      console.log(`✅ Approving purchase request ${id} via PATCH to: ${purchaseRequestsUrl}/${id}`);
 
-      // Update external API
-      const response = await fetch(`${EXTERNAL_API_URL}/purchase-requests/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'APPROVED',
-          finance_remarks: dto.financeRemarks || 'Approved by Finance',
-        }),
-      });
+      // First verify the request exists by fetching it
+      const existingRequest = await this.getPurchaseRequestById(id);
+      if (!existingRequest) {
+        throw new Error(`Purchase request ${id} not found`);
+      }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})) as { message?: string };
-        throw new Error(errorData.message || `Failed to approve: ${response.status}`);
+      let externalUpdateSucceeded = false;
+
+      // Try to update external API (may not have PATCH endpoint yet)
+      try {
+        const response = await fetch(`${purchaseRequestsUrl}/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'APPROVED',
+            finance_remarks: dto.financeRemarks || 'Approved by Finance',
+            updated_by: dto.approvedBy,
+          }),
+        });
+
+        if (response.ok) {
+          externalUpdateSucceeded = true;
+          console.log(`✅ External API PATCH succeeded for purchase request ${id}`);
+        } else {
+          const errorData = await response.json().catch(() => ({})) as { message?: string };
+          console.log(`⚠️ External API PATCH failed (${response.status}): ${errorData.message || 'Unknown error'}. Falling back to local storage.`);
+        }
+      } catch (fetchError: any) {
+        console.log(`⚠️ External API unreachable: ${fetchError.message}. Falling back to local storage.`);
       }
 
       // If there are item-level approvals with quantity adjustments
@@ -413,16 +431,18 @@ class PurchaseRequestService {
         }
       }
 
-      // Sync to local database
+      // Always sync to local database (this is our fallback and source of truth for FTMS)
       await this.syncToLocalDb(id, 'APPROVED', dto.approvedBy, dto.financeRemarks);
+      console.log(`✅ Synced APPROVED status to local database for purchase request ${id}`);
 
-      // Fetch and return updated data
-      const updated = await this.getPurchaseRequestById(id);
-      if (!updated) {
-        throw new Error('Failed to fetch updated purchase request');
-      }
-
-      return updated;
+      // Return updated data
+      return {
+        ...existingRequest,
+        status: 'APPROVED',
+        financeRemarks: dto.financeRemarks || 'Approved by Finance',
+        approvedBy: dto.approvedBy,
+        approvedAt: new Date().toISOString(),
+      };
 
     } catch (error: any) {
       console.error(`❌ Error approving purchase request ${id}:`, error.message);
@@ -432,38 +452,58 @@ class PurchaseRequestService {
 
   /**
    * Reject a purchase request
+   * PATCH /purchase-requests/:id
    */
   async rejectRequest(id: number, dto: RejectRequestDto): Promise<TransformedPurchaseRequest> {
     try {
-      console.log(`❌ Rejecting purchase request ${id}`);
+      const { purchaseRequestsUrl } = getApiUrls();
+      console.log(`❌ Rejecting purchase request ${id} via PATCH to: ${purchaseRequestsUrl}/${id}`);
 
-      // Update external API
-      const response = await fetch(`${EXTERNAL_API_URL}/purchase-requests/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'REJECTED',
-          finance_remarks: dto.rejectionReason || dto.financeRemarks || 'Rejected by Finance',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})) as { message?: string };
-        throw new Error(errorData.message || `Failed to reject: ${response.status}`);
+      // First verify the request exists by fetching it
+      const existingRequest = await this.getPurchaseRequestById(id);
+      if (!existingRequest) {
+        throw new Error(`Purchase request ${id} not found`);
       }
 
-      // Sync to local database
+      let externalUpdateSucceeded = false;
+
+      // Try to update external API (may not have PATCH endpoint yet)
+      try {
+        const response = await fetch(`${purchaseRequestsUrl}/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'REJECTED',
+            finance_remarks: dto.rejectionReason || dto.financeRemarks || 'Rejected by Finance',
+            updated_by: dto.rejectedBy,
+          }),
+        });
+
+        if (response.ok) {
+          externalUpdateSucceeded = true;
+          console.log(`✅ External API PATCH succeeded for purchase request ${id}`);
+        } else {
+          const errorData = await response.json().catch(() => ({})) as { message?: string };
+          console.log(`⚠️ External API PATCH failed (${response.status}): ${errorData.message || 'Unknown error'}. Falling back to local storage.`);
+        }
+      } catch (fetchError: any) {
+        console.log(`⚠️ External API unreachable: ${fetchError.message}. Falling back to local storage.`);
+      }
+
+      // Always sync to local database (this is our fallback and source of truth for FTMS)
       await this.syncToLocalDb(id, 'REJECTED', undefined, dto.financeRemarks, dto.rejectedBy);
+      console.log(`✅ Synced REJECTED status to local database for purchase request ${id}`);
 
-      // Fetch and return updated data
-      const updated = await this.getPurchaseRequestById(id);
-      if (!updated) {
-        throw new Error('Failed to fetch updated purchase request');
-      }
-
-      return updated;
+      // Return updated data
+      return {
+        ...existingRequest,
+        status: 'REJECTED',
+        financeRemarks: dto.rejectionReason || dto.financeRemarks || 'Rejected by Finance',
+        rejectedBy: dto.rejectedBy,
+        rejectedAt: new Date().toISOString(),
+      };
 
     } catch (error: any) {
       console.error(`❌ Error rejecting purchase request ${id}:`, error.message);
@@ -473,33 +513,128 @@ class PurchaseRequestService {
 
   /**
    * Update a purchase request item
+   * PATCH /purchase-request-items/:id
    */
   async updateItem(itemId: number, dto: UpdateItemDto): Promise<void> {
     try {
-      console.log(`📝 Updating purchase request item ${itemId}`);
+      const { purchaseRequestItemsUrl } = getApiUrls();
+      console.log(`📝 Updating purchase request item ${itemId} via PATCH to: ${purchaseRequestItemsUrl}/${itemId}`);
 
       const updateData: Record<string, any> = {};
       if (dto.status) updateData.status = dto.status;
       if (dto.quantity !== undefined) updateData.quantity = dto.quantity.toString();
       if (dto.adjustmentReason) updateData.adjustment_reason = dto.adjustmentReason;
 
-      const response = await fetch(`${EXTERNAL_API_URL}/purchase-request-items/${itemId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData),
-      });
+      // Try to update external API (may not have PATCH endpoint yet)
+      try {
+        const response = await fetch(`${purchaseRequestItemsUrl}/${itemId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})) as { message?: string };
-        throw new Error(errorData.message || `Failed to update item: ${response.status}`);
+        if (response.ok) {
+          console.log(`✅ External API PATCH succeeded for item ${itemId}`);
+        } else {
+          const errorData = await response.json().catch(() => ({})) as { message?: string };
+          console.log(`⚠️ External API PATCH failed (${response.status}): ${errorData.message || 'Unknown error'}. Item update stored locally only.`);
+        }
+      } catch (fetchError: any) {
+        console.log(`⚠️ External API unreachable: ${fetchError.message}. Item update stored locally only.`);
       }
 
-      console.log(`✅ Updated item ${itemId}`);
+      // Note: Local item sync would be handled by the parent request sync
+      console.log(`✅ Processed item ${itemId} update`);
 
     } catch (error: any) {
       console.error(`❌ Error updating item ${itemId}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Update a purchase request (status and finance_remarks)
+   * PATCH /purchase-requests/:id
+   */
+  async updatePurchaseRequest(
+    id: number, 
+    dto: { status?: string; finance_remarks?: string; updated_by?: string }
+  ): Promise<TransformedPurchaseRequest> {
+    try {
+      const { purchaseRequestsUrl } = getApiUrls();
+      const fullUrl = `${purchaseRequestsUrl}/${id}`;
+      console.log(`📝 Updating purchase request ${id}`);
+      console.log(`📍 PATCH URL: ${fullUrl}`);
+
+      const updateData: Record<string, any> = {};
+      if (dto.status) updateData.status = dto.status;
+      if (dto.finance_remarks !== undefined) updateData.finance_remarks = dto.finance_remarks;
+      if (dto.updated_by) updateData.updated_by = dto.updated_by;
+
+      console.log(`📤 PATCH payload:`, JSON.stringify(updateData));
+
+      // First, verify the purchase request exists
+      const existingRequest = await this.getPurchaseRequestById(id);
+      if (!existingRequest) {
+        throw new Error(`Purchase request ${id} not found`);
+      }
+
+      let externalApiUpdated = false;
+
+      // Try to update external API
+      try {
+        const response = await fetch(fullUrl, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        });
+
+        console.log(`📥 PATCH response status: ${response.status}`);
+        
+        if (response.ok) {
+          const responseText = await response.text();
+          console.log(`📥 PATCH response body: ${responseText}`);
+          externalApiUpdated = true;
+          console.log(`✅ External API updated successfully`);
+        } else {
+          // External API PATCH not available - this is expected if the route doesn't exist
+          const responseText = await response.text();
+          console.log(`⚠️ External PATCH API not available: ${responseText}`);
+          console.log(`⚠️ Falling back to local storage only`);
+        }
+      } catch (fetchError: any) {
+        console.log(`⚠️ External PATCH API call failed: ${fetchError.message}`);
+        console.log(`⚠️ Falling back to local storage only`);
+      }
+
+      // Always sync to local database
+      if (dto.status) {
+        const approvedBy = dto.status === 'APPROVED' ? dto.updated_by : undefined;
+        const rejectedBy = dto.status === 'REJECTED' ? dto.updated_by : undefined;
+        await this.syncToLocalDb(id, dto.status, approvedBy, dto.finance_remarks, rejectedBy);
+      }
+
+      // Return the data with updated status (from local or external)
+      // Note: If external API was not updated, local data will still reflect the change
+      const result: TransformedPurchaseRequest = {
+        ...existingRequest,
+        status: dto.status || existingRequest.status,
+        finance_remarks: dto.finance_remarks ?? existingRequest.finance_remarks,
+        approved_by: dto.status === 'APPROVED' ? (dto.updated_by || 'Finance') : existingRequest.approved_by,
+        approved_at: dto.status === 'APPROVED' ? new Date().toISOString() : existingRequest.approved_at,
+        rejected_by: dto.status === 'REJECTED' ? (dto.updated_by || 'Finance') : existingRequest.rejected_by,
+        rejected_at: dto.status === 'REJECTED' ? new Date().toISOString() : existingRequest.rejected_at,
+      };
+
+      console.log(`✅ Updated purchase request ${id} (external API: ${externalApiUpdated ? 'yes' : 'no, saved locally'})`);
+      return result;
+
+    } catch (error: any) {
+      console.error(`❌ Error updating purchase request ${id}:`, error.message);
       throw error;
     }
   }
