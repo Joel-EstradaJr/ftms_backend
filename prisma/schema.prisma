@@ -32,10 +32,10 @@ CANCELLED    // invalidated
 }	
 	
 enum expense_status {	
-PENDING      // expected/payable	
-PAID         // fully paid	
-OVERDUE      // past due	
-CANCELLED    // invalidated	
+PENDING      
+APPROVED
+REJECTED
+COMPLETED
 }	
 	
 enum receivable_status {	
@@ -718,6 +718,8 @@ archived_by     String?
 archived_at     DateTime?		
 deleted_by      String?	
 deleted_at      DateTime?	
+approved_by     String?	
+approved_at     DateTime?	
 is_deleted      Boolean        @default(false)	
 }	
 	

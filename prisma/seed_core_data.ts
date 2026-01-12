@@ -31,6 +31,26 @@ const ACCOUNT_TYPE_CONFIG = {
  * Chart of Accounts data organized by account type
  * Each entry includes name, optional description, and optional custom code suffix
  */
+/**
+ * Expense Type seed data
+ * Code format: EXP-XXX where XXX is a sequential number
+ */
+const EXPENSE_TYPE_DATA = [
+  { code: 'EXP-001', name: 'Operational', description: 'Day-to-day operational expenses (fuel, toll, parking, terminal fees)' },
+  { code: 'EXP-002', name: 'Maintenance & Repairs', description: 'Vehicle maintenance, repairs, and spare parts' },
+  { code: 'EXP-003', name: 'Personnel', description: 'Salaries, wages, allowances, and other employee-related expenses' },
+  { code: 'EXP-004', name: 'Administrative', description: 'Office supplies, utilities, internet, and administrative costs' },
+  { code: 'EXP-005', name: 'Insurance', description: 'Vehicle and business insurance premiums' },
+  { code: 'EXP-006', name: 'Professional Fees', description: 'Accounting, legal, and consulting services' },
+  { code: 'EXP-007', name: 'Permits & Licenses', description: 'Business permits, vehicle registrations, and franchise fees' },
+  { code: 'EXP-008', name: 'Rent', description: 'Office, garage, and terminal space rental' },
+  { code: 'EXP-009', name: 'Financial', description: 'Bank charges, interest expenses, and loan-related costs' },
+  { code: 'EXP-010', name: 'Depreciation', description: 'Depreciation of buses, equipment, and other fixed assets' },
+  { code: 'EXP-011', name: 'Violations & Penalties', description: 'Traffic violations, fines, and penalties' },
+  { code: 'EXP-012', name: 'Inventory & Supplies', description: 'Cost of spare parts, tires, and other supplies purchased' },
+  { code: 'EXP-013', name: 'Miscellaneous', description: 'Other uncategorized expenses' },
+];
+
 const COA_DATA: Record<string, Array<{ name: string; description?: string; customSuffix?: string }>> = {
   Asset: [
     { name: 'Cash on Hand', description: 'Physical cash held in the office' },
@@ -185,7 +205,7 @@ async function generateAccountCode(
  */
 function findLowestAvailableSuffix(usedSuffixes: number[]): number {
   const sortedSuffixes = [...new Set(usedSuffixes)].sort((a, b) => a - b);
-  
+
   for (let i = 0; i <= 999; i += 5) {
     if (!sortedSuffixes.includes(i)) {
       return i;
@@ -213,7 +233,7 @@ async function seedAccountTypes() {
   for (const [name, config] of Object.entries(ACCOUNT_TYPE_CONFIG)) {
     // Check if account type exists by name OR code
     const existing = await prisma.account_type.findFirst({
-      where: { 
+      where: {
         OR: [
           { name, is_deleted: false },
           { code: config.prefix, is_deleted: false }
@@ -237,6 +257,45 @@ async function seedAccountTypes() {
     });
 
     console.log(`  ✅ Created Account Type: ${name} (ID: ${accountType.id}, Code: ${config.prefix})`);
+  }
+
+  console.log('');
+}
+
+/**
+ * Seeds expense types into the database
+ * Skips creation if expense type already exists
+ */
+async function seedExpenseTypes() {
+  console.log('🌱 Seeding Expense Types...');
+
+  for (const expenseType of EXPENSE_TYPE_DATA) {
+    // Check if expense type exists by code OR name
+    const existing = await prisma.expense_type.findFirst({
+      where: {
+        OR: [
+          { code: expenseType.code, is_deleted: false },
+          { name: expenseType.name, is_deleted: false }
+        ]
+      },
+    });
+
+    if (existing) {
+      console.log(`  ⏭️  Expense Type "${expenseType.name}" already exists (ID: ${existing.id}, Code: ${existing.code})`);
+      continue;
+    }
+
+    const created = await prisma.expense_type.create({
+      data: {
+        code: expenseType.code,
+        name: expenseType.name,
+        description: expenseType.description,
+        created_by: 'system',
+        updated_by: 'system',
+      },
+    });
+
+    console.log(`  ✅ Created Expense Type: ${created.code} - ${created.name}`);
   }
 
   console.log('');
@@ -319,6 +378,7 @@ async function main() {
 
   try {
     await seedAccountTypes();
+    await seedExpenseTypes();
     await seedChartOfAccounts();
 
     console.log('✨ Seeding completed successfully!\n');
