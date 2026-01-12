@@ -23,7 +23,7 @@ router.get('/hr_payroll', controller.getHrPayroll);
 
 /**
  * GET /api/integration/hr_payroll/periods
- * Returns available semi-monthly payroll periods
+ * Returns weekly payroll periods (Monday → Saturday)
  * 
  * Query Parameters:
  * - year: Target year (optional, default: current year)
@@ -41,6 +41,17 @@ router.get('/hr_payroll/periods', controller.getPayrollPeriods);
  * - employee_number: string - optional
  */
 router.post('/hr_payroll/fetch-and-sync', controller.fetchAndSyncPayroll.bind(controller));
+
+/**
+ * POST /api/integration/hr_payroll/refetch
+ * Re-fetch payroll data from HR API (manual trigger)
+ * Overwrites existing staging data and recalculates deterministically
+ * 
+ * Body:
+ * - period_start: string (YYYY-MM-DD) - required
+ * - period_end: string (YYYY-MM-DD) - required
+ */
+router.post('/hr_payroll/refetch', controller.refetchFromHR.bind(controller));
 
 /**
  * POST /api/integration/hr_payroll/sync-period/:id

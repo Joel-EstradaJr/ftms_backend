@@ -382,6 +382,7 @@ export class PayrollPeriodService {
 
   /**
    * Process payroll for a period - fetch employees from HR and create payroll records
+   * Now uses the new HR API integration via fetchAndSyncPayrollFromHR
    */
   async processPayroll(
     data: ProcessPayrollDTO,
@@ -398,126 +399,43 @@ export class PayrollPeriodService {
         throw new NotFoundError(`Payroll period with ID ${data.payroll_period_id} not found`);
       }
 
-      if (period.status !== payroll_period_status.DRAFT) {
-        throw new ValidationError('Can only process draft payroll periods');
+      if (period.status !== payroll_period_status.DRAFT && period.status !== payroll_period_status.PARTIAL) {
+        throw new ValidationError('Can only process draft or partial payroll periods');
       }
 
-      // Fetch employees from HR
-      const employees = await HRPayrollClient.getEmployeesForPayroll(
-        new Date(data.period_start),
-        new Date(data.period_end)
+      // Use the new HR API sync function
+      const { fetchAndSyncPayrollFromHR } = await import('../../lib/hr/payrollSync');
+
+      const result = await fetchAndSyncPayrollFromHR(
+        data.period_start,
+        data.period_end,
+        data.employee_numbers?.[0] // Only single employee filter supported
       );
 
-      // Filter employees if specific list provided
-      const employeesToProcess = data.employee_numbers
-        ? employees.filter((e) => data.employee_numbers!.includes(e.employeeNumber))
-        : employees.filter((e) => e.employeeStatus === 'active');
-
-      const errors: { employee_number: string; error: string }[] = [];
-      let totalGross = 0;
-      let totalDeductions = 0;
-      let totalNet = 0;
-      let processedCount = 0;
-
-      // Process each employee
-      for (const emp of employeesToProcess) {
-        try {
-          const basicRate = parseFloat(emp.basicRate || '0');
-          const benefits = 0; // calculateTotalBenefits(emp.benefits);
-          const deductions = 0; // calculateTotalDeductions(emp.deductions);
-          const grossPay = 0; // calculateGrossPay(basicRate, benefits);
-          const netPay = 0; // calculateNetPay(grossPay, deductions);
-
-          const attendanceStats = { totalHours: 0, totalPresent: 0 }; // calculateAttendanceStats(emp.attendances);
-
-          // Create payroll record
-          const payroll = await prisma.payroll.create({
-            data: {
-              payroll_period_id: data.payroll_period_id,
-              employee_number: emp.employeeNumber,
-              rate_type: rate_type.MONTHLY,
-              basic_rate: basicRate,
-              gross_pay: grossPay,
-              total_deductions: deductions,
-              net_pay: netPay,
-              status: payroll_status.PENDING,
-              created_by: userId,
-            },
-          });
-
-          // Create payroll items (benefits)
-          for (const benefit of emp.benefits.filter((b) => b.isActive)) {
-            await prisma.payroll_item.create({
-              data: {
-                payroll_id: payroll.id,
-                item_type_id: 1, // TODO: Map benefit type to item_type_id
-                amount: parseFloat(benefit.value),
-                category: 'BENEFIT',
-                description: benefit.benefitType.name,
-              },
-            });
-          }
-
-          // Create payroll items (deductions)
-          for (const deduction of emp.deductions.filter((d) => d.isActive)) {
-            await prisma.payroll_item.create({
-              data: {
-                payroll_id: payroll.id,
-                item_type_id: 2, // TODO: Map deduction type to item_type_id
-                amount: parseFloat(deduction.value),
-                category: 'DEDUCTION',
-                description: deduction.deductionType.name,
-              },
-            });
-          }
-
-          // Create attendance records
-          for (const attendance of emp.attendances) {
-            await prisma.payroll_attendance.create({
-              data: {
-                payroll_id: payroll.id,
-                date: new Date(attendance.date),
-                status: attendance.status,
-                hours_worked: attendance.status === 'Overtime' ? '1' : '0', // Simplified
-              },
-            });
-          }
-
-          totalGross += grossPay;
-          totalDeductions += deductions;
-          totalNet += netPay;
-          processedCount++;
-        } catch (error) {
-          errors.push({
-            employee_number: emp.employeeNumber,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      }
-
-      // Update period totals
+      // Update period status
       await prisma.payroll_period.update({
         where: { id: data.payroll_period_id },
         data: {
-          total_employees: processedCount,
-          total_gross: totalGross,
-          total_deductions: totalDeductions,
-          total_net: totalNet,
-          status: payroll_period_status.PARTIAL,
+          status: result.errors.length > 0 ? payroll_period_status.PARTIAL : payroll_period_status.PARTIAL,
         },
       });
 
-      logger.info(`Processed payroll for period ${data.payroll_period_id}: ${processedCount} employees`);
+      // Get updated totals
+      const updatedPeriod = await prisma.payroll_period.findUnique({
+        where: { id: data.payroll_period_id },
+      });
+
+      logger.info(`Processed payroll for period ${data.payroll_period_id}: ${result.synced} employees`);
 
       return {
-        success: true,
+        success: result.success,
         payroll_period_id: data.payroll_period_id,
-        total_processed: processedCount,
-        total_employees: employeesToProcess.length,
-        total_gross: totalGross.toString(),
-        total_deductions: totalDeductions.toString(),
-        total_net: totalNet.toString(),
-        errors,
+        total_processed: result.synced,
+        total_employees: result.synced + result.errors.length,
+        total_gross: updatedPeriod?.total_gross?.toString() || '0',
+        total_deductions: updatedPeriod?.total_deductions?.toString() || '0',
+        total_net: updatedPeriod?.total_net?.toString() || '0',
+        errors: result.errors.map(e => ({ employee_number: e.split(':')[0], error: e })),
       };
     } catch (error) {
       logger.error('Error processing payroll:', error);
