@@ -439,9 +439,9 @@ class PurchaseRequestService {
       return {
         ...existingRequest,
         status: 'APPROVED',
-        financeRemarks: dto.financeRemarks || 'Approved by Finance',
-        approvedBy: dto.approvedBy,
-        approvedAt: new Date().toISOString(),
+        finance_remarks: dto.financeRemarks || 'Approved by Finance',
+        approved_by: dto.approvedBy,
+        approved_at: new Date().toISOString(),
       };
 
     } catch (error: any) {
@@ -500,9 +500,9 @@ class PurchaseRequestService {
       return {
         ...existingRequest,
         status: 'REJECTED',
-        financeRemarks: dto.rejectionReason || dto.financeRemarks || 'Rejected by Finance',
-        rejectedBy: dto.rejectedBy,
-        rejectedAt: new Date().toISOString(),
+        finance_remarks: dto.rejectionReason || dto.financeRemarks || 'Rejected by Finance',
+        rejected_by: dto.rejectedBy,
+        rejected_at: new Date().toISOString(),
       };
 
     } catch (error: any) {

@@ -56,7 +56,7 @@ export async function fetchEmployeesFromAPI(): Promise<ExternalEmployee[]> {
             throw new Error(`Employee API returned ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as ExternalEmployee[] | { employees: ExternalEmployee[] };
 
         // Handle both array response and { employees: [...] } format
         const employees: ExternalEmployee[] = Array.isArray(data) ? data : data.employees || [];

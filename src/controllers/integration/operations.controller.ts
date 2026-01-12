@@ -10,13 +10,24 @@ import {
   syncOperationalTripsBulk, 
   getUnrecordedTrips,
   fetchAndSyncBusTripsFromOperations
-} from '@/lib/operations/operationalTripSync';
+} from '../../../lib/operations/operationalTripSync';
 import {
   syncRentalTripsBulk,
   getUnrecordedRentalTrips,
   getRentalTripsByStatus,
   fetchAndSyncRentalTripsFromOperations
-} from '@/lib/operations/rentalTripSync';
+} from '../../../lib/operations/rentalTripSync';
+
+// Type for operational trip filtering
+interface OperationalTrip {
+  is_revenue_recorded: boolean;
+  is_expense_recorded: boolean;
+}
+
+interface RentalTrip {
+  is_revenue_recorded: boolean;
+  is_expense_recorded: boolean;
+}
 
 export class OperationsTripController {
   /**
@@ -107,9 +118,9 @@ export class OperationsTripController {
       // Filter based on type
       let filteredTrips = trips;
       if (type === 'revenue') {
-        filteredTrips = trips.filter(t => !t.is_revenue_recorded);
+        filteredTrips = trips.filter((t: OperationalTrip) => !t.is_revenue_recorded);
       } else if (type === 'expense') {
-        filteredTrips = trips.filter(t => !t.is_expense_recorded);
+        filteredTrips = trips.filter((t: OperationalTrip) => !t.is_expense_recorded);
       }
 
       res.status(200).json({
@@ -242,9 +253,9 @@ export class OperationsTripController {
 
       let filteredTrips = trips;
       if (type === 'revenue') {
-        filteredTrips = trips.filter(t => !t.is_revenue_recorded);
+        filteredTrips = trips.filter((t: RentalTrip) => !t.is_revenue_recorded);
       } else if (type === 'expense') {
-        filteredTrips = trips.filter(t => !t.is_expense_recorded);
+        filteredTrips = trips.filter((t: RentalTrip) => !t.is_expense_recorded);
       }
 
       res.status(200).json({

@@ -133,7 +133,7 @@ export async function fetchAndSyncBusTripsFromOperations(apiUrl?: string) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const trips: ExternalBusTripPayload[] = await response.json();
+    const trips = await response.json() as ExternalBusTripPayload[];
     
     if (!Array.isArray(trips)) {
       throw new Error('Invalid response format from Operations API');

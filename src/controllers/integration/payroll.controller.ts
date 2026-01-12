@@ -11,6 +11,9 @@ import {
   getWeeklyPeriodsForMonth,
   getCurrentWeeklyPeriod,
   fetchPayrollFromHR,
+  syncPayrollForPeriod,
+  getPayrollByPeriod,
+  getPayrollByEmployee,
 } from '../../../lib/hr/payrollSync';
 import {
   ensureEmployeeCacheLoaded,
