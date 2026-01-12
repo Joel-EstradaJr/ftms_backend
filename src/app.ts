@@ -23,6 +23,8 @@ import { setupSwagger, addDocsInfoToHealth, validateSwaggerSpec } from './middle
 import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 import adminJournalEntriesRoutes from './routes/admin/journal-entries';
+import adminOtherRevenuesRoutes from './routes/admin/other-revenues';
+import adminRevenueRoutes from './routes/admin/revenue';
 import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 
 // Integration routes (for microservices)
@@ -111,6 +113,10 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin', chartOfAccountsRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
   app.use('/api/v1/admin/journal-entries', adminJournalEntriesRoutes);
+  app.use('/api/v1/admin/other-revenues', adminOtherRevenuesRoutes);
+  
+  // Frontend-compatible revenue routes (aliases)
+  app.use('/api/admin/revenue', adminRevenueRoutes);
   
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors
