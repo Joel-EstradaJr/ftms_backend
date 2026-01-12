@@ -2,6 +2,7 @@ import { createApp } from './app';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { prisma } from './config/database';
+import { initPayrollScheduledJobs } from './jobs/payrollScheduledJobs';
 
 const app = createApp();
 
@@ -10,6 +11,9 @@ const startServer = async () => {
     // Test database connection
     await prisma.$connect();
     logger.info('✅ Database connected successfully');
+
+    // Initialize scheduled jobs
+    initPayrollScheduledJobs();
 
     // Start server
     const server = app.listen(config.port, () => {
@@ -23,10 +27,10 @@ const startServer = async () => {
     // Graceful shutdown
     const gracefulShutdown = async (signal: string) => {
       logger.info(`${signal} received, shutting down gracefully...`);
-      
+
       server.close(async () => {
         logger.info('HTTP server closed');
-        
+
         try {
           await prisma.$disconnect();
           logger.info('Database disconnected');

@@ -453,6 +453,28 @@ async function syncEmployeePayroll(
   };
   const rateType = rateTypeMap[empPayroll.rate_type] || 'DAILY';
 
+  // Ensure employee exists in employees_cache before creating payroll record
+  // This prevents foreign key constraint violations
+  await prisma.employees_cache.upsert({
+    where: {
+      employee_number: empPayroll.employee_number,
+    },
+    update: {
+      last_synced_at: new Date(),
+    },
+    create: {
+      employee_number: empPayroll.employee_number,
+      first_name: null,
+      middle_name: null,
+      last_name: null,
+      position_name: 'Unknown', // Required field - will be updated by HR sync
+      department_id: 0,         // Required field - will be updated by HR sync
+      department_name: 'Unknown', // Required field - will be updated by HR sync
+      last_synced_at: new Date(),
+      is_deleted: false,
+    },
+  });
+
   // Upsert payroll record
   const payroll = await prisma.payroll.upsert({
     where: {
