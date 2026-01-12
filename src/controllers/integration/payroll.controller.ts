@@ -1,175 +1,206 @@
 /**
  * INTEGRATION PAYROLL CONTROLLER
- * Handles payroll data retrieval for external systems
- * Supports semi-monthly period-based payroll batches
+ * Handles payroll data retrieval and HR API integration
+ * Supports weekly payroll periods (Monday → Saturday)
  */
 
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import {
   fetchAndSyncPayrollFromHR,
-  syncPayrollForPeriod,
-  getPayrollByPeriod,
-  getPayrollByEmployee,
+  getWeeklyPeriodsForMonth,
+  getCurrentWeeklyPeriod,
+  fetchPayrollFromHR,
 } from '../../../lib/hr/payrollSync';
+import {
+  ensureEmployeeCacheLoaded,
+  getEmployeeNameInfo,
+  refreshEmployeeCache,
+} from '../../../lib/hr/employeeClient';
 
 const prisma = new PrismaClient();
-
-/**
- * Calculate semi-monthly payroll periods
- * Period 1: 1st to 15th
- * Period 2: 16th to end of month
- */
-function getSemiMonthlyPeriods(year?: number, month?: number) {
-  const now = new Date();
-  const targetYear = year || now.getFullYear();
-  const targetMonth = month !== undefined ? month : now.getMonth();
-
-  const period1Start = new Date(targetYear, targetMonth, 1);
-  const period1End = new Date(targetYear, targetMonth, 15);
-  
-  const period2Start = new Date(targetYear, targetMonth, 16);
-  const period2End = new Date(targetYear, targetMonth + 1, 0); // Last day of month
-
-  return {
-    period1: { start: period1Start, end: period1End },
-    period2: { start: period2Start, end: period2End }
-  };
-}
 
 export class IntegrationPayrollController {
   /**
    * GET /api/integration/hr_payroll
-   * Returns payroll data grouped by period (semi-monthly)
+   * Returns payroll data from local database
    * 
    * Query Parameters:
    * - payroll_period_start: Filter by period start date
    * - payroll_period_end: Filter by period end date
    * - employee_number: Filter by specific employee
-   * - grouped: If true, returns data grouped by period (default: false for backward compatibility)
+   * - grouped: If true, returns data grouped by period
    */
   async getHrPayroll(req: Request, res: Response): Promise<void> {
     try {
       const { payroll_period_start, payroll_period_end, employee_number, grouped } = req.query;
 
-      // Build where clause
-      const where: any = {
-        is_deleted: false,
-      };
+      // Ensure employee cache is loaded for name enrichment
+      await ensureEmployeeCacheLoaded();
 
+      // If requesting from external HR API directly
       if (payroll_period_start && payroll_period_end) {
-        where.payroll_period_start = new Date(payroll_period_start as string);
-        where.payroll_period_end = new Date(payroll_period_end as string);
+        try {
+          const hrData = await fetchPayrollFromHR(
+            payroll_period_start as string,
+            payroll_period_end as string
+          );
+
+          if (grouped === 'true') {
+            res.json([{
+              payroll_period_start: hrData.payroll_period_start,
+              payroll_period_end: hrData.payroll_period_end,
+              total_employees: hrData.count,
+              employees: hrData.employees.map((emp: any) => {
+                // Enrich with employee name from Employee API
+                const nameInfo = getEmployeeNameInfo(emp.employee_number);
+
+                return {
+                  employee_number: emp.employee_number,
+                  employee_name: nameInfo?.full_name || emp.employee_number,
+                  first_name: nameInfo?.first_name || '',
+                  middle_name: nameInfo?.middle_name || '',
+                  last_name: nameInfo?.last_name || '',
+                  basic_rate: emp.basic_rate,
+                  rate_type: emp.rate_type,
+                  present_days: emp.attendances.filter((a: any) => a.status === 'Present').length,
+                  attendances: emp.attendances,
+                  benefits: emp.benefits.map((b: any) => ({
+                    value: b.value,
+                    frequency: b.frequency,
+                    effective_date: b.effective_date,
+                    end_date: b.end_date,
+                    is_active: b.is_active,
+                    benefit_type: { id: '0', name: b.name },
+                  })),
+                  deductions: emp.deductions.map((d: any) => ({
+                    value: d.value,
+                    frequency: d.frequency,
+                    effective_date: d.effective_date,
+                    end_date: d.end_date,
+                    is_active: d.is_active,
+                    deduction_type: { id: '0', name: d.name },
+                  })),
+                };
+              }),
+            }]);
+          } else {
+            // Return flat list of employees
+            res.json(hrData.employees.map(emp => ({
+              payroll_period_start: hrData.payroll_period_start,
+              payroll_period_end: hrData.payroll_period_end,
+              employee_number: emp.employee_number,
+              employee_name: emp.employee_number,
+              basic_rate: emp.basic_rate,
+              rate_type: emp.rate_type,
+              present_days: emp.attendances.filter(a => a.status === 'Present').length,
+              attendances: emp.attendances,
+              benefits: emp.benefits.map(b => ({
+                value: b.value,
+                frequency: b.frequency,
+                effective_date: b.effective_date,
+                end_date: b.end_date,
+                is_active: b.is_active,
+                benefit_type: { id: '0', name: b.name },
+              })),
+              deductions: emp.deductions.map(d => ({
+                value: d.value,
+                frequency: d.frequency,
+                effective_date: d.effective_date,
+                end_date: d.end_date,
+                is_active: d.is_active,
+                deduction_type: { id: '0', name: d.name },
+              })),
+            })));
+          }
+          return;
+        } catch (hrError) {
+          console.error('Error fetching from HR API:', hrError);
+          // Fall through to database lookup
+        }
       }
+
+      // Fallback: fetch from local database
+      const where: any = { is_deleted: false };
 
       if (employee_number) {
         where.employee_number = employee_number as string;
       }
 
-      // Fetch payroll records with all relations
-      const payrollRecords = await prisma.payroll_cache.findMany({
+      const payrolls = await prisma.payroll.findMany({
         where,
         include: {
-          attendances: true,
-          benefits: {
-            include: {
-              benefit_type: true,
-            },
-          },
-          deductions: {
-            include: {
-              deduction_type: true,
-            },
-          },
+          payroll_period: true,
           employee: true,
+          payroll_items: {
+            where: { is_deleted: false },
+            include: { item_type: true },
+          },
+          payroll_attendances: {
+            where: { is_deleted: false },
+          },
         },
-        orderBy: {
-          employee_number: 'asc',
-        },
+        orderBy: { payroll_period: { period_start: 'desc' } },
       });
 
-      // Filter out Driver and PAO roles
-      const filteredRecords = payrollRecords.filter(record => {
-        const position = record.employee?.position_name?.toLowerCase() || '';
-        return !position.includes('driver') && !position.includes('pao');
-      });
-
-      // Transform individual records
-      const transformedRecords = filteredRecords.map(record => {
-        const rateTypeMap: Record<string, string> = {
-          MONTHLY: 'Monthly',
-          DAILY: 'Daily',
-          WEEKLY: 'Weekly',
-          SEMI_MONTHLY: 'Semi-Monthly',
-        };
-
-        const presentDays = record.attendances.filter(a => a.status === 'Present').length;
-
-        return {
-          payroll_period_start: record.payroll_period_start.toISOString().split('T')[0],
-          payroll_period_end: record.payroll_period_end.toISOString().split('T')[0],
-          employee_number: record.employee_number,
-          employee_name: record.employee?.first_name 
-            ? `${record.employee.first_name} ${record.employee.last_name || ''}`.trim()
-            : record.employee_number,
-          basic_rate: record.basic_rate?.toString() || '0',
-          rate_type: rateTypeMap[record.rate_type] || record.rate_type,
-          present_days: presentDays,
-          attendances: record.attendances.map(att => ({
-            date: att.date.toISOString().split('T')[0],
-            status: att.status,
+      const transformed = payrolls.map(p => ({
+        payroll_period_start: p.payroll_period.period_start.toISOString().split('T')[0],
+        payroll_period_end: p.payroll_period.period_end.toISOString().split('T')[0],
+        employee_number: p.employee_number,
+        employee_name: p.employee ? `${p.employee.first_name || ''} ${p.employee.last_name || ''}`.trim() : p.employee_number,
+        basic_rate: p.basic_rate?.toString() || '0',
+        rate_type: p.rate_type,
+        present_days: p.payroll_attendances.filter(a => a.status === 'Present').length,
+        attendances: p.payroll_attendances.map(a => ({
+          date: a.date.toISOString().split('T')[0],
+          status: a.status,
+        })),
+        benefits: p.payroll_items
+          .filter(i => i.category === 'BENEFIT')
+          .map(i => ({
+            value: i.amount.toString(),
+            frequency: i.frequency || 'Once',
+            effective_date: i.effective_date?.toISOString().split('T')[0] || '',
+            end_date: i.end_date?.toISOString().split('T')[0] || null,
+            is_active: i.is_active,
+            benefit_type: { id: i.item_type.id.toString(), name: i.item_type.name },
           })),
-          benefits: record.benefits.map(ben => ({
-            value: ben.value?.toString() || '0',
-            frequency: ben.frequency || '',
-            effective_date: ben.effective_date?.toISOString().split('T')[0] || '',
-            end_date: ben.end_date ? ben.end_date.toISOString().split('T')[0] : null,
-            is_active: ben.is_active || false,
-            benefit_type: {
-              id: ben.benefit_type.id,
-              name: ben.benefit_type.name,
-            },
+        deductions: p.payroll_items
+          .filter(i => i.category === 'DEDUCTION')
+          .map(i => ({
+            value: i.amount.toString(),
+            frequency: i.frequency || 'Once',
+            effective_date: i.effective_date?.toISOString().split('T')[0] || '',
+            end_date: i.end_date?.toISOString().split('T')[0] || null,
+            is_active: i.is_active,
+            deduction_type: { id: i.item_type.id.toString(), name: i.item_type.name },
           })),
-          deductions: record.deductions.map(ded => ({
-            value: ded.value?.toString() || '0',
-            frequency: ded.frequency || '',
-            effective_date: ded.effective_date?.toISOString().split('T')[0] || '',
-            end_date: ded.end_date ? ded.end_date.toISOString().split('T')[0] : null,
-            is_active: ded.is_active || false,
-            deduction_type: {
-              id: ded.deduction_type.id,
-              name: ded.deduction_type.name,
-            },
-          })),
-        };
-      });
+      }));
 
-      // If grouped=true, group by period
       if (grouped === 'true') {
+        // Group by period
         const groupedByPeriod = new Map<string, any[]>();
-        
-        transformedRecords.forEach(record => {
-          const periodKey = `${record.payroll_period_start}_${record.payroll_period_end}`;
-          if (!groupedByPeriod.has(periodKey)) {
-            groupedByPeriod.set(periodKey, []);
+        transformed.forEach(record => {
+          const key = `${record.payroll_period_start}_${record.payroll_period_end}`;
+          if (!groupedByPeriod.has(key)) {
+            groupedByPeriod.set(key, []);
           }
-          groupedByPeriod.get(periodKey)!.push(record);
+          groupedByPeriod.get(key)!.push(record);
         });
 
-        const batches = Array.from(groupedByPeriod.entries()).map(([periodKey, employees]) => {
-          const [start, end] = periodKey.split('_');
+        const batches = Array.from(groupedByPeriod.entries()).map(([key, employees]) => {
+          const [start, end] = key.split('_');
           return {
             payroll_period_start: start,
             payroll_period_end: end,
             total_employees: employees.length,
-            employees: employees,
+            employees,
           };
         });
 
         res.json(batches);
       } else {
-        // Return individual records (backward compatibility)
-        res.json(transformedRecords);
+        res.json(transformed);
       }
     } catch (error) {
       console.error('Error fetching payroll data:', error);
@@ -182,34 +213,28 @@ export class IntegrationPayrollController {
 
   /**
    * GET /api/integration/hr_payroll/periods
-   * Returns available semi-monthly payroll periods
+   * Returns weekly payroll periods for a given month
    */
   async getPayrollPeriods(req: Request, res: Response): Promise<void> {
     try {
       const { year, month } = req.query;
-      
+
       const targetYear = year ? parseInt(year as string) : new Date().getFullYear();
       const targetMonth = month !== undefined ? parseInt(month as string) : new Date().getMonth();
 
-      const periods = getSemiMonthlyPeriods(targetYear, targetMonth);
+      const periods = getWeeklyPeriodsForMonth(targetYear, targetMonth);
+      const currentPeriod = getCurrentWeeklyPeriod();
 
       res.json({
         year: targetYear,
         month: targetMonth + 1,
-        periods: [
-          {
-            period: 1,
-            start: periods.period1.start.toISOString().split('T')[0],
-            end: periods.period1.end.toISOString().split('T')[0],
-            description: '1st to 15th'
-          },
-          {
-            period: 2,
-            start: periods.period2.start.toISOString().split('T')[0],
-            end: periods.period2.end.toISOString().split('T')[0],
-            description: '16th to End of Month'
-          }
-        ]
+        current_period: currentPeriod,
+        periods: periods.map(p => ({
+          week_number: p.weekNumber,
+          start: p.start,
+          end: p.end,
+          description: `Week ${p.weekNumber} (Mon-Sat)`,
+        })),
       });
     } catch (error) {
       console.error('Error fetching payroll periods:', error);
@@ -223,11 +248,6 @@ export class IntegrationPayrollController {
   /**
    * POST /api/integration/hr_payroll/fetch-and-sync
    * Fetch payroll data from HR API and sync to database
-   * 
-   * Body:
-   * - period_start: string (YYYY-MM-DD) - required
-   * - period_end: string (YYYY-MM-DD) - required
-   * - employee_number: string - optional
    */
   async fetchAndSyncPayroll(req: Request, res: Response): Promise<void> {
     try {
@@ -241,7 +261,7 @@ export class IntegrationPayrollController {
       }
 
       console.log(`🔄 Fetching payroll from HR: ${period_start} to ${period_end}`);
-      
+
       const result = await fetchAndSyncPayrollFromHR(
         period_start,
         period_end,
@@ -263,11 +283,43 @@ export class IntegrationPayrollController {
   }
 
   /**
+   * POST /api/integration/hr_payroll/refetch
+   * Re-fetch payroll data from HR (manual trigger from UI)
+   * Overwrites existing staging data and recalculates deterministically
+   */
+  async refetchFromHR(req: Request, res: Response): Promise<void> {
+    try {
+      const { period_start, period_end } = req.body;
+
+      if (!period_start || !period_end) {
+        res.status(400).json({
+          error: 'Missing required fields: period_start, period_end',
+        });
+        return;
+      }
+
+      console.log(`🔄 Re-fetching payroll from HR: ${period_start} to ${period_end}`);
+
+      // Delete existing data for this period and re-sync
+      const result = await fetchAndSyncPayrollFromHR(period_start, period_end);
+
+      res.json({
+        message: 'Payroll re-fetched and recalculated successfully',
+        ...result,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Payroll re-fetch failed:', error);
+      res.status(500).json({
+        error: 'Failed to re-fetch payroll from HR',
+        details: error.message,
+      });
+    }
+  }
+
+  /**
    * POST /api/integration/hr_payroll/sync-period/:id
    * Recalculate totals for existing payroll period
-   * 
-   * Params:
-   * - id: number - payroll period ID
    */
   async syncPeriod(req: Request, res: Response): Promise<void> {
     try {
@@ -296,11 +348,7 @@ export class IntegrationPayrollController {
 
   /**
    * GET /api/integration/hr_payroll/by-period
-   * Get payroll data for a specific period
-   * 
-   * Query:
-   * - period_start: string (YYYY-MM-DD) - required
-   * - period_end: string (YYYY-MM-DD) - required
+   * Get payroll data for a specific period from database
    */
   async getByPeriod(req: Request, res: Response): Promise<void> {
     try {
@@ -342,13 +390,6 @@ export class IntegrationPayrollController {
   /**
    * GET /api/integration/hr_payroll/by-employee/:employeeNumber
    * Get payroll history for specific employee
-   * 
-   * Params:
-   * - employeeNumber: string - employee number
-   * 
-   * Query (optional):
-   * - period_start: string (YYYY-MM-DD)
-   * - period_end: string (YYYY-MM-DD)
    */
   async getByEmployee(req: Request, res: Response): Promise<void> {
     try {

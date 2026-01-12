@@ -1,5 +1,35 @@
 /**
- * PAYROLL CACHE SEED FILE
+ * ==================== DEPRECATED ====================
+ * 
+ * THIS FILE IS DEPRECATED AND SHOULD NOT BE USED
+ * 
+ * As of the Payroll Module Alignment (January 2026), all payroll data
+ * is sourced from the external HR API:
+ *   https://backends-liart.vercel.app/api/clean/hr_payroll
+ * 
+ * Payroll data is now fetched and synced via:
+ *   - lib/hr/payrollSync.ts (fetchAndSyncPayrollFromHR)
+ *   - POST /api/integration/hr_payroll/fetch-and-sync
+ *   - POST /api/integration/hr_payroll/refetch
+ * 
+ * Local seeding of payroll data is no longer supported as it
+ * would create inconsistencies with the HR source of truth.
+ * 
+ * This file is kept for reference only.
+ * =====================================================
+ */
+
+// Prevent accidental execution
+if (require.main === module) {
+  console.error('❌ ERROR: seed_payroll_cache.ts is DEPRECATED');
+  console.error('Payroll data should be fetched from HR API, not seeded locally.');
+  console.error('Use: POST /api/integration/hr_payroll/fetch-and-sync');
+  process.exit(1);
+}
+
+/**
+ * @deprecated - Do not use. Payroll data comes from HR API only.
+ * PAYROLL CACHE SEED FILE (HISTORICAL REFERENCE ONLY)
  * Seeds dummy payroll data for employees (excluding Driver and PAO roles)
  */
 

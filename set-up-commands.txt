@@ -20,8 +20,7 @@
 
 6.
     # Run Prisma migrations
-    npx prisma migrate dev --name initial_database; npx prisma db seed
-    pnpm prisma:seed:journal
+    npx prisma migrate dev --name initial_database; npx prisma db seed ; pnpm prisma:seed:journal
 7.
     # Set up the OCR service
     cd ocr_service

@@ -18,53 +18,74 @@ import { payroll_period_status, payroll_status } from '@prisma/client';
 
 // ==================== HR Integration Types ====================
 
+/**
+ * Frequency types for benefits and deductions
+ * Used to determine when/how often to apply the item
+ */
+export type PayrollFrequency = 'Once' | 'Daily' | 'Weekly' | 'Monthly' | 'Annually';
+
+/**
+ * Rate type from HR system
+ */
+export type HRRateType = 'Daily' | 'Weekly' | 'Monthly' | 'Semi-Monthly';
+
+/**
+ * Attendance status from HR system
+ */
+export type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Leave' | 'Overtime';
+
+/**
+ * Attendance record from HR API
+ */
 export interface HREmployeeAttendance {
-  date: string;
-  status: 'Present' | 'Absent' | 'Late' | 'Overtime';
+  date: string;  // YYYY-MM-DD
+  status: AttendanceStatus;
 }
 
+/**
+ * Benefit record from HR API (flat structure)
+ */
 export interface HREmployeeBenefit {
-  value: string;
-  frequency: 'Monthly' | 'Semi-Monthly' | 'Daily';
-  effectiveDate: string;
-  endDate: string | null;
-  isActive: boolean;
-  benefitType: {
-    name: string;
-  };
+  name: string;
+  value: string;  // Decimal as string
+  frequency: PayrollFrequency;
+  effective_date: string;  // YYYY-MM-DD
+  end_date: string | null;  // YYYY-MM-DD or null
+  is_active: boolean;
 }
 
+/**
+ * Deduction record from HR API (flat structure)
+ */
 export interface HREmployeeDeduction {
-  type: string;
-  value: string;
-  frequency: 'Monthly' | 'Semi-Monthly' | 'Daily';
-  effectiveDate: string;
-  endDate: string | null;
-  isActive: boolean;
-  deductionType: {
-    name: string;
-  };
+  name: string;
+  value: string;  // Decimal as string
+  frequency: PayrollFrequency;
+  effective_date: string;  // YYYY-MM-DD
+  end_date: string | null;  // YYYY-MM-DD or null
+  is_active: boolean;
 }
 
+/**
+ * Employee payroll data from HR API
+ */
 export interface HREmployeeData {
-  employeeNumber: string;
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-  employeeStatus: 'active' | 'inactive';
-  hiredate: string;
-  terminationDate: string | null;
-  basicRate: string;
-  position: {
-    positionName: string;
-    department: {
-      departmentName: string;
-    };
-  };
+  employee_number: string;
+  basic_rate: string;  // Decimal as string (this is the DAILY rate)
+  rate_type: HRRateType;
   attendances: HREmployeeAttendance[];
   benefits: HREmployeeBenefit[];
   deductions: HREmployeeDeduction[];
+}
+
+/**
+ * Complete HR Payroll API Response
+ */
+export interface HRPayrollAPIResponse {
+  payroll_period_start: string;  // YYYY-MM-DD
+  payroll_period_end: string;    // YYYY-MM-DD
+  employees: HREmployeeData[];
+  count: number;
 }
 
 // ==================== Payroll Period DTOs ====================
