@@ -7,6 +7,7 @@ import budgetRoutes from './budget.routes';
 import payrollRoutes from './payroll.routes';
 import approvalRoutes from './approval.routes';
 import operationsRoutes from './operations.routes';
+import purchaseRequestRoutes from './purchaseRequest.routes';
 
 const router = Router();
 
@@ -18,10 +19,6 @@ router.use('/', payrollRoutes);
 
 // Approval routes (Cash Advance from EMS)
 router.use('/approval', approvalRoutes);
-
-// Operations integration routes (Bus trips and Rental trips)
-router.use('/operations', operationsRoutes);
-
 
 // Health check for integration endpoints
 router.get('/health', (req, res) => {

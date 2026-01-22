@@ -33,6 +33,8 @@ export interface EmployeeNameInfo {
     first_name: string;
     middle_name: string | null;
     last_name: string;
+    department: string | null;
+    position: string | null;
 }
 
 // In-memory cache for employee data (refreshed on each sync)
@@ -56,7 +58,7 @@ export async function fetchEmployeesFromAPI(): Promise<ExternalEmployee[]> {
             throw new Error(`Employee API returned ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as ExternalEmployee[] | { employees: ExternalEmployee[] };
 
         // Handle both array response and { employees: [...] } format
         const employees: ExternalEmployee[] = Array.isArray(data) ? data : data.employees || [];
@@ -126,6 +128,8 @@ export function getEmployeeNameInfo(employeeNumber: string): EmployeeNameInfo | 
         first_name: employee.firstName,
         middle_name: employee.middleName,
         last_name: employee.lastName,
+        department: employee.department || null,
+        position: employee.position || null,
     };
 }
 
@@ -142,6 +146,8 @@ export function getAllEmployeeNames(): Map<string, EmployeeNameInfo> {
             first_name: emp.firstName,
             middle_name: emp.middleName,
             last_name: emp.lastName,
+            department: emp.department || null,
+            position: emp.position || null,
         });
     }
 

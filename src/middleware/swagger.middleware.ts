@@ -64,7 +64,7 @@ export const setupSwagger = (app: Application): void => {
     logger.info('📚 API Documentation is DISABLED (ENABLE_API_DOCS=false)');
     
     // Add a handler to return 404 for docs endpoints when disabled
-    app.get([apiDocsPath, `${apiDocsPath}/*`, '/api-docs.json'], (req: Request, res: Response) => {
+    app.get([apiDocsPath, `${apiDocsPath}/{*path}`, '/api-docs.json'], (req: Request, res: Response) => {
       res.status(404).json({
         success: false,
         message: 'API documentation is not available in this environment',

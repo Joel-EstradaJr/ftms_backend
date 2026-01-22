@@ -64,7 +64,7 @@ export const config: Config = {
     budgetRequests: `${process.env.BUDGET_REQUEST_MICRO_BASE_API_URL}`,
   },
 
-  corsOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:4003,http://localhost:4000').split(','),
+  corsOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3008,http://localhost:4003,http://localhost:4000,http://192.168.1.9:3008').split(','),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
 

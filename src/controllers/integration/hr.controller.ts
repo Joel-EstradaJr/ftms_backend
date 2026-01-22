@@ -9,7 +9,7 @@ import {
   fetchAndSyncEmployeesFromHR,
   getEmployeesByDepartment,
   getEmployeesByPosition
-} from '@/lib/hr/employeeSync';
+} from '../../../lib/hr/employeeSync';
 
 export class HRIntegrationController {
   /**

@@ -122,7 +122,7 @@ export async function fetchAndSyncEmployeesFromHR(apiUrl?: string) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data: HREmployeesResponse = await response.json();
+    const data = await response.json() as HREmployeesResponse;
     
     if (!data.employees || !Array.isArray(data.employees)) {
       throw new Error('Invalid response format from HR API');
