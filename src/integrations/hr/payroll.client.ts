@@ -98,4 +98,25 @@ export class HRPayrollClient {
       return false;
     }
   }
+
+  /**
+   * Send payroll distribution webhook to HR
+   */
+  static async sendPayrollDistribution(payload: any): Promise<boolean> {
+    try {
+      await axios.post(
+        `${this.HR_BASE_URL}/finance/webhooks/payroll/distribution`,
+        payload,
+        this.getConfig()
+      );
+
+      logger.info(`Sent payroll distribution webhook to HR for period ${payload.payroll_period_code}`);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
+      logger.error(`Error sending payroll distribution webhook to HR: ${errorMessage}`);
+      // Don't throw - allow release to succeed even if webhook fails
+      return false;
+    }
+  }
 }

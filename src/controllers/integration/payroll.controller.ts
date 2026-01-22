@@ -64,11 +64,14 @@ export class IntegrationPayrollController {
                   first_name: nameInfo?.first_name || '',
                   middle_name: nameInfo?.middle_name || '',
                   last_name: nameInfo?.last_name || '',
+                  department: nameInfo?.department || null,
+                  position: nameInfo?.position || null,
                   basic_rate: emp.basic_rate,
                   rate_type: emp.rate_type,
                   present_days: emp.attendances.filter((a: any) => a.status === 'Present').length,
                   attendances: emp.attendances,
                   benefits: emp.benefits.map((b: any) => ({
+                    name: b.name,
                     value: b.value,
                     frequency: b.frequency,
                     effective_date: b.effective_date,
@@ -77,6 +80,7 @@ export class IntegrationPayrollController {
                     benefit_type: { id: '0', name: b.name },
                   })),
                   deductions: emp.deductions.map((d: any) => ({
+                    name: d.name,
                     value: d.value,
                     frequency: d.frequency,
                     effective_date: d.effective_date,
