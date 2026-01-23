@@ -33,8 +33,8 @@ Most endpoints require JWT Bearer token authentication. Use the "Authorize" butt
 to set your token and test authenticated endpoints.
 
 ## Base URL
-- Development: \`http://localhost:${config.port}\`
-- Production: Configure via environment variables
+- Development: \`https://localhost:${config.port}\`
+- Production: Configure via environment variables (API_BASE_URL)
     `,
     contact: {
       name: 'FTMS Development Team',
@@ -47,8 +47,12 @@ to set your token and test authenticated endpoints.
   },
   servers: [
     {
-      url: '',
-      description: 'Current server (auto-detected from request)',
+      url: `https://localhost:${config.port}`,
+      description: 'Local Development (HTTPS)',
+    },
+    {
+      url: process.env.API_BASE_URL || `https://localhost:${config.port}`,
+      description: 'Production Server',
     },
   ],
   tags: [
