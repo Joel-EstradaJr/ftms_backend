@@ -10,7 +10,7 @@
  *     summary: Get all chart of accounts
  *     description: Retrieves a list of all chart of accounts with optional filtering
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -49,7 +49,7 @@
  *     summary: Create a new chart of account
  *     description: Creates a new chart of account entry
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -95,7 +95,7 @@
  *     summary: Get chart of account by ID
  *     description: Retrieves a specific chart of account by its ID
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -120,7 +120,7 @@
  *     summary: Update chart of account
  *     description: Updates an existing chart of account
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -160,7 +160,7 @@
  *     summary: Delete chart of account
  *     description: Permanently deletes a chart of account
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -190,7 +190,7 @@
  *     summary: Archive chart of account
  *     description: Archives a chart of account (soft delete)
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -220,7 +220,7 @@
  *     summary: Restore archived chart of account
  *     description: Restores a previously archived chart of account
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -250,7 +250,7 @@
  *     summary: Get suggested account code
  *     description: Suggests the next available account code for a given account type
  *     tags:
- *       - Admin
+ *       - Admin | Chart of Accounts
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -294,7 +294,7 @@
  *     summary: Get all account types
  *     description: Retrieves a list of all account types
  *     tags:
- *       - Admin
+ *       - Admin | Account Types
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -331,7 +331,7 @@
  *     summary: Create a new account type
  *     description: Creates a new account type
  *     tags:
- *       - Admin
+ *       - Admin | Account Types
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -370,7 +370,7 @@
  *     summary: Get account type by ID
  *     description: Retrieves a specific account type by its ID
  *     tags:
- *       - Admin
+ *       - Admin | Account Types
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -400,7 +400,7 @@
  *     summary: List all payroll periods
  *     description: Retrieves a list of all payroll periods with filters and search
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -428,7 +428,7 @@
  *     summary: Create a new payroll period
  *     description: Creates a new payroll period
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -475,7 +475,7 @@
  *     summary: Get payroll statistics
  *     description: Retrieves statistical information about payroll periods
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -496,7 +496,7 @@
  *     summary: Get payroll period by ID
  *     description: Retrieves a specific payroll period with all employee details
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -521,7 +521,7 @@
  *     summary: Update payroll period
  *     description: Updates an existing payroll period
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -565,7 +565,7 @@
  *     summary: Delete payroll period
  *     description: Soft deletes a payroll period
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -595,7 +595,7 @@
  *     summary: Process payroll period
  *     description: Fetches employees from HR system and creates payroll records
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -627,7 +627,7 @@
  *     summary: Release payroll period
  *     description: Releases a payroll period making it final and immutable
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -659,7 +659,7 @@
  *     summary: Get payslip for employee
  *     description: Retrieves the payslip for a specific employee payroll
  *     tags:
- *       - Admin
+ *       - Admin | Payroll Periods
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -695,7 +695,7 @@
  *     summary: List all journal entries
  *     description: Retrieves a list of all journal entries (Admin full access)
  *     tags:
- *       - Admin
+ *       - Admin | Journal Entries
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -711,7 +711,7 @@
  *     summary: Create a new journal entry
  *     description: Creates a new journal entry with debit and credit entries
  *     tags:
- *       - Admin
+ *       - Admin | Journal Entries
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -761,7 +761,7 @@
  *     summary: Get journal entry by ID
  *     description: Retrieves a specific journal entry by its ID
  *     tags:
- *       - Admin
+ *       - Admin | Journal Entries
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -786,7 +786,7 @@
  *     summary: Update journal entry
  *     description: Updates an existing journal entry
  *     tags:
- *       - Admin
+ *       - Admin | Journal Entries
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -828,7 +828,7 @@
  *     summary: Delete journal entry
  *     description: Deletes a journal entry
  *     tags:
- *       - Admin
+ *       - Admin | Journal Entries
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -850,3 +850,4 @@
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
+

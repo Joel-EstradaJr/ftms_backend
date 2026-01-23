@@ -52,17 +52,64 @@ to set your token and test authenticated endpoints.
     },
   ],
   tags: [
+    // ===========================
+    // GENERAL ENDPOINTS
+    // ===========================
     {
-      name: 'General',
-      description: 'Public endpoints accessible to all users without authentication',
+      name: 'General | Health & Info',
+      description: '🌐 Public endpoints accessible without authentication – System health checks and API information',
+    },
+
+    // ===========================
+    // ADMIN ENDPOINTS
+    // ===========================
+    {
+      name: 'Admin | Account Types',
+      description: '🔐 Admin – Manage account type definitions for the chart of accounts',
     },
     {
-      name: 'Admin',
-      description: 'Administrative endpoints - requires Admin role authentication',
+      name: 'Admin | Chart of Accounts',
+      description: '🔐 Admin – Full CRUD operations for chart of accounts management',
     },
     {
-      name: 'Staff',
-      description: 'Staff endpoints - requires Staff role authentication',
+      name: 'Admin | Journal Entries',
+      description: '🔐 Admin – Create, update, and manage journal entries',
+    },
+    {
+      name: 'Admin | Payroll Periods',
+      description: '🔐 Admin – Manage payroll periods, processing, and payslips',
+    },
+    {
+      name: 'Admin | Operational Trip Expenses',
+      description: '🔐 Admin – Manage operational and rental trip expense records',
+    },
+    {
+      name: 'Admin | Expense Reference Data',
+      description: '🔐 Admin – Reference data for expense dropdowns (expense types, payment methods, trips, employees)',
+    },
+    {
+      name: 'Admin | Integration – HR',
+      description: '🔐 Admin – HR system employee data synchronization',
+    },
+    {
+      name: 'Admin | Integration – HR Payroll',
+      description: '🔐 Admin – HR system payroll data synchronization',
+    },
+    {
+      name: 'Admin | Integration – Operations',
+      description: '🔐 Admin – Operations system trip data synchronization',
+    },
+    {
+      name: 'Admin | Integration – Finance',
+      description: '🔐 Admin – Finance system payroll data integration',
+    },
+
+    // ===========================
+    // STAFF ENDPOINTS
+    // ===========================
+    {
+      name: 'Staff | Journal Entries',
+      description: '👤 Staff – Read-only access to journal entries',
     },
   ],
   components: {

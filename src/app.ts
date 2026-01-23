@@ -129,9 +129,6 @@ export const createApp = (): Application => {
   // app.use('/api/v1/staff/payables', staffPayableRoutes);
   // app.use('/api/v1/staff/loans', staffLoanRoutes);
 
-  // Operational expense routes for frontend compatibility
-  app.use('/api/operational-trip-expenses', operationalExpenseRoutes);
-
   // Integration routes (machine-to-machine communication)
   app.use('/api/integration', integrationRoutes);
 

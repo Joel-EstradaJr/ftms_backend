@@ -5,21 +5,12 @@
 
 /**
  * @swagger
- * tags:
- *   - name: Operational Trip Expenses
- *     description: Expense management for operational trips and rental trips
- *   - name: Expense Reference Data
- *     description: Reference data endpoints for dropdowns and lookups
- */
-
-/**
- * @swagger
  * /api/operational-trip-expenses:
  *   get:
  *     summary: List expenses with filters
  *     description: Retrieve paginated list of operational trip expenses with filters and search
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -125,7 +116,7 @@
  *     summary: Create new expense
  *     description: Create a new operational trip expense with optional reimbursement
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -174,7 +165,7 @@
  *     summary: Get expense by ID
  *     description: Retrieve single expense with full details including accounting and reimbursement info
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -208,7 +199,7 @@
  *     summary: Update expense
  *     description: Update existing expense (PENDING status only)
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -241,7 +232,7 @@
  *     summary: Hard delete expense
  *     description: Permanently delete expense (PENDING status only, no journal entry)
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -273,7 +264,7 @@
  *     summary: Soft delete expense
  *     description: Soft delete expense (set is_deleted = true)
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -317,7 +308,7 @@
  *     summary: Approve expense
  *     description: Approve expense and create journal entry
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -383,7 +374,7 @@
  *     summary: Reject expense
  *     description: Reject expense and cancel related records
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -425,7 +416,7 @@
  *     summary: Export expenses
  *     description: Export expense data with summary statistics
  *     tags:
- *       - Operational Trip Expenses
+ *       - Admin | Operational Trip Expenses
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -473,7 +464,7 @@
  *     summary: Get expense types
  *     description: Retrieve list of expense types for dropdown
  *     tags:
- *       - Expense Reference Data
+ *       - Admin | Expense Reference Data
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -514,7 +505,7 @@
  *     summary: Get payment methods
  *     description: Retrieve available payment methods
  *     tags:
- *       - Expense Reference Data
+ *       - Admin | Expense Reference Data
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -552,7 +543,7 @@
  *     summary: Get chart of accounts
  *     description: Retrieve chart of accounts for accounting code dropdown
  *     tags:
- *       - Expense Reference Data
+ *       - Admin | Expense Reference Data
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -609,7 +600,7 @@
  *     summary: Get operational trips
  *     description: Retrieve operational trips for bus selector dropdown
  *     tags:
- *       - Expense Reference Data
+ *       - Admin | Expense Reference Data
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -671,7 +662,7 @@
  *     summary: Get rental trips
  *     description: Retrieve rental trips for trip selector dropdown
  *     tags:
- *       - Expense Reference Data
+ *       - Admin | Expense Reference Data
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -749,7 +740,7 @@
  *     summary: Get employees (proxy)
  *     description: Proxy to HR system to fetch employee data for reimbursements
  *     tags:
- *       - Expense Reference Data
+ *       - Admin | Expense Reference Data
  *     security:
  *       - bearerAuth: []
  *     parameters:

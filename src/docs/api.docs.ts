@@ -1,12 +1,5 @@
 /**
- * @swagger
- * tags:
- *   - name: General
- *     description: Public endpoints accessible to all users without authentication
- *   - name: Admin
- *     description: Administrative endpoints - requires Admin role authentication
- *   - name: Staff
- *     description: Staff endpoints - requires Staff role authentication
+ * GENERAL & INTEGRATION ENDPOINTS DOCUMENTATION
  */
 
 /**
@@ -16,7 +9,7 @@
  *     summary: Health check endpoint
  *     description: Returns the current health status of the application, including uptime and environment information. If API documentation is enabled, it also includes links to the documentation.
  *     tags:
- *       - General
+ *       - General | Health & Info
  *     responses:
  *       200:
  *         description: System is healthy and operational
@@ -83,7 +76,7 @@
  *     summary: API information endpoint
  *     description: Returns basic information about the API, including name, version, and available endpoints
  *     tags:
- *       - General
+ *       - General | Health & Info
  *     responses:
  *       200:
  *         description: API information retrieved successfully
@@ -140,7 +133,7 @@
  *       - Dates are in YYYY-MM-DD format
  *       - Employee numbers follow the format EMP-YYYY-XXX
  *     tags:
- *       - Finance Integration
+ *       - Admin | Integration – Finance
  *     security:
  *       - bearerAuth: []
  *     parameters:

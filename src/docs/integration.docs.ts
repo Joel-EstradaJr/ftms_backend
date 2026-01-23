@@ -1,12 +1,6 @@
 /**
- * @swagger
- * tags:
- *   - name: Integration - HR Employees
- *     description: External HR system employee data synchronization endpoints
- *   - name: Integration - HR Payroll
- *     description: External HR system payroll data synchronization endpoints
- *   - name: Integration - Operations
- *     description: External Operations system trip data synchronization endpoints
+ * INTEGRATION ENDPOINTS DOCUMENTATION
+ * External system synchronization endpoints - requires Admin role authentication
  */
 
 /**
@@ -16,7 +10,7 @@
  *     summary: Manually sync employees with provided payload
  *     description: Sync employee data to the database using a manually provided payload from HR system
  *     tags:
- *       - Integration - HR Employees
+ *       - Admin | Integration – HR
  *     requestBody:
  *       required: true
  *       content:
@@ -84,7 +78,7 @@
  *     summary: Auto-fetch from HR API and sync to database
  *     description: Automatically fetch employee data from external HR API and sync to database
  *     tags:
- *       - Integration - HR Employees
+ *       - Admin | Integration – HR
  *     responses:
  *       200:
  *         description: Employees fetched and synced successfully
@@ -110,7 +104,7 @@
  *     summary: Get employees by department ID
  *     description: Retrieve all employees belonging to a specific department
  *     tags:
- *       - Integration - HR Employees
+ *       - Admin | Integration – HR
  *     parameters:
  *       - in: path
  *         name: departmentId
@@ -148,7 +142,7 @@
  *     summary: Get employees by position name
  *     description: Retrieve all employees with a specific position
  *     tags:
- *       - Integration - HR Employees
+ *       - Admin | Integration – HR
  *     parameters:
  *       - in: query
  *         name: position
@@ -188,7 +182,7 @@
  *     summary: Get payroll data with filters
  *     description: Retrieve payroll data for employees with optional filtering
  *     tags:
- *       - Integration - HR Payroll
+ *       - Admin | Integration – HR Payroll
  *     parameters:
  *       - in: query
  *         name: payroll_period_start
@@ -230,7 +224,7 @@
  *     summary: Get available semi-monthly payroll periods
  *     description: Returns available semi-monthly payroll periods (1st-15th and 16th-end)
  *     tags:
- *       - Integration - HR Payroll
+ *       - Admin | Integration – HR Payroll
  *     parameters:
  *       - in: query
  *         name: year
@@ -258,7 +252,7 @@
  *     summary: Fetch payroll data from HR API and sync to database
  *     description: Automatically fetch payroll data from external HR API for specified period
  *     tags:
- *       - Integration - HR Payroll
+ *       - Admin | Integration – HR Payroll
  *     requestBody:
  *       required: true
  *       content:
@@ -317,7 +311,7 @@
  *     summary: Recalculate totals for existing payroll period
  *     description: Recalculate gross pay, deductions, and net pay for an existing payroll period
  *     tags:
- *       - Integration - HR Payroll
+ *       - Admin | Integration – HR Payroll
  *     parameters:
  *       - in: path
  *         name: id
@@ -342,7 +336,7 @@
  *     summary: Get payroll data for a specific period
  *     description: Retrieve detailed payroll data for a specific period range
  *     tags:
- *       - Integration - HR Payroll
+ *       - Admin | Integration – HR Payroll
  *     parameters:
  *       - in: query
  *         name: period_start
@@ -378,7 +372,7 @@
  *     summary: Get payroll history for specific employee
  *     description: Retrieve payroll history for a specific employee with optional date filtering
  *     tags:
- *       - Integration - HR Payroll
+ *       - Admin | Integration – HR Payroll
  *     parameters:
  *       - in: path
  *         name: employeeNumber
@@ -413,7 +407,7 @@
  *     summary: Manually sync bus trips with provided payload
  *     description: Sync operational bus trip data using a manually provided payload
  *     tags:
- *       - Integration - Operations
+ *       - Admin | Integration – Operations
  *     requestBody:
  *       required: true
  *       content:
@@ -439,7 +433,7 @@
  *     summary: Auto-fetch bus trips from Operations API and sync
  *     description: Automatically fetch operational bus trip data from external API
  *     tags:
- *       - Integration - Operations
+ *       - Admin | Integration – Operations
  *     responses:
  *       200:
  *         description: Bus trips fetched and synced successfully
@@ -454,7 +448,7 @@
  *     summary: Get unrecorded bus trips
  *     description: Retrieve bus trips that haven't been recorded for revenue or expense
  *     tags:
- *       - Integration - Operations
+ *       - Admin | Integration – Operations
  *     parameters:
  *       - in: query
  *         name: type
@@ -477,7 +471,7 @@
  *     summary: Manually sync rental trips with provided payload
  *     description: Sync rental trip data using a manually provided payload
  *     tags:
- *       - Integration - Operations
+ *       - Admin | Integration – Operations
  *     requestBody:
  *       required: true
  *       content:
@@ -503,7 +497,7 @@
  *     summary: Auto-fetch rental trips from Operations API and sync
  *     description: Automatically fetch rental trip data from external API
  *     tags:
- *       - Integration - Operations
+ *       - Admin | Integration – Operations
  *     responses:
  *       200:
  *         description: Rental trips fetched and synced successfully
@@ -518,7 +512,7 @@
  *     summary: Get unrecorded rental trips
  *     description: Retrieve rental trips that haven't been recorded for revenue or expense
  *     tags:
- *       - Integration - Operations
+ *       - Admin | Integration – Operations
  *     parameters:
  *       - in: query
  *         name: type
@@ -541,7 +535,7 @@
  *     summary: Get rental trips by status
  *     description: Filter rental trips by their approval/completion status
  *     tags:
- *       - Integration - Operations
+ *       - Admin | Integration – Operations
  *     parameters:
  *       - in: query
  *         name: status

@@ -30,8 +30,9 @@ const swaggerUiOptions: swaggerUi.SwaggerUiOptions = {
     defaultModelsExpandDepth: 3, // Expand models depth
     defaultModelExpandDepth: 3,
     docExpansion: 'list', // 'list', 'full', or 'none'
-    operationsSorter: 'alpha', // Sort operations alphabetically
-    tagsSorter: 'alpha', // Sort tags alphabetically
+    operationsSorter: 'alpha', // Sort operations alphabetically within tags
+    // Tags are ordered as defined in the OpenAPI spec (swagger.ts tags array)
+    // Order: General → Admin → Staff
   },
   customCss: `
     .swagger-ui .topbar { display: none }
@@ -41,6 +42,13 @@ const swaggerUiOptions: swaggerUi.SwaggerUiOptions = {
       padding: 20px; 
       border-radius: 4px;
       margin: 20px 0;
+    }
+    /* Enhanced tag hierarchy styling */
+    .swagger-ui .opblock-tag-section {
+      margin-bottom: 8px;
+    }
+    .swagger-ui .opblock-tag {
+      font-weight: 600;
     }
   `,
   customSiteTitle: 'FTMS Backend API Documentation',

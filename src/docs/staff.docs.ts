@@ -10,7 +10,7 @@
  *     summary: List all journal entries (Staff - Read only)
  *     description: Retrieves a list of all journal entries. Staff users have read-only access.
  *     tags:
- *       - Staff
+ *       - Staff | Journal Entries
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -57,7 +57,7 @@
  *     summary: Get journal entry by ID (Staff - Read only)
  *     description: Retrieves a specific journal entry by its ID. Staff users have read-only access.
  *     tags:
- *       - Staff
+ *       - Staff | Journal Entries
  *     security:
  *       - bearerAuth: []
  *     parameters:
