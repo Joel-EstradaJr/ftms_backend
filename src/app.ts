@@ -24,6 +24,7 @@ import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 import adminJournalEntriesRoutes from './routes/admin/journal-entries';
 import operationalExpenseRoutes from './routes/admin/operational-expenses';
+import dashboardRoutes from './routes/admin/dashboard.routes';
 import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 
 // Integration routes (for microservices)
@@ -107,12 +108,13 @@ export const createApp = (): Application => {
   // ===========================
   // API Routes
   // ===========================
-  
+
   // Admin routes (Full CRUD + additional actions)
   app.use('/api/v1/admin', chartOfAccountsRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
   app.use('/api/v1/admin/journal-entries', adminJournalEntriesRoutes);
-  
+  app.use('/api/v1/dashboard', dashboardRoutes);
+
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors
   // app.use('/api/v1/staff/revenues', staffRevenueRoutes);
