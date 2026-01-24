@@ -25,6 +25,7 @@ import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 import adminJournalEntriesRoutes from './routes/admin/journal-entries';
 import operationalExpenseRoutes from './routes/admin/operational-expenses';
 import dashboardRoutes from './routes/admin/dashboard.routes';
+import budgetAllocationRoutes from './routes/admin/budget-allocation';
 import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 
 // Integration routes (for microservices)
@@ -114,6 +115,7 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
   app.use('/api/v1/admin/journal-entries', adminJournalEntriesRoutes);
   app.use('/api/v1/dashboard', dashboardRoutes);
+  app.use('/api/v1/admin/budget-allocation', budgetAllocationRoutes);
 
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors
