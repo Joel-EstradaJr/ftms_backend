@@ -21,7 +21,12 @@ enum normal_balance {
 enum journal_status {
   DRAFT
   POSTED
+  ADJUSTED
   REVERSED
+}
+
+enum entry_type {
+  AUTO_GENERATED // All journal entries are system-generated
 }
 
 enum revenue_accounting_status {
@@ -142,10 +147,6 @@ enum pr_item_finance_status {
   CLOSED // PR Item processing completed	
 }
 
-enum entry_type {
-  AUTO_GENERATED
-  MANUAL
-}
 
 enum budget_cycle_type {
   MONTHLY
@@ -481,7 +482,7 @@ model chart_of_account {
 }
 
 model journal_entry {
-  // Fields	
+  // Fields
   id           Int            @id @default(autoincrement())
   code         String         @unique
   date         DateTime
@@ -497,11 +498,22 @@ model journal_entry {
   rejected_by      String?
   rejected_at      DateTime?
   rejection_reason String?
+  
+  // Reversal and Adjustment Links
+  // - reversal_of_id: This JE is a reversal of another JE
+  // - adjustment_of_id: This JE is an adjustment to another JE
   reversal_of_id   Int?
+  adjustment_of_id Int?
 
-  // Relations	
-  reversal_of                  journal_entry?                @relation("ReversalRelation", fields: [reversal_of_id], references: [id], onDelete: SetNull)
-  reversals                    journal_entry[]               @relation("ReversalRelation")
+  // Relations - Reversal (this JE reverses another)
+  reversal_of journal_entry?  @relation("ReversalRelation", fields: [reversal_of_id], references: [id], onDelete: SetNull)
+  reversals   journal_entry[] @relation("ReversalRelation")
+  
+  // Relations - Adjustment (this JE adjusts another)
+  adjustment_of journal_entry?  @relation("AdjustmentRelation", fields: [adjustment_of_id], references: [id], onDelete: SetNull)
+  adjustments   journal_entry[] @relation("AdjustmentRelation")
+  
+  // Relations - Linked Records
   lines                        journal_entry_line[]
   revenues                     revenue[]
   expenses                     expense[]
@@ -510,7 +522,7 @@ model journal_entry {
   payrolls                     payroll[]
   expense_adjustments          expense_adjustment[]
 
-  // Audit Trail	
+  // Audit Trail
   created_by  String?
   created_at  DateTime  @default(now())
   updated_by  String?
@@ -521,10 +533,12 @@ model journal_entry {
   deleted_at  DateTime?
   is_deleted  Boolean   @default(false)
 
-  // Indexes	
+  // Indexes
   @@index([code])
   @@index([date])
   @@index([status])
+  @@index([reversal_of_id])
+  @@index([adjustment_of_id])
   @@index([approved_at])
   @@index([is_deleted])
   @@index([created_at])
