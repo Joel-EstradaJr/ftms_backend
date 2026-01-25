@@ -67,6 +67,10 @@ to set your token and test authenticated endpoints.
       name: 'General | Data Sync',
       description: '🔄 External data synchronization – Sync employees, buses, rentals, and bus trips from external systems (HR, Inventory, Operations)',
     },
+    {
+      name: 'General | Webhooks',
+      description: '🔔 Webhook endpoints – Receive lifecycle events (is_active status) from external systems (HR, Inventory, Operations)',
+    },
 
     // ===========================
     // ADMIN ENDPOINTS
@@ -360,6 +364,118 @@ to set your token and test authenticated endpoints.
                   bus_trip_employee_local: {
                     $ref: '#/components/schemas/SyncTableStats',
                   },
+                },
+              },
+            },
+          },
+        },
+      },
+      // Webhook schemas
+      WebhookSuccessResponse: {
+        type: 'object',
+        properties: {
+          success: {
+            type: 'boolean',
+            example: true,
+          },
+          message: {
+            type: 'string',
+            example: 'Employee EMP-001 activated via webhook',
+          },
+          data: {
+            type: 'object',
+            properties: {
+              record_id: {
+                oneOf: [
+                  { type: 'string', example: 'EMP-001' },
+                  {
+                    type: 'object',
+                    properties: {
+                      assignment_id: { type: 'string' },
+                      bus_trip_id: { type: 'string' },
+                    },
+                  },
+                ],
+              },
+              is_active: {
+                type: 'boolean',
+                example: true,
+              },
+              last_synced_at: {
+                type: 'string',
+                format: 'date-time',
+              },
+            },
+          },
+        },
+      },
+      WebhookErrorResponse: {
+        type: 'object',
+        properties: {
+          success: {
+            type: 'boolean',
+            example: false,
+          },
+          message: {
+            type: 'string',
+            example: 'Missing required field: employee_number',
+          },
+          error: {
+            type: 'string',
+            description: 'Detailed error message (optional)',
+          },
+        },
+      },
+      BatchWebhookResponse: {
+        type: 'object',
+        properties: {
+          success: {
+            type: 'boolean',
+            example: true,
+          },
+          message: {
+            type: 'string',
+            example: 'Batch processed: 3 succeeded, 1 failed',
+          },
+          summary: {
+            type: 'object',
+            properties: {
+              total: {
+                type: 'integer',
+                example: 4,
+              },
+              processed: {
+                type: 'integer',
+                example: 3,
+              },
+              failed: {
+                type: 'integer',
+                example: 1,
+              },
+            },
+          },
+          results: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                record_id: {
+                  oneOf: [
+                    { type: 'string' },
+                    {
+                      type: 'object',
+                      properties: {
+                        assignment_id: { type: 'string' },
+                        bus_trip_id: { type: 'string' },
+                      },
+                    },
+                  ],
+                },
+                success: {
+                  type: 'boolean',
+                },
+                message: {
+                  type: 'string',
                 },
               },
             },

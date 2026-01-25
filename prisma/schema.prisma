@@ -190,7 +190,10 @@ model employee_local {
   zip_code      String?
   department_id Int?
   department    String?
-  is_deleted Boolean @default(false)
+  
+  // Lifecycle flags
+  is_active  Boolean @default(true)  // External system lifecycle (from HR)
+  is_deleted Boolean @default(false) // Internal lifecycle (Finance system only)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -205,6 +208,7 @@ model employee_local {
   @@index([department_id])
   @@index([position])
   @@index([department])
+  @@index([is_active])
   @@index([is_deleted])
 }
 
@@ -221,8 +225,10 @@ model bus_local {
   body_number   String?
   type          String? // Aircon, Non-Aircon, etc.
   capacity      Int?
-  is_deleted Boolean @default(false)
-
+  
+  // Lifecycle flags
+  is_active  Boolean @default(true)  // External system lifecycle (from Inventory)
+  is_deleted Boolean @default(false) // Internal lifecycle (Finance system only)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -235,6 +241,7 @@ model bus_local {
   @@index([license_plate])
   @@index([body_number])
   @@index([last_synced_at])
+  @@index([is_active])
   @@index([is_deleted])
 }
 
@@ -265,7 +272,10 @@ model rental_local {
   // Finance tracking flags
   is_revenue_recorded Boolean @default(false)
   is_expense_recorded Boolean @default(false)
-  is_deleted Boolean @default(false)
+  
+  // Lifecycle flags
+  is_active  Boolean @default(true)  // External system lifecycle (from Operations)
+  is_deleted Boolean @default(false) // Internal lifecycle (Finance system only)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -284,6 +294,7 @@ model rental_local {
   @@index([is_revenue_recorded])
   @@index([is_expense_recorded])
   @@index([last_synced_at])
+  @@index([is_active])
   @@index([is_deleted])
 }
 
@@ -295,7 +306,10 @@ model rental_employee_local {
   // Composite Primary Key
   assignment_id   String
   employee_number String
-  is_deleted Boolean @default(false)
+  
+  // Lifecycle flags
+  is_active  Boolean @default(true)  // External system lifecycle (from Operations)
+  is_deleted Boolean @default(false) // Internal lifecycle (Finance system only)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -309,6 +323,7 @@ model rental_employee_local {
   // Indexes
   @@index([assignment_id])
   @@index([employee_number])
+  @@index([is_active])
   @@index([is_deleted])
 }
 
@@ -333,11 +348,14 @@ model bus_trip_local {
   assignment_type   String? // BOUNDARY, PERCENTAGE, etc.
   assignment_value  Decimal?  @db.Decimal(14, 2)
   payment_method    String? // Company_Cash, Reimbursement, etc.
-  is_deleted Boolean @default(false)
 
   // Finance tracking flags
   is_revenue_recorded Boolean @default(false)
   is_expense_recorded Boolean @default(false)
+  
+  // Lifecycle flags
+  is_active  Boolean @default(true)  // External system lifecycle (from Operations)
+  is_deleted Boolean @default(false) // Internal lifecycle (Finance system only)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -358,6 +376,7 @@ model bus_trip_local {
   @@index([is_revenue_recorded])
   @@index([is_expense_recorded])
   @@index([last_synced_at])
+  @@index([is_active])
   @@index([is_deleted])
 }
 
@@ -373,7 +392,10 @@ model bus_trip_employee_local {
 
   // Employee role in this trip
   role bus_trip_employee_role
-  is_deleted Boolean @default(false)
+  
+  // Lifecycle flags
+  is_active  Boolean @default(true)  // External system lifecycle (from Operations)
+  is_deleted Boolean @default(false) // Internal lifecycle (Finance system only)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -388,6 +410,7 @@ model bus_trip_employee_local {
   @@index([assignment_id, bus_trip_id])
   @@index([employee_number])
   @@index([role])
+  @@index([is_active])
   @@index([is_deleted])
 }
 

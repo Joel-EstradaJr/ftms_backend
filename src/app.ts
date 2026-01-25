@@ -35,6 +35,9 @@ import financeRoutes from './routes/finance';
 // Sync routes (for external data synchronization)
 import syncRoutes from './routes/sync.routes';
 
+// Webhook routes (for external system lifecycle events)
+import webhookRoutes from './routes/webhook.routes';
+
 export const createApp = (): Application => {
   const app = express();
 
@@ -140,6 +143,9 @@ export const createApp = (): Application => {
 
   // Sync routes (external data synchronization)
   app.use('/api/sync', syncRoutes);
+
+  // Webhook routes (external system lifecycle events)
+  app.use('/api/webhooks', webhookRoutes);
 
   // 404 handler
   app.use((req, res) => {

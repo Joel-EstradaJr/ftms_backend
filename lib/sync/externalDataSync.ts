@@ -40,6 +40,7 @@ interface ExternalEmployeePayload {
   zipCode?: string | null;
   departmentId: number;
   department: string;
+  isActive?: boolean; // External lifecycle status (defaults to true if not provided)
 }
 
 interface HREmployeesResponse {
@@ -56,6 +57,7 @@ interface ExternalBusPayload {
   body_number: string;
   type: string; // AIRCONDITIONED, ORDINARY
   capacity: number;
+  is_active?: boolean; // External lifecycle status (defaults to true if not provided)
 }
 
 /**
@@ -68,6 +70,7 @@ interface RentalEmployee {
   employee_middleName: string | null;
   employee_lastName: string | null;
   employee_position_name: string;
+  is_active?: boolean; // External lifecycle status (defaults to true if not provided)
 }
 
 interface RentalDetails {
@@ -92,6 +95,7 @@ interface ExternalRentalPayload {
   rental_status: string;
   rental_details: RentalDetails;
   employees: RentalEmployee[];
+  is_active?: boolean; // External lifecycle status (defaults to true if not provided)
 }
 
 /**
@@ -104,6 +108,7 @@ interface BusTripEmployee {
   employee_middleName: string | null;
   employee_lastName: string;
   employee_suffix: string | null;
+  is_active?: boolean; // External lifecycle status (defaults to true if not provided)
 }
 
 interface ExternalBusTripPayload {
@@ -124,6 +129,7 @@ interface ExternalBusTripPayload {
   bus_plate_number: string;
   bus_type: string;
   body_number: string;
+  is_active?: boolean; // External lifecycle status (defaults to true if not provided)
 }
 
 // ============================================================================
@@ -237,13 +243,16 @@ async function syncEmployees(employees: ExternalEmployeePayload[]): Promise<Sync
     await prisma.$transaction(async (tx) => {
       // Get existing records
       const existingRecords = await tx.employee_local.findMany({
-        select: { employee_number: true },
+        select: { employee_number: true, is_active: true },
       });
-      const existingIds = new Set(existingRecords.map(r => r.employee_number));
+      const existingMap = new Map(existingRecords.map(r => [r.employee_number, r]));
       
       // Upsert each employee
       for (const emp of employees) {
-        const isExisting = existingIds.has(emp.employeeNumber);
+        const existing = existingMap.get(emp.employeeNumber);
+        const isExisting = !!existing;
+        // Use payload is_active if provided, else preserve existing, else default true
+        const isActive = emp.isActive ?? existing?.is_active ?? true;
         
         await tx.employee_local.upsert({
           where: { employee_number: emp.employeeNumber },
@@ -257,6 +266,7 @@ async function syncEmployees(employees: ExternalEmployeePayload[]): Promise<Sync
             zip_code: emp.zipCode || null,
             department_id: emp.departmentId,
             department: emp.department,
+            is_active: isActive,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -271,6 +281,7 @@ async function syncEmployees(employees: ExternalEmployeePayload[]): Promise<Sync
             zip_code: emp.zipCode || null,
             department_id: emp.departmentId,
             department: emp.department,
+            is_active: emp.isActive ?? true,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -284,7 +295,7 @@ async function syncEmployees(employees: ExternalEmployeePayload[]): Promise<Sync
       }
       
       // Soft delete records not in payload
-      const idsToSoftDelete = [...existingIds].filter(id => !fetchedIds.has(id));
+      const idsToSoftDelete = [...existingMap.keys()].filter(id => !fetchedIds.has(id));
       if (idsToSoftDelete.length > 0) {
         await tx.employee_local.updateMany({
           where: {
@@ -337,14 +348,17 @@ async function syncBuses(buses: ExternalBusPayload[]): Promise<SyncResult> {
     await prisma.$transaction(async (tx) => {
       // Get existing records
       const existingRecords = await tx.bus_local.findMany({
-        select: { bus_id: true },
+        select: { bus_id: true, is_active: true },
       });
-      const existingIds = new Set(existingRecords.map(r => r.bus_id));
+      const existingMap = new Map(existingRecords.map(r => [r.bus_id, r]));
       
       // Upsert each bus
       for (const bus of buses) {
         const busId = String(bus.id);
-        const isExisting = existingIds.has(busId);
+        const existing = existingMap.get(busId);
+        const isExisting = !!existing;
+        // Use payload is_active if provided, else preserve existing, else default true
+        const isActive = bus.is_active ?? existing?.is_active ?? true;
         
         await tx.bus_local.upsert({
           where: { bus_id: busId },
@@ -353,6 +367,7 @@ async function syncBuses(buses: ExternalBusPayload[]): Promise<SyncResult> {
             body_number: bus.body_number,
             type: bus.type,
             capacity: bus.capacity,
+            is_active: isActive,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -362,6 +377,7 @@ async function syncBuses(buses: ExternalBusPayload[]): Promise<SyncResult> {
             body_number: bus.body_number,
             type: bus.type,
             capacity: bus.capacity,
+            is_active: bus.is_active ?? true,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -375,7 +391,7 @@ async function syncBuses(buses: ExternalBusPayload[]): Promise<SyncResult> {
       }
       
       // Soft delete records not in payload
-      const idsToSoftDelete = [...existingIds].filter(id => !fetchedIds.has(id));
+      const idsToSoftDelete = [...existingMap.keys()].filter(id => !fetchedIds.has(id));
       if (idsToSoftDelete.length > 0) {
         await tx.bus_local.updateMany({
           where: {
@@ -440,6 +456,7 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
           assignment_id: true,
           is_revenue_recorded: true,
           is_expense_recorded: true,
+          is_active: true,
         },
       });
       const existingRentalMap = new Map(
@@ -448,16 +465,18 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
       
       // Get existing rental employee records
       const existingRentalEmployees = await tx.rental_employee_local.findMany({
-        select: { assignment_id: true, employee_number: true },
+        select: { assignment_id: true, employee_number: true, is_active: true },
       });
-      const existingRentalEmployeeKeys = new Set(
-        existingRentalEmployees.map(re => `${re.assignment_id}|${re.employee_number}`)
+      const existingRentalEmployeeMap = new Map(
+        existingRentalEmployees.map(re => [`${re.assignment_id}|${re.employee_number}`, re])
       );
       
       // Upsert each rental
       for (const rental of rentals) {
         const existing = existingRentalMap.get(rental.assignment_id);
         const busId = String(rental.bus_id);
+        // Use payload is_active if provided, else preserve existing, else default true
+        const isActive = rental.is_active ?? existing?.is_active ?? true;
         
         // Check if bus exists in bus_local
         const busExists = await tx.bus_local.findUnique({
@@ -483,6 +502,7 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
             // Preserve financial flags
             is_revenue_recorded: existing?.is_revenue_recorded ?? false,
             is_expense_recorded: existing?.is_expense_recorded ?? false,
+            is_active: isActive,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -502,6 +522,7 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
             cancellation_reason: rental.rental_details.cancellation_reason,
             is_revenue_recorded: false,
             is_expense_recorded: false,
+            is_active: rental.is_active ?? true,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -516,7 +537,10 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
         // Upsert rental employees
         for (const emp of rental.employees) {
           const key = `${rental.assignment_id}|${emp.employee_id}`;
-          const empExists = existingRentalEmployeeKeys.has(key);
+          const existingEmp = existingRentalEmployeeMap.get(key);
+          const empExists = !!existingEmp;
+          // Use payload is_active if provided, else preserve existing, else default true
+          const empIsActive = emp.is_active ?? existingEmp?.is_active ?? true;
           
           // Check if employee exists in employee_local
           const employeeExists = await tx.employee_local.findUnique({
@@ -533,12 +557,14 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
                 },
               },
               update: {
+                is_active: empIsActive,
                 is_deleted: false,
                 last_synced_at: new Date(),
               },
               create: {
                 assignment_id: rental.assignment_id,
                 employee_number: emp.employee_id,
+                is_active: emp.is_active ?? true,
                 is_deleted: false,
                 last_synced_at: new Date(),
               },
@@ -572,7 +598,7 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
       }
       
       // Soft delete rental employees not in payload
-      const employeeKeysToSoftDelete = [...existingRentalEmployeeKeys].filter(
+      const employeeKeysToSoftDelete = [...existingRentalEmployeeMap.keys()].filter(
         key => !fetchedEmployeeAssignments.has(key)
       );
       for (const key of employeeKeysToSoftDelete) {
@@ -671,6 +697,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
           bus_trip_id: true,
           is_revenue_recorded: true,
           is_expense_recorded: true,
+          is_active: true,
         },
       });
       const existingTripMap = new Map(
@@ -684,11 +711,12 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
           bus_trip_id: true,
           employee_number: true,
           role: true,
+          is_active: true,
         },
       });
-      const existingTripEmployeeKeys = new Set(
+      const existingTripEmployeeMap = new Map(
         existingTripEmployees.map(
-          te => `${te.assignment_id}|${te.bus_trip_id}|${te.employee_number}|${te.role}`
+          te => [`${te.assignment_id}|${te.bus_trip_id}|${te.employee_number}|${te.role}`, te]
         )
       );
       
@@ -697,6 +725,8 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
         const tripKey = `${trip.assignment_id}|${trip.bus_trip_id}`;
         const existing = existingTripMap.get(tripKey);
         const busId = String(trip.bus_id);
+        // Use payload is_active if provided, else preserve existing, else default true
+        const isActive = trip.is_active ?? existing?.is_active ?? true;
         
         // Check if bus exists in bus_local
         const busExists = await tx.bus_local.findUnique({
@@ -723,6 +753,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
             // Preserve financial flags - only update if not already recorded
             is_revenue_recorded: existing?.is_revenue_recorded ?? trip.is_revenue_recorded,
             is_expense_recorded: existing?.is_expense_recorded ?? trip.is_expense_recorded,
+            is_active: isActive,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -739,6 +770,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
             payment_method: trip.payment_method,
             is_revenue_recorded: trip.is_revenue_recorded,
             is_expense_recorded: trip.is_expense_recorded,
+            is_active: trip.is_active ?? true,
             is_deleted: false,
             last_synced_at: new Date(),
           },
@@ -753,7 +785,10 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
         // Upsert driver
         if (trip.employee_driver?.employee_id) {
           const driverKey = `${trip.assignment_id}|${trip.bus_trip_id}|${trip.employee_driver.employee_id}|DRIVER`;
-          const driverExists = existingTripEmployeeKeys.has(driverKey);
+          const existingDriver = existingTripEmployeeMap.get(driverKey);
+          const driverExists = !!existingDriver;
+          // Use payload is_active if provided, else preserve existing, else default true
+          const driverIsActive = trip.employee_driver.is_active ?? existingDriver?.is_active ?? true;
           
           // Check if employee exists in employee_local
           const employeeExists = await tx.employee_local.findUnique({
@@ -772,6 +807,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
               },
               update: {
                 role: bus_trip_employee_role.DRIVER,
+                is_active: driverIsActive,
                 is_deleted: false,
                 last_synced_at: new Date(),
               },
@@ -780,6 +816,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
                 bus_trip_id: trip.bus_trip_id,
                 employee_number: trip.employee_driver.employee_id,
                 role: bus_trip_employee_role.DRIVER,
+                is_active: trip.employee_driver.is_active ?? true,
                 is_deleted: false,
                 last_synced_at: new Date(),
               },
@@ -798,7 +835,10 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
         // Upsert conductor
         if (trip.employee_conductor?.employee_id) {
           const conductorKey = `${trip.assignment_id}|${trip.bus_trip_id}|${trip.employee_conductor.employee_id}|CONDUCTOR`;
-          const conductorExists = existingTripEmployeeKeys.has(conductorKey);
+          const existingConductor = existingTripEmployeeMap.get(conductorKey);
+          const conductorExists = !!existingConductor;
+          // Use payload is_active if provided, else preserve existing, else default true
+          const conductorIsActive = trip.employee_conductor.is_active ?? existingConductor?.is_active ?? true;
           
           // Check if employee exists in employee_local
           const employeeExists = await tx.employee_local.findUnique({
@@ -817,6 +857,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
               },
               update: {
                 role: bus_trip_employee_role.CONDUCTOR,
+                is_active: conductorIsActive,
                 is_deleted: false,
                 last_synced_at: new Date(),
               },
@@ -825,6 +866,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
                 bus_trip_id: trip.bus_trip_id,
                 employee_number: trip.employee_conductor.employee_id,
                 role: bus_trip_employee_role.CONDUCTOR,
+                is_active: trip.employee_conductor.is_active ?? true,
                 is_deleted: false,
                 last_synced_at: new Date(),
               },
@@ -863,7 +905,7 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
       }
       
       // Soft delete bus trip employees not in payload
-      const employeeKeysToSoftDelete = [...existingTripEmployeeKeys].filter(
+      const employeeKeysToSoftDelete = [...existingTripEmployeeMap.keys()].filter(
         key => !fetchedEmployeeAssignments.has(key)
       );
       for (const key of employeeKeysToSoftDelete) {
