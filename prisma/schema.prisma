@@ -190,6 +190,7 @@ model employee_local {
   zip_code      String?
   department_id Int?
   department    String?
+  is_deleted Boolean @default(false)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -204,6 +205,7 @@ model employee_local {
   @@index([department_id])
   @@index([position])
   @@index([department])
+  @@index([is_deleted])
 }
 
 // ----------------------------------------------------------------------------
@@ -219,6 +221,8 @@ model bus_local {
   body_number   String?
   type          String? // Aircon, Non-Aircon, etc.
   capacity      Int?
+  is_deleted Boolean @default(false)
+
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -231,6 +235,7 @@ model bus_local {
   @@index([license_plate])
   @@index([body_number])
   @@index([last_synced_at])
+  @@index([is_deleted])
 }
 
 // ----------------------------------------------------------------------------
@@ -260,6 +265,7 @@ model rental_local {
   // Finance tracking flags
   is_revenue_recorded Boolean @default(false)
   is_expense_recorded Boolean @default(false)
+  is_deleted Boolean @default(false)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -278,6 +284,7 @@ model rental_local {
   @@index([is_revenue_recorded])
   @@index([is_expense_recorded])
   @@index([last_synced_at])
+  @@index([is_deleted])
 }
 
 // ----------------------------------------------------------------------------
@@ -288,6 +295,7 @@ model rental_employee_local {
   // Composite Primary Key
   assignment_id   String
   employee_number String
+  is_deleted Boolean @default(false)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -301,6 +309,7 @@ model rental_employee_local {
   // Indexes
   @@index([assignment_id])
   @@index([employee_number])
+  @@index([is_deleted])
 }
 
 // ----------------------------------------------------------------------------
@@ -324,6 +333,7 @@ model bus_trip_local {
   assignment_type   String? // BOUNDARY, PERCENTAGE, etc.
   assignment_value  Decimal?  @db.Decimal(14, 2)
   payment_method    String? // Company_Cash, Reimbursement, etc.
+  is_deleted Boolean @default(false)
 
   // Finance tracking flags
   is_revenue_recorded Boolean @default(false)
@@ -348,6 +358,7 @@ model bus_trip_local {
   @@index([is_revenue_recorded])
   @@index([is_expense_recorded])
   @@index([last_synced_at])
+  @@index([is_deleted])
 }
 
 // ----------------------------------------------------------------------------
@@ -362,6 +373,7 @@ model bus_trip_employee_local {
 
   // Employee role in this trip
   role bus_trip_employee_role
+  is_deleted Boolean @default(false)
 
   // Sync metadata
   last_synced_at DateTime @default(now())
@@ -376,6 +388,7 @@ model bus_trip_employee_local {
   @@index([assignment_id, bus_trip_id])
   @@index([employee_number])
   @@index([role])
+  @@index([is_deleted])
 }
 
 // ============================================================================	
@@ -566,25 +579,24 @@ model revenue {
   date_recorded           DateTime?
   date_expected           DateTime?
   description             String?
-
   // Accounting workflow
   accounting_status       revenue_accounting_status @default(DRAFT)
-
   // Approval workflow
   approval_status         revenue_approval_status @default(PENDING)
-
   // Payment / Receivable (link only)
   receivable_id           Int?
   driver_receivable_id    Int?
   conductor_receivable_id Int?
-
   payment_method          String?
   payment_reference       String?
-
   // Journal Entry
   journal_entry_id        Int?                    @unique
   disposal_ref            String?
-
+  // Foreign keys for rental and bus trip relations
+  rental_assignment_id    String?
+  bus_trip_assignment_id  String?
+  bus_trip_id             String?
+  
   // Relations
   revenue_type         revenue_type                  @relation(fields: [revenue_type_id], references: [id])
   receivable           receivable?                   @relation("revenue_receivable", fields: [receivable_id], references: [id])
@@ -593,6 +605,10 @@ model revenue {
   journal_entry        journal_entry?                @relation(fields: [journal_entry_id], references: [id])
   installment_payments revenue_installment_payment[]
   disposal_revenues    disposal_revenue[]
+  
+  // Relations to rental and bus trip
+  rental   rental_local?   @relation(fields: [rental_assignment_id], references: [assignment_id], onDelete: SetNull)
+  bus_trip bus_trip_local? @relation(fields: [bus_trip_assignment_id, bus_trip_id], references: [assignment_id, bus_trip_id], onDelete: SetNull)
   
   // Audit Trail
   created_by  String?
@@ -604,7 +620,6 @@ model revenue {
   deleted_by  String?
   deleted_at  DateTime?
   is_deleted  Boolean   @default(false)
-
   // Indexes
   @@index([code])
   @@index([revenue_type_id])
@@ -616,10 +631,11 @@ model revenue {
   @@index([driver_receivable_id])
   @@index([conductor_receivable_id])
   @@index([journal_entry_id])
+  @@index([rental_assignment_id])
+  @@index([bus_trip_assignment_id, bus_trip_id])
   @@index([is_deleted])
   @@index([created_at])
 }
-
 
 model receivable {
   // Fields	
