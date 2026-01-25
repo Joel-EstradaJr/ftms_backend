@@ -688,166 +688,19 @@
  *         $ref: '#/components/responses/ServerError'
  */
 
-/**
- * @swagger
- * /api/v1/admin/journal-entries:
- *   get:
- *     summary: List all journal entries
- *     description: Retrieves a list of all journal entries (Admin full access)
- *     tags:
- *       - Admin | Journal Entries
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Journal entries retrieved successfully
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       500:
- *         $ref: '#/components/responses/ServerError'
- *   post:
- *     summary: Create a new journal entry
- *     description: Creates a new journal entry with debit and credit entries
- *     tags:
- *       - Admin | Journal Entries
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - description
- *               - entries
- *             properties:
- *               description:
- *                 type: string
- *                 example: 'Payment for office supplies'
- *               referenceNumber:
- *                 type: string
- *                 example: 'JE-2026-001'
- *               entries:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     accountId:
- *                       type: string
- *                     debit:
- *                       type: number
- *                     credit:
- *                       type: number
- *     responses:
- *       201:
- *         description: Journal entry created successfully
- *       400:
- *         $ref: '#/components/responses/BadRequest'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       500:
- *         $ref: '#/components/responses/ServerError'
- */
-
-/**
- * @swagger
- * /api/v1/admin/journal-entries/{id}:
- *   get:
- *     summary: Get journal entry by ID
- *     description: Retrieves a specific journal entry by its ID
- *     tags:
- *       - Admin | Journal Entries
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Journal entry ID
- *     responses:
- *       200:
- *         description: Journal entry retrieved successfully
- *       404:
- *         $ref: '#/components/responses/NotFound'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       500:
- *         $ref: '#/components/responses/ServerError'
- *   put:
- *     summary: Update journal entry
- *     description: Updates an existing journal entry
- *     tags:
- *       - Admin | Journal Entries
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Journal entry ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               description:
- *                 type: string
- *               referenceNumber:
- *                 type: string
- *               entries:
- *                 type: array
- *                 items:
- *                   type: object
- *     responses:
- *       200:
- *         description: Journal entry updated successfully
- *       400:
- *         $ref: '#/components/responses/BadRequest'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       500:
- *         $ref: '#/components/responses/ServerError'
- *   delete:
- *     summary: Delete journal entry
- *     description: Deletes a journal entry
- *     tags:
- *       - Admin | Journal Entries
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Journal entry ID
- *     responses:
- *       200:
- *         description: Journal entry deleted successfully
- *       404:
- *         $ref: '#/components/responses/NotFound'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       500:
- *         $ref: '#/components/responses/ServerError'
- */
-
+// ============================================================================
+// JOURNAL ENTRIES - MIGRATED TO NEW ENDPOINTS
+// ============================================================================
+// The legacy Admin Journal Entry endpoints have been replaced by the
+// new automated Journal Entry API at /api/v1/admin/journal-entry
+// 
+// New endpoints (with full Swagger docs in journalEntry.routes.ts):
+//   GET    /api/v1/admin/journal-entry          - List all journal entries
+//   GET    /api/v1/admin/journal-entry/:id      - Get journal entry by ID
+//   PATCH  /api/v1/admin/journal-entry/:id      - Update draft journal entry
+//   DELETE /api/v1/admin/journal-entry/:id      - Soft delete draft journal entry
+//   POST   /api/v1/admin/journal-entry/auto     - Create auto-generated journal entry
+//   POST   /api/v1/admin/journal-entry/adjustment - Create adjustment journal entry
+//   POST   /api/v1/admin/journal-entry/reversal - Create reversal journal entry
+//   POST   /api/v1/admin/journal-entry/:id/post - Post draft journal entry
+// ============================================================================

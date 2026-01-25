@@ -22,9 +22,9 @@ import staffExpenseRoutes from './routes/staff/expense.routes';
 // import staffLoanRoutes from './routes/staff/loan.routes';
 import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
-import adminJournalEntriesRoutes from './routes/admin/journal-entries';
+// Removed: adminJournalEntriesRoutes - replaced by universal /api/journal-entry routes
 import operationalTripExpenseRoutes from './routes/admin/operational-trip-expenses';
-import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
+// Removed: staffJournalEntryRoutes - replaced by universal /api/journal-entry routes
 
 // Integration routes (for microservices)
 import integrationRoutes from './routes/integration';
@@ -37,6 +37,9 @@ import syncRoutes from './routes/sync.routes';
 
 // Webhook routes (for external system lifecycle events)
 import webhookRoutes from './routes/webhook.routes';
+
+// Journal Entry routes (automated JE system)
+import journalEntryRoutes from './routes/journalEntry.routes';
 
 export const createApp = (): Application => {
   const app = express();
@@ -117,7 +120,7 @@ export const createApp = (): Application => {
   // Admin routes (Full CRUD + additional actions)
   app.use('/api/v1/admin', chartOfAccountsRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
-  app.use('/api/v1/admin/journal-entries', adminJournalEntriesRoutes);
+  app.use('/api/v1/admin/journal-entry', journalEntryRoutes);  // Automated JE system under Admin namespace
 
   // Operational Trip Expense routes (dedicated module)
   app.use('/api/operational-trip-expenses', operationalTripExpenseRoutes);
@@ -129,7 +132,7 @@ export const createApp = (): Application => {
   // app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
   // app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
   // app.use('/api/v1/staff/budgets', staffBudgetRoutes);
-  app.use('/api/v1/staff/journal-entries', staffJournalEntryRoutes);
+  // Removed: /api/v1/staff/journal-entries - replaced by /api/journal-entry
   // app.use('/api/v1/staff/assets', staffAssetRoutes);
   // app.use('/api/v1/staff/receivables', staffReceivableRoutes);
   // app.use('/api/v1/staff/payables', staffPayableRoutes);
