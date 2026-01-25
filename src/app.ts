@@ -137,7 +137,7 @@ export const createApp = (): Application => {
   app.use('/api/integration', integrationRoutes);
 
   // Finance integration routes (external system integration)
-  app.use('/finance', financeRoutes);
+  app.use('/api/finance', financeRoutes);
 
   // 404 handler
   app.use((req, res) => {
