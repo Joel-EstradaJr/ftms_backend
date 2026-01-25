@@ -32,6 +32,9 @@ import integrationRoutes from './routes/integration';
 // Finance integration routes
 import financeRoutes from './routes/finance';
 
+// Sync routes (for external data synchronization)
+import syncRoutes from './routes/sync.routes';
+
 export const createApp = (): Application => {
   const app = express();
 
@@ -134,6 +137,9 @@ export const createApp = (): Application => {
 
   // Finance integration routes (external system integration)
   app.use('/finance', financeRoutes);
+
+  // Sync routes (external data synchronization)
+  app.use('/api/sync', syncRoutes);
 
   // 404 handler
   app.use((req, res) => {

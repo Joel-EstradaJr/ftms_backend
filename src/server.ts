@@ -3,6 +3,7 @@ import { config } from './config/env';
 import { logger } from './config/logger';
 import { prisma } from './config/database';
 import { initPayrollScheduledJobs } from './jobs/payrollScheduledJobs';
+import { syncExternalData } from '../lib/sync';
 
 const app = createApp();
 
@@ -14,6 +15,20 @@ const startServer = async () => {
 
     // Initialize scheduled jobs
     initPayrollScheduledJobs();
+
+    // Sync external data on startup
+    logger.info('🔄 Starting external data synchronization...');
+    try {
+      const syncResult = await syncExternalData();
+      if (syncResult.success) {
+        logger.info('✅ External data synchronized successfully');
+      } else {
+        logger.warn('⚠️ External data sync completed with some errors - check logs for details');
+      }
+    } catch (syncError) {
+      logger.error('❌ External data sync failed:', syncError);
+      // Don't block server startup on sync failure
+    }
 
     // Start server
     const server = app.listen(config.port, () => {

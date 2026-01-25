@@ -63,6 +63,10 @@ to set your token and test authenticated endpoints.
       name: 'General | Health & Info',
       description: '🌐 Public endpoints accessible without authentication – System health checks and API information',
     },
+    {
+      name: 'General | Data Sync',
+      description: '🔄 External data synchronization – Sync employees, buses, rentals, and bus trips from external systems (HR, Inventory, Operations)',
+    },
 
     // ===========================
     // ADMIN ENDPOINTS
@@ -217,6 +221,148 @@ to set your token and test authenticated endpoints.
           message: {
             type: 'string',
             example: 'Forbidden - Insufficient permissions',
+          },
+        },
+      },
+      // Sync-specific schemas
+      SyncTableStats: {
+        type: 'object',
+        properties: {
+          success: {
+            type: 'boolean',
+            description: 'Whether the sync for this table succeeded',
+          },
+          inserted: {
+            type: 'integer',
+            description: 'Number of new records inserted',
+          },
+          updated: {
+            type: 'integer',
+            description: 'Number of existing records updated',
+          },
+          softDeleted: {
+            type: 'integer',
+            description: 'Number of records marked as deleted',
+          },
+          errors: {
+            type: 'array',
+            items: {
+              type: 'string',
+            },
+            description: 'List of error messages if any',
+          },
+        },
+      },
+      SyncSuccessResponse: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            example: 'success',
+          },
+          message: {
+            type: 'string',
+            example: 'External data synchronized successfully',
+          },
+          data: {
+            type: 'object',
+            properties: {
+              success: {
+                type: 'boolean',
+                example: true,
+              },
+              startTime: {
+                type: 'string',
+                format: 'date-time',
+              },
+              endTime: {
+                type: 'string',
+                format: 'date-time',
+              },
+              totalDurationMs: {
+                type: 'integer',
+                description: 'Total sync duration in milliseconds',
+              },
+              tables: {
+                type: 'object',
+                properties: {
+                  employee_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  bus_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  rental_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  rental_employee_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  bus_trip_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  bus_trip_employee_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      SyncPartialSuccessResponse: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            example: 'partial_success',
+          },
+          message: {
+            type: 'string',
+            example: 'External data sync completed with some errors',
+          },
+          data: {
+            type: 'object',
+            properties: {
+              success: {
+                type: 'boolean',
+                example: false,
+              },
+              startTime: {
+                type: 'string',
+                format: 'date-time',
+              },
+              endTime: {
+                type: 'string',
+                format: 'date-time',
+              },
+              totalDurationMs: {
+                type: 'integer',
+              },
+              tables: {
+                type: 'object',
+                properties: {
+                  employee_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  bus_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  rental_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  rental_employee_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  bus_trip_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                  bus_trip_employee_local: {
+                    $ref: '#/components/schemas/SyncTableStats',
+                  },
+                },
+              },
+            },
           },
         },
       },
