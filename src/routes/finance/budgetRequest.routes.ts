@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, AuthRequest } from '../../middleware/auth';
 import * as budgetRequestService from '../../services/budgetRequest.proxy.service';
+import budgetAllocationService from '../../services/budgetAllocation.service';
 import { logger } from '../../config/logger';
 
 const router = Router();
@@ -86,6 +87,38 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res: Response
             approved_amount,
             remarks,
         });
+
+        // Auto-allocate budget to department
+        if (result.success && result.data) {
+            try {
+                const requestData = result.data;
+                const amountToAllocate = Number(approved_amount) || Number(requestData.total_amount) || 0;
+
+                // Determine period (YYYY-MM)
+                let period = requestData.budget_period;
+                // If budget_period isn't present or invalid format, fall back to created_at
+                if (!period || !/^\d{4}-\d{2}$/.test(period)) {
+                    const date = new Date(requestData.created_at || new Date());
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    period = `${year}-${month}`;
+                }
+
+                if (amountToAllocate > 0 && requestData.department_id) {
+                    await budgetAllocationService.allocateBudget({
+                        department_id: requestData.department_id,
+                        amount: amountToAllocate,
+                        period: period,
+                        notes: `Auto-allocation from Approved Budget Request #${requestData.request_code}`
+                    }, req.user?.sub || 'system');
+
+                    logger.info(`Automatically allocated ${amountToAllocate} to department ${requestData.department_id} for request ${requestData.request_code}`);
+                }
+            } catch (allocError: any) {
+                logger.error(`Failed to auto-allocate budget for request ${id}:`, allocError);
+                // Continue without failing the main request
+            }
+        }
 
         res.json({
             success: true,
