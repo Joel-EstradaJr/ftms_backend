@@ -32,7 +32,7 @@ import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
 import integrationRoutes from './routes/integration';
 
 // Finance integration routes
-import financeRoutes from './routes/finance';
+import financeRoutes from './routes/finance/index';
 
 export const createApp = (): Application => {
   const app = express();
@@ -137,7 +137,16 @@ export const createApp = (): Application => {
   app.use('/api/integration', integrationRoutes);
 
   // Finance integration routes (external system integration)
+  console.log('Mounting /api/finance routes...');
+  console.log('financeRoutes type:', typeof financeRoutes);
+
+  // Direct test route
+  app.get('/api/finance-test', (req, res) => {
+    res.json({ success: true, message: 'Finance test route working' });
+  });
+
   app.use('/api/finance', financeRoutes);
+  console.log('Mounted /api/finance routes');
 
   // 404 handler
   app.use((req, res) => {
