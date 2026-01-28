@@ -12,7 +12,7 @@
  * - Handles overflow by finding the lowest available code within the type prefix
  */
 
-import { PrismaClient, normal_balance } from '@prisma/client';
+import { PrismaClient, normal_balance, receivable_frequency } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -31,20 +31,20 @@ const ACCOUNT_TYPE_CONFIG = {
  * Revenue Type seed data - MINIMAL SET
  */
 const REVENUE_TYPE_DATA = [
-  { 
-    code: 'REVT-001', 
-    name: 'Bus Trip Revenue - Boundary', 
-    description: 'Fixed daily rental income from drivers under the boundary system arrangement' 
+  {
+    code: 'REVT-001',
+    name: 'Bus Trip Revenue - Boundary',
+    description: 'Fixed daily rental income from drivers under the boundary system arrangement'
   },
-  { 
-    code: 'REVT-002', 
-    name: 'Bus Trip Revenue - Percentage', 
-    description: 'Commission-based income calculated as a percentage of trip earnings' 
+  {
+    code: 'REVT-002',
+    name: 'Bus Trip Revenue - Percentage',
+    description: 'Commission-based income calculated as a percentage of trip earnings'
   },
-  { 
-    code: 'REVT-003', 
-    name: 'Other Revenue', 
-    description: 'Other miscellaneous revenue sources' 
+  {
+    code: 'REVT-003',
+    name: 'Other Revenue',
+    description: 'Other miscellaneous revenue sources'
   },
 ];
 
@@ -52,20 +52,20 @@ const REVENUE_TYPE_DATA = [
  * Expense Type seed data - MINIMAL SET
  */
 const EXPENSE_TYPE_DATA = [
-  { 
-    code: 'EXPT-001', 
-    name: 'Operational', 
-    description: 'Day-to-day operational expenses (fuel, toll, parking, terminal fees)' 
+  {
+    code: 'EXPT-001',
+    name: 'Operational',
+    description: 'Day-to-day operational expenses (fuel, toll, parking, terminal fees)'
   },
-  { 
-    code: 'EXPT-002', 
-    name: 'Personnel', 
-    description: 'Salaries, wages, allowances, and other employee-related expenses' 
+  {
+    code: 'EXPT-002',
+    name: 'Personnel',
+    description: 'Salaries, wages, allowances, and other employee-related expenses'
   },
-  { 
-    code: 'EXPT-003', 
-    name: 'Administrative', 
-    description: 'Office supplies, utilities, internet, and administrative costs' 
+  {
+    code: 'EXPT-003',
+    name: 'Administrative',
+    description: 'Office supplies, utilities, internet, and administrative costs'
   },
 ];
 
@@ -78,27 +78,27 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     { name: 'Cash on Hand', description: 'Physical cash held in the office', customSuffix: '000' },
     { name: 'Bank Account', description: 'Primary checking account', customSuffix: '005' },
     { name: 'E-Wallet', description: 'Digital wallet for online transactions', customSuffix: '010' },
-    
+
     // RECEIVABLES
     { name: 'Accounts Receivable - Drivers', description: 'Amounts owed by drivers for shortages', customSuffix: '100' },
     { name: 'Accounts Receivable - Conductors', description: 'Amounts owed by conductors for shortages', customSuffix: '105' },
     { name: 'Accounts Receivable - Other Employees', description: 'Other employee receivables', customSuffix: '110' },
   ],
-  
+
   Liability: [
     { name: 'Accounts Payable - Suppliers', description: 'Amounts owed to suppliers', customSuffix: '000' },
     { name: 'Accounts Payable - Employees', description: 'Salaries and wages payable', customSuffix: '005' },
   ],
-  
+
   Revenue: [
     // BUS TRIP REVENUE
     { name: 'Trip Revenue - Boundary', description: 'Fixed daily rental from drivers under boundary system', customSuffix: '000' },
     { name: 'Trip Revenue - Percentage', description: 'Percentage-based trip revenue', customSuffix: '005' },
-    
+
     // OTHER REVENUE
     { name: 'Other Revenue', description: 'Miscellaneous income sources', customSuffix: '010' },
   ],
-  
+
   Expense: [
     // OPERATIONAL EXPENSES
     { name: 'Fuel Expense', description: 'Diesel and other fuel costs for buses', customSuffix: '000' },
@@ -106,13 +106,13 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     { name: 'Parking Expense', description: 'Parking fees', customSuffix: '010' },
     { name: 'Terminal Fees', description: 'Bus terminal and station fees', customSuffix: '015' },
     { name: 'Maintenance & Repairs', description: 'Vehicle maintenance and repairs', customSuffix: '020' },
-    
+
     // PERSONNEL EXPENSES
     { name: 'Driver - Conductor Boundary Share Expense', description: 'Payment to drivers/conductors under boundary system', customSuffix: '100' },
     { name: 'Driver - Conductor Percentage Expense', description: 'Payment to drivers/conductors under percentage system', customSuffix: '105' },
     { name: 'Driver/Conductor Allowance', description: 'Daily allowances for staff', customSuffix: '110' },
     { name: 'Salaries & Wages', description: 'Regular employee salaries', customSuffix: '115' },
-    
+
     // ADMINISTRATIVE & OTHER
     { name: 'Bad Debt Expense', description: 'Uncollectible accounts written off', customSuffix: '200' },
     { name: 'Office Supplies', description: 'Stationery and office supplies', customSuffix: '205' },
@@ -361,6 +361,58 @@ async function seedChartOfAccounts() {
 }
 
 /**
+ * Seeds default system configuration into the database
+ * Only creates config if no active configuration exists
+ */
+async function seedSystemConfiguration() {
+  console.log('🌱 Seeding System Configuration...');
+
+  // Check if an active config already exists
+  const existingConfig = await prisma.system_configuration.findFirst({
+    where: { is_active: true, is_deleted: false },
+  });
+
+  if (existingConfig) {
+    console.log(`  ⏭️  Active system configuration already exists (ID: ${existingConfig.id}, Code: ${existingConfig.config_code})`);
+    console.log(`      - Minimum Wage: ₱${existingConfig.minimum_wage}`);
+    console.log(`      - Duration to Receivable: ${existingConfig.duration_to_receivable_hours} hours`);
+    console.log(`      - Receivable Due Date: ${existingConfig.receivable_due_date_days} days`);
+    console.log(`      - Driver Share: ${existingConfig.driver_share_percentage}%`);
+    console.log(`      - Conductor Share: ${existingConfig.conductor_share_percentage}%`);
+    console.log(`      - Default Frequency: ${existingConfig.default_frequency}`);
+    console.log(`      - Default # of Payments: ${existingConfig.default_number_of_payments}`);
+    console.log('');
+    return;
+  }
+
+  // Create default configuration
+  const config = await prisma.system_configuration.create({
+    data: {
+      config_code: 'DEFAULT',
+      minimum_wage: 600.00,
+      duration_to_receivable_hours: 72,  // 3 days
+      receivable_due_date_days: 30,
+      driver_share_percentage: 50.00,
+      conductor_share_percentage: 50.00,
+      default_frequency: 'WEEKLY' as receivable_frequency,
+      default_number_of_payments: 3,
+      is_active: true,
+      created_by: 'system',
+    },
+  });
+
+  console.log(`  ✅ Created System Configuration: ${config.config_code} (ID: ${config.id})`);
+  console.log(`      - Minimum Wage: ₱${config.minimum_wage}`);
+  console.log(`      - Duration to Receivable: ${config.duration_to_receivable_hours} hours`);
+  console.log(`      - Receivable Due Date: ${config.receivable_due_date_days} days`);
+  console.log(`      - Driver Share: ${config.driver_share_percentage}%`);
+  console.log(`      - Conductor Share: ${config.conductor_share_percentage}%`);
+  console.log(`      - Default Frequency: ${config.default_frequency}`);
+  console.log(`      - Default # of Payments: ${config.default_number_of_payments}`);
+  console.log('');
+}
+
+/**
  * Main seeder function
  */
 async function main() {
@@ -373,6 +425,7 @@ async function main() {
     await seedExpenseTypes();
     await seedRevenueTypes();
     await seedChartOfAccounts();
+    await seedSystemConfiguration();
 
     console.log('✨ Seeding completed successfully!\n');
   } catch (error) {

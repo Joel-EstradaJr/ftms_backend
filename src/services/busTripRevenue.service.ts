@@ -14,6 +14,7 @@ import {
     RevenueListFilters,
     CreateRevenueDTO,
     UpdateRevenueDTO,
+    UpdateReceivableDTO,
     RecordPaymentDTO,
     UpdateConfigDTO,
     UnsyncedTripsFilters,
@@ -649,7 +650,6 @@ export class BusTripRevenueService {
             bus_details: {
                 date_assigned: trip.date_assigned?.toISOString() ?? null,
                 body_number: trip.bus?.body_number ?? null,
-                body_builder: null, // Not available in schema
                 license_plate: trip.bus?.license_plate ?? null,
                 bus_type: trip.bus?.type ?? null,
                 route: trip.bus_route ?? null,
@@ -711,6 +711,8 @@ export class BusTripRevenueService {
                         balance: Number(revenue.driver_receivable.balance),
                         status: revenue.driver_receivable.status,
                         due_date: revenue.driver_receivable.due_date?.toISOString() ?? null,
+                        frequency: revenue.driver_receivable.frequency,
+                        number_of_payments: revenue.driver_receivable.number_of_payments,
                         installment_schedules: revenue.driver_receivable.installment_schedule.map((s) => ({
                             id: s.id,
                             installment_number: s.installment_number,
@@ -733,6 +735,8 @@ export class BusTripRevenueService {
                         balance: Number(revenue.conductor_receivable.balance),
                         status: revenue.conductor_receivable.status,
                         due_date: revenue.conductor_receivable.due_date?.toISOString() ?? null,
+                        frequency: revenue.conductor_receivable.frequency,
+                        number_of_payments: revenue.conductor_receivable.number_of_payments,
                         installment_schedules: revenue.conductor_receivable.installment_schedule.map((s) => ({
                             id: s.id,
                             installment_number: s.installment_number,
@@ -876,6 +880,8 @@ export class BusTripRevenueService {
                             total_amount: driverShare,
                             installment_start_date: dateRecorded,
                             due_date: receivableDueDate,
+                            frequency: config.default_frequency as receivable_frequency,
+                            number_of_payments: config.default_number_of_payments,
                             status: 'PENDING',
                             paid_amount: new Prisma.Decimal(0),
                             balance: driverShare,
@@ -907,6 +913,8 @@ export class BusTripRevenueService {
                             total_amount: conductorShare,
                             installment_start_date: dateRecorded,
                             due_date: receivableDueDate,
+                            frequency: config.default_frequency as receivable_frequency,
+                            number_of_payments: config.default_number_of_payments,
                             status: 'PENDING',
                             paid_amount: new Prisma.Decimal(0),
                             balance: conductorShare,
@@ -1062,7 +1070,13 @@ export class BusTripRevenueService {
     // --------------------------------------------------------------------------
 
     /**
-     * Update revenue (limited editable fields)
+     * Update revenue record with full Edit Modal support.
+     * 
+     * Handles:
+     * - Revenue field updates (date_recorded, amount, description, date_expected)
+     * - Status management (remittance_status, delete_receivables)
+     * - Receivable creation/updates (driverReceivable, conductorReceivable)
+     * - Installment schedule regeneration when frequency/number_of_payments change
      */
     async updateRevenue(
         id: number,
@@ -1073,51 +1087,316 @@ export class BusTripRevenueService {
     ): Promise<RevenueDetailResponse> {
         logger.info(`[BusTripRevenueService] Updating revenue ID: ${id}`);
 
+        // Fetch existing revenue with all relations
         const existing = await prisma.revenue.findUnique({
             where: { id },
-            include: { bus_trip: true },
+            include: {
+                bus_trip: {
+                    include: {
+                        bus: true,
+                        employees: {
+                            include: { employee: true },
+                        },
+                    },
+                },
+                driver_receivable: {
+                    include: { installment_schedule: true },
+                },
+                conductor_receivable: {
+                    include: { installment_schedule: true },
+                },
+            },
         });
 
         if (!existing || existing.is_deleted) {
             throw new NotFoundError(`Revenue record with ID ${id} not found`);
         }
 
-        const updateData: any = {
-            updated_by: userId,
-        };
+        // Execute all updates in a transaction
+        const result = await prisma.$transaction(async (tx) => {
+            // =================================================================
+            // 1. Handle delete_receivables flag (revert to PAID status)
+            // =================================================================
+            if (data.delete_receivables === true) {
+                logger.info(`[BusTripRevenueService] Deleting receivables for revenue ${id}`);
 
-        if (data.date_recorded !== undefined) {
-            updateData.date_recorded = new Date(data.date_recorded);
-        }
-        if (data.amount !== undefined) {
-            updateData.amount = new Prisma.Decimal(data.amount);
-        }
-        if (data.description !== undefined) {
-            updateData.description = data.description;
-        }
+                // Delete driver receivable and its schedules
+                if (existing.driver_receivable_id) {
+                    await tx.revenue_installment_schedule.deleteMany({
+                        where: { receivable_id: existing.driver_receivable_id },
+                    });
+                    await tx.receivable.delete({
+                        where: { id: existing.driver_receivable_id },
+                    });
+                }
 
-        // Recalculate status if amount changed
-        if (data.amount !== undefined && existing.bus_trip) {
-            const expectedRemittance = this.calculateExpectedRemittance(
-                existing.bus_trip.assignment_type,
-                existing.bus_trip.trip_revenue,
-                existing.bus_trip.assignment_value,
-                existing.bus_trip.trip_fuel_expense
-            );
-            const newAmount = new Prisma.Decimal(data.amount);
-            updateData.remittance_status = newAmount.greaterThanOrEqualTo(expectedRemittance) ? 'PAID' : 'PARTIALLY_PAID';
-        }
+                // Delete conductor receivable and its schedules
+                if (existing.conductor_receivable_id) {
+                    await tx.revenue_installment_schedule.deleteMany({
+                        where: { receivable_id: existing.conductor_receivable_id },
+                    });
+                    await tx.receivable.delete({
+                        where: { id: existing.conductor_receivable_id },
+                    });
+                }
 
-        const updated = await prisma.revenue.update({
-            where: { id },
-            data: updateData,
+                // Clear the foreign keys
+                await tx.revenue.update({
+                    where: { id },
+                    data: {
+                        driver_receivable_id: null,
+                        conductor_receivable_id: null,
+                        remittance_status: 'PAID',
+                        updated_by: userId,
+                    },
+                });
+            }
+
+            // =================================================================
+            // 2. Handle driver receivable update/creation
+            // =================================================================
+            let newDriverReceivableId: number | null = existing.driver_receivable_id;
+
+            if (data.driverReceivable) {
+                const driverData = data.driverReceivable;
+
+                if (existing.driver_receivable_id) {
+                    // Update existing driver receivable
+                    const updateReceivableData: any = { updated_by: userId };
+
+                    if (driverData.debtor_name !== undefined) updateReceivableData.debtor_name = driverData.debtor_name;
+                    if (driverData.description !== undefined) updateReceivableData.description = driverData.description;
+                    if (driverData.total_amount !== undefined) {
+                        updateReceivableData.total_amount = new Prisma.Decimal(driverData.total_amount);
+                        updateReceivableData.balance = new Prisma.Decimal(driverData.total_amount);
+                    }
+                    if (driverData.due_date !== undefined) updateReceivableData.due_date = new Date(driverData.due_date);
+                    if (driverData.employee_number !== undefined) updateReceivableData.employee_number = driverData.employee_number;
+                    if (driverData.frequency !== undefined) updateReceivableData.frequency = driverData.frequency;
+                    if (driverData.number_of_payments !== undefined) updateReceivableData.number_of_payments = driverData.number_of_payments;
+
+                    await tx.receivable.update({
+                        where: { id: existing.driver_receivable_id },
+                        data: updateReceivableData,
+                    });
+
+                    // Regenerate installment schedules if frequency or number_of_payments changed
+                    if (driverData.frequency !== undefined || driverData.number_of_payments !== undefined || driverData.installments) {
+                        await this.regenerateInstallmentSchedules(
+                            tx,
+                            existing.driver_receivable_id,
+                            driverData,
+                            existing.driver_receivable,
+                            userId
+                        );
+                    }
+                } else {
+                    // Create new driver receivable
+                    const driverReceivableCode = await this.generateReceivableCode(0);
+                    const config = await this.getSystemConfig();
+
+                    const driverReceivable = await tx.receivable.create({
+                        data: {
+                            code: driverReceivableCode,
+                            debtor_name: driverData.debtor_name || 'Unknown Driver',
+                            employee_number: driverData.employee_number || null,
+                            description: driverData.description || `Driver receivable for revenue ${existing.code}`,
+                            total_amount: new Prisma.Decimal(driverData.total_amount || 0),
+                            installment_start_date: new Date(),
+                            due_date: driverData.due_date ? new Date(driverData.due_date) : null,
+                            frequency: (driverData.frequency as receivable_frequency) || config.default_frequency as receivable_frequency,
+                            number_of_payments: driverData.number_of_payments || config.default_number_of_payments,
+                            status: 'PENDING',
+                            paid_amount: new Prisma.Decimal(0),
+                            balance: new Prisma.Decimal(driverData.total_amount || 0),
+                            created_by: userId,
+                        },
+                    });
+                    newDriverReceivableId = driverReceivable.id;
+
+                    // Generate installment schedules
+                    if (driverData.installments && driverData.installments.length > 0) {
+                        // Use provided installments
+                        for (const inst of driverData.installments) {
+                            await tx.revenue_installment_schedule.create({
+                                data: {
+                                    receivable_id: driverReceivable.id,
+                                    installment_number: inst.installment_number,
+                                    due_date: new Date(inst.due_date),
+                                    amount_due: new Prisma.Decimal(inst.amount_due),
+                                    amount_paid: new Prisma.Decimal(inst.amount_paid || 0),
+                                    balance: new Prisma.Decimal(inst.balance || inst.amount_due),
+                                    status: 'PENDING',
+                                    created_by: userId,
+                                },
+                            });
+                        }
+                    } else {
+                        // Auto-generate installments
+                        await this.generateInstallmentSchedules(
+                            tx,
+                            driverReceivable.id,
+                            new Prisma.Decimal(driverData.total_amount || 0),
+                            new Date(),
+                            driverData.number_of_payments || config.default_number_of_payments,
+                            (driverData.frequency as receivable_frequency) || config.default_frequency as receivable_frequency,
+                            userId
+                        );
+                    }
+                }
+            }
+
+            // =================================================================
+            // 3. Handle conductor receivable update/creation
+            // =================================================================
+            let newConductorReceivableId: number | null = existing.conductor_receivable_id;
+
+            if (data.conductorReceivable) {
+                const conductorData = data.conductorReceivable;
+
+                if (existing.conductor_receivable_id) {
+                    // Update existing conductor receivable
+                    const updateReceivableData: any = { updated_by: userId };
+
+                    if (conductorData.debtor_name !== undefined) updateReceivableData.debtor_name = conductorData.debtor_name;
+                    if (conductorData.description !== undefined) updateReceivableData.description = conductorData.description;
+                    if (conductorData.total_amount !== undefined) {
+                        updateReceivableData.total_amount = new Prisma.Decimal(conductorData.total_amount);
+                        updateReceivableData.balance = new Prisma.Decimal(conductorData.total_amount);
+                    }
+                    if (conductorData.due_date !== undefined) updateReceivableData.due_date = new Date(conductorData.due_date);
+                    if (conductorData.employee_number !== undefined) updateReceivableData.employee_number = conductorData.employee_number;
+                    if (conductorData.frequency !== undefined) updateReceivableData.frequency = conductorData.frequency;
+                    if (conductorData.number_of_payments !== undefined) updateReceivableData.number_of_payments = conductorData.number_of_payments;
+
+                    await tx.receivable.update({
+                        where: { id: existing.conductor_receivable_id },
+                        data: updateReceivableData,
+                    });
+
+                    // Regenerate installment schedules if frequency or number_of_payments changed
+                    if (conductorData.frequency !== undefined || conductorData.number_of_payments !== undefined || conductorData.installments) {
+                        await this.regenerateInstallmentSchedules(
+                            tx,
+                            existing.conductor_receivable_id,
+                            conductorData,
+                            existing.conductor_receivable,
+                            userId
+                        );
+                    }
+                } else {
+                    // Create new conductor receivable
+                    const conductorReceivableCode = await this.generateReceivableCode(1);
+                    const config = await this.getSystemConfig();
+
+                    const conductorReceivable = await tx.receivable.create({
+                        data: {
+                            code: conductorReceivableCode,
+                            debtor_name: conductorData.debtor_name || 'Unknown Conductor',
+                            employee_number: conductorData.employee_number || null,
+                            description: conductorData.description || `Conductor receivable for revenue ${existing.code}`,
+                            total_amount: new Prisma.Decimal(conductorData.total_amount || 0),
+                            installment_start_date: new Date(),
+                            due_date: conductorData.due_date ? new Date(conductorData.due_date) : null,
+                            frequency: (conductorData.frequency as receivable_frequency) || config.default_frequency as receivable_frequency,
+                            number_of_payments: conductorData.number_of_payments || config.default_number_of_payments,
+                            status: 'PENDING',
+                            paid_amount: new Prisma.Decimal(0),
+                            balance: new Prisma.Decimal(conductorData.total_amount || 0),
+                            created_by: userId,
+                        },
+                    });
+                    newConductorReceivableId = conductorReceivable.id;
+
+                    // Generate installment schedules
+                    if (conductorData.installments && conductorData.installments.length > 0) {
+                        // Use provided installments
+                        for (const inst of conductorData.installments) {
+                            await tx.revenue_installment_schedule.create({
+                                data: {
+                                    receivable_id: conductorReceivable.id,
+                                    installment_number: inst.installment_number,
+                                    due_date: new Date(inst.due_date),
+                                    amount_due: new Prisma.Decimal(inst.amount_due),
+                                    amount_paid: new Prisma.Decimal(inst.amount_paid || 0),
+                                    balance: new Prisma.Decimal(inst.balance || inst.amount_due),
+                                    status: 'PENDING',
+                                    created_by: userId,
+                                },
+                            });
+                        }
+                    } else {
+                        // Auto-generate installments
+                        await this.generateInstallmentSchedules(
+                            tx,
+                            conductorReceivable.id,
+                            new Prisma.Decimal(conductorData.total_amount || 0),
+                            new Date(),
+                            conductorData.number_of_payments || config.default_number_of_payments,
+                            (conductorData.frequency as receivable_frequency) || config.default_frequency as receivable_frequency,
+                            userId
+                        );
+                    }
+                }
+            }
+
+            // =================================================================
+            // 4. Update revenue record
+            // =================================================================
+            const updateRevenueData: any = {
+                updated_by: userId,
+            };
+
+            if (data.date_recorded !== undefined) {
+                updateRevenueData.date_recorded = new Date(data.date_recorded);
+            }
+            if (data.amount !== undefined) {
+                updateRevenueData.amount = new Prisma.Decimal(data.amount);
+            }
+            if (data.description !== undefined) {
+                updateRevenueData.description = data.description;
+            }
+            if (data.date_expected !== undefined) {
+                updateRevenueData.date_expected = new Date(data.date_expected);
+            }
+
+            // Update receivable foreign keys if changed
+            if (newDriverReceivableId !== existing.driver_receivable_id) {
+                updateRevenueData.driver_receivable_id = newDriverReceivableId;
+            }
+            if (newConductorReceivableId !== existing.conductor_receivable_id) {
+                updateRevenueData.conductor_receivable_id = newConductorReceivableId;
+            }
+
+            // Handle remittance_status
+            if (data.remittance_status !== undefined) {
+                updateRevenueData.remittance_status = data.remittance_status;
+            } else if (data.amount !== undefined && existing.bus_trip && !data.delete_receivables) {
+                // Auto-calculate status based on amount if not explicitly provided
+                const expectedRemittance = this.calculateExpectedRemittance(
+                    existing.bus_trip.assignment_type,
+                    existing.bus_trip.trip_revenue,
+                    existing.bus_trip.assignment_value,
+                    existing.bus_trip.trip_fuel_expense
+                );
+                const newAmount = new Prisma.Decimal(data.amount);
+                updateRevenueData.remittance_status = newAmount.greaterThanOrEqualTo(expectedRemittance) ? 'PAID' : 'PARTIALLY_PAID';
+            }
+
+            const updated = await tx.revenue.update({
+                where: { id },
+                data: updateRevenueData,
+            });
+
+            return updated;
         });
 
+        // Log audit
         await AuditLogClient.logUpdate(
             'Bus Trip Revenue',
             { id, code: existing.code },
             existing,
-            updated,
+            result,
             { id: userId, name: userInfo?.username, role: userInfo?.role },
             req
         );
@@ -1126,47 +1405,138 @@ export class BusTripRevenueService {
         return this.getRevenueById(id);
     }
 
+    /**
+     * Helper method to regenerate installment schedules for a receivable.
+     * Used when frequency or number_of_payments change during edit.
+     */
+    private async regenerateInstallmentSchedules(
+        tx: Prisma.TransactionClient,
+        receivableId: number,
+        updateData: UpdateReceivableDTO,
+        existingReceivable: any,
+        userId: string
+    ): Promise<void> {
+        // If explicit installments are provided, use them
+        if (updateData.installments && updateData.installments.length > 0) {
+            // Delete existing schedules
+            await tx.revenue_installment_schedule.deleteMany({
+                where: { receivable_id: receivableId },
+            });
+
+            // Create new schedules from provided data
+            for (const inst of updateData.installments) {
+                await tx.revenue_installment_schedule.create({
+                    data: {
+                        receivable_id: receivableId,
+                        installment_number: inst.installment_number,
+                        due_date: new Date(inst.due_date),
+                        amount_due: new Prisma.Decimal(inst.amount_due),
+                        amount_paid: new Prisma.Decimal(inst.amount_paid || 0),
+                        balance: new Prisma.Decimal(inst.balance || inst.amount_due),
+                        status: 'PENDING',
+                        created_by: userId,
+                    },
+                });
+            }
+        } else if (updateData.frequency !== undefined || updateData.number_of_payments !== undefined) {
+            // Auto-regenerate based on new frequency/number_of_payments
+            // Only regenerate if no payments have been made
+            const hasPayments = existingReceivable?.installment_schedule?.some(
+                (s: any) => s.amount_paid && Number(s.amount_paid) > 0
+            );
+
+            if (!hasPayments) {
+                // Delete existing schedules
+                await tx.revenue_installment_schedule.deleteMany({
+                    where: { receivable_id: receivableId },
+                });
+
+                // Get total amount (use updated or existing)
+                const totalAmount = updateData.total_amount
+                    ? new Prisma.Decimal(updateData.total_amount)
+                    : existingReceivable?.total_amount || new Prisma.Decimal(0);
+
+                const frequency = (updateData.frequency as receivable_frequency) || existingReceivable?.frequency || 'WEEKLY';
+                const numberOfPayments = updateData.number_of_payments || existingReceivable?.number_of_payments || 3;
+                const startDate = existingReceivable?.installment_start_date || new Date();
+
+                // Generate new schedules
+                await this.generateInstallmentSchedules(
+                    tx,
+                    receivableId,
+                    totalAmount,
+                    new Date(startDate),
+                    numberOfPayments,
+                    frequency as receivable_frequency,
+                    userId
+                );
+            } else {
+                logger.warn(`[BusTripRevenueService] Cannot regenerate schedules for receivable ${receivableId} - payments already made`);
+            }
+        }
+    }
+
     // --------------------------------------------------------------------------
     // RECORD RECEIVABLE PAYMENT
     // --------------------------------------------------------------------------
 
     /**
-     * Record installment payment
+     * Record installment payment with cascade support.
+     * 
+     * If the payment amount exceeds the current installment balance,
+     * excess is automatically cascaded to subsequent unpaid installments.
+     * Only rejects if payment exceeds total receivable balance.
      */
     async recordReceivablePayment(
         data: RecordPaymentDTO,
         userId: string,
         userInfo?: any,
         req?: any
-    ): Promise<{ success: boolean; message: string; installment: any; receivable: any }> {
-        logger.info(`[BusTripRevenueService] Recording payment for installment: ${data.installment_id}`);
+    ): Promise<{
+        success: boolean;
+        message: string;
+        installments_updated: Array<{
+            id: number;
+            installment_number: number;
+            amount_applied: number;
+            amount_due: number;
+            amount_paid: number;
+            balance: number;
+            status: string;
+        }>;
+        receivable: any;
+        total_applied: number;
+    }> {
+        logger.info(`[BusTripRevenueService] Recording payment for installment: ${data.installment_id}, amount: ${data.amount_paid}`);
 
         // Validate amount
         if (data.amount_paid <= 0) {
             throw new ValidationError('Payment amount must be greater than 0');
         }
 
-        // Get installment with receivable
-        const installment = await prisma.revenue_installment_schedule.findUnique({
+        // Get starting installment with receivable
+        const startingInstallment = await prisma.revenue_installment_schedule.findUnique({
             where: { id: data.installment_id },
             include: {
                 receivable: true,
             },
         });
 
-        if (!installment || installment.is_deleted) {
+        if (!startingInstallment || startingInstallment.is_deleted) {
             throw new NotFoundError(`Installment with ID ${data.installment_id} not found`);
         }
 
-        if (installment.status === 'PAID') {
+        if (startingInstallment.status === 'PAID') {
             throw new BadRequestError('This installment has already been fully paid');
         }
 
+        const receivable = startingInstallment.receivable;
         const amountPaid = new Prisma.Decimal(data.amount_paid);
 
-        if (amountPaid.greaterThan(installment.balance)) {
+        // Validate against total receivable balance (not just single installment)
+        if (amountPaid.greaterThan(receivable.balance)) {
             throw new ValidationError(
-                `Payment amount (${data.amount_paid}) exceeds installment balance (${installment.balance})`
+                `Payment amount (${data.amount_paid}) exceeds total receivable balance (${receivable.balance})`
             );
         }
 
@@ -1176,8 +1546,8 @@ export class BusTripRevenueService {
         const revenue = await prisma.revenue.findFirst({
             where: {
                 OR: [
-                    { driver_receivable_id: installment.receivable_id },
-                    { conductor_receivable_id: installment.receivable_id },
+                    { driver_receivable_id: receivable.id },
+                    { conductor_receivable_id: receivable.id },
                 ],
                 is_deleted: false,
             },
@@ -1187,38 +1557,92 @@ export class BusTripRevenueService {
             throw new NotFoundError('Related revenue record not found');
         }
 
-        // Execute in transaction
+        // Get all unpaid/partially paid installments for this receivable, ordered by installment number
+        const allInstallments = await prisma.revenue_installment_schedule.findMany({
+            where: {
+                receivable_id: receivable.id,
+                is_deleted: false,
+                status: { in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] },
+            },
+            orderBy: { installment_number: 'asc' },
+        });
+
+        // Find the starting installment index
+        const startIndex = allInstallments.findIndex(inst => inst.id === data.installment_id);
+        if (startIndex === -1) {
+            throw new ValidationError('Starting installment is no longer available for payment');
+        }
+
+        // Execute cascade payment in transaction
         const result = await prisma.$transaction(async (tx) => {
-            // Create payment record
-            const payment = await tx.revenue_installment_payment.create({
-                data: {
-                    installment_id: data.installment_id,
-                    revenue_id: revenue.id,
-                    amount_paid: amountPaid,
-                    payment_date: paymentDate,
-                    payment_method: data.payment_method,
-                    payment_reference: data.payment_reference ?? null,
-                    created_by: userId,
-                },
-            });
+            let remainingAmount = amountPaid;
+            const updatedInstallments: Array<{
+                id: number;
+                installment_number: number;
+                amount_applied: number;
+                amount_due: number;
+                amount_paid: number;
+                balance: number;
+                status: string;
+            }> = [];
+            const paymentRecords: any[] = [];
 
-            // Update installment
-            const newInstallmentPaid = installment.amount_paid.add(amountPaid);
-            const newInstallmentBalance = installment.balance.sub(amountPaid);
-            const newInstallmentStatus = newInstallmentBalance.lessThanOrEqualTo(0) ? 'PAID' : 'PARTIALLY_PAID';
+            // Start from the selected installment and cascade forward
+            for (let i = startIndex; i < allInstallments.length && remainingAmount.greaterThan(0); i++) {
+                const installment = allInstallments[i];
+                const installmentBalance = installment.balance;
 
-            const updatedInstallment = await tx.revenue_installment_schedule.update({
-                where: { id: data.installment_id },
-                data: {
-                    amount_paid: newInstallmentPaid,
-                    balance: newInstallmentBalance,
-                    status: newInstallmentStatus,
-                    updated_by: userId,
-                },
-            });
+                // Calculate amount to apply to this installment
+                const amountToApply = remainingAmount.greaterThan(installmentBalance)
+                    ? installmentBalance
+                    : remainingAmount;
 
-            // Update receivable
-            const receivable = installment.receivable;
+                if (amountToApply.lessThanOrEqualTo(0)) continue;
+
+                // Create payment record
+                const payment = await tx.revenue_installment_payment.create({
+                    data: {
+                        installment_id: installment.id,
+                        revenue_id: revenue.id,
+                        amount_paid: amountToApply,
+                        payment_date: paymentDate,
+                        payment_method: data.payment_method,
+                        payment_reference: data.payment_reference ?? null,
+                        created_by: userId,
+                    },
+                });
+                paymentRecords.push(payment);
+
+                // Update installment
+                const newInstallmentPaid = installment.amount_paid.add(amountToApply);
+                const newInstallmentBalance = installment.balance.sub(amountToApply);
+                const newInstallmentStatus = newInstallmentBalance.lessThanOrEqualTo(0) ? 'PAID' : 'PARTIALLY_PAID';
+
+                const updatedInstallment = await tx.revenue_installment_schedule.update({
+                    where: { id: installment.id },
+                    data: {
+                        amount_paid: newInstallmentPaid,
+                        balance: newInstallmentBalance,
+                        status: newInstallmentStatus,
+                        updated_by: userId,
+                    },
+                });
+
+                updatedInstallments.push({
+                    id: updatedInstallment.id,
+                    installment_number: updatedInstallment.installment_number,
+                    amount_applied: Number(amountToApply),
+                    amount_due: Number(updatedInstallment.amount_due),
+                    amount_paid: Number(updatedInstallment.amount_paid),
+                    balance: Number(updatedInstallment.balance),
+                    status: updatedInstallment.status,
+                });
+
+                // Reduce remaining amount
+                remainingAmount = remainingAmount.sub(amountToApply);
+            }
+
+            // Update receivable totals
             const newReceivablePaid = receivable.paid_amount.add(amountPaid);
             const newReceivableBalance = receivable.balance.sub(amountPaid);
             const newReceivableStatus: receivable_status = newReceivableBalance.lessThanOrEqualTo(0)
@@ -1237,19 +1661,22 @@ export class BusTripRevenueService {
                 },
             });
 
-            return { payment, updatedInstallment, updatedReceivable };
+            return { paymentRecords, updatedInstallments, updatedReceivable };
         });
 
-        // Create journal entry for the payment
+        // Create journal entries for all payment records
         const assetAccountCode = this.getAssetAccountCode(data.payment_method);
-        const receivableAccountCode = revenue.driver_receivable_id === installment.receivable_id
+        const receivableAccountCode = revenue.driver_receivable_id === receivable.id
             ? ACCOUNT_CODES.DRIVER_RECEIVABLE
             : ACCOUNT_CODES.CONDUCTOR_RECEIVABLE;
 
+        // Create a single journal entry for the total payment
         const jePayload: CreateAutoJournalEntryInput = {
             module: 'Receivable Payment',
-            reference_id: `${revenue.code}-PAY-${result.payment.id}`,
-            description: `Receivable payment - ${installment.receivable.code} - Installment #${installment.installment_number}`,
+            reference_id: `${revenue.code}-PAY-${result.paymentRecords[0]?.id}`,
+            description: result.updatedInstallments.length > 1
+                ? `Receivable payment - ${receivable.code} - Installments #${result.updatedInstallments.map(i => i.installment_number).join(', #')}`
+                : `Receivable payment - ${receivable.code} - Installment #${startingInstallment.installment_number}`,
             date: paymentDate.toISOString().split('T')[0],
             entries: [
                 {
@@ -1274,34 +1701,34 @@ export class BusTripRevenueService {
             req
         );
 
-        // Link journal entry to payment
-        await prisma.revenue_installment_payment.update({
-            where: { id: result.payment.id },
-            data: { journal_entry_id: journalEntry.id },
-        });
+        // Link journal entry to first payment record
+        if (result.paymentRecords.length > 0) {
+            await prisma.revenue_installment_payment.update({
+                where: { id: result.paymentRecords[0].id },
+                data: { journal_entry_id: journalEntry.id },
+            });
+        }
 
         // Audit log
         await AuditLogClient.logCreate(
             'Receivable Payment',
-            { id: result.payment.id },
-            result.payment,
+            { id: result.paymentRecords[0]?.id },
+            {
+                installments_updated: result.updatedInstallments.length,
+                total_applied: Number(amountPaid),
+            },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
             req
         );
 
-        logger.info(`[BusTripRevenueService] Recorded payment for installment: ${data.installment_id}`);
+        logger.info(`[BusTripRevenueService] Recorded cascade payment for ${result.updatedInstallments.length} installment(s), total: ${amountPaid}`);
 
         return {
             success: true,
-            message: 'Payment recorded successfully',
-            installment: {
-                id: result.updatedInstallment.id,
-                installment_number: result.updatedInstallment.installment_number,
-                amount_due: Number(result.updatedInstallment.amount_due),
-                amount_paid: Number(result.updatedInstallment.amount_paid),
-                balance: Number(result.updatedInstallment.balance),
-                status: result.updatedInstallment.status,
-            },
+            message: result.updatedInstallments.length > 1
+                ? `Payment of ${data.amount_paid} applied across ${result.updatedInstallments.length} installments`
+                : 'Payment recorded successfully',
+            installments_updated: result.updatedInstallments,
             receivable: {
                 id: result.updatedReceivable.id,
                 code: result.updatedReceivable.code,
@@ -1310,6 +1737,7 @@ export class BusTripRevenueService {
                 balance: Number(result.updatedReceivable.balance),
                 status: result.updatedReceivable.status,
             },
+            total_applied: Number(amountPaid),
         };
     }
 

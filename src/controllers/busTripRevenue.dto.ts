@@ -56,10 +56,52 @@ export interface RecordPaymentDTO {
 // UPDATE DTOs
 // ============================================================================
 
+/**
+ * DTO for updating a receivable associated with a revenue record.
+ * Used when editing driver/conductor receivables via the Edit Modal.
+ */
+export interface UpdateReceivableDTO {
+    debtor_name?: string;
+    description?: string;
+    total_amount?: number;
+    due_date?: string;
+    employee_id?: string;
+    employee_number?: string;
+    frequency?: receivable_frequency;  // NEW: DAILY, WEEKLY, BIWEEKLY, MONTHLY
+    number_of_payments?: number;        // NEW: Number of installments
+    installments?: UpdateInstallmentDTO[];
+}
+
+/**
+ * DTO for updating an installment schedule entry.
+ */
+export interface UpdateInstallmentDTO {
+    installment_number: number;
+    due_date: string;
+    amount_due: number;
+    amount_paid?: number;
+    balance?: number;
+    status?: string;
+}
+
+/**
+ * DTO for updating a revenue record (PATCH endpoint).
+ * Supports full Edit Modal functionality including receivable management.
+ */
 export interface UpdateRevenueDTO {
+    // Revenue fields
     date_recorded?: string;
     amount?: number;
     description?: string;
+    date_expected?: string;
+    
+    // Status management
+    remittance_status?: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'WRITTEN_OFF';
+    delete_receivables?: boolean;  // Signal to delete existing receivables (revert to PAID)
+    
+    // Receivable data (when creating/updating receivables due to shortage)
+    driverReceivable?: UpdateReceivableDTO;
+    conductorReceivable?: UpdateReceivableDTO;
 }
 
 export interface UpdateConfigDTO {
@@ -102,7 +144,6 @@ export interface RevenueDetailResponse {
     bus_details: {
         date_assigned: string | null;
         body_number: string | null;
-        body_builder: string | null;
         license_plate: string | null;
         bus_type: string | null;
         route: string | null;
@@ -169,6 +210,8 @@ export interface ReceivableWithSchedules {
     balance: number;
     status: string;
     due_date: string | null;
+    frequency: string;              // NEW: DAILY, WEEKLY, BIWEEKLY, MONTHLY
+    number_of_payments: number | null;  // NEW: Number of installments
     installment_schedules: InstallmentSchedule[];
 }
 

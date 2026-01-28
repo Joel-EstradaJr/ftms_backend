@@ -134,8 +134,13 @@ export class BusTripRevenueController {
     // --------------------------------------------------------------------------
 
     /**
-     * PUT /api/v1/admin/bus-trip-revenue/:id
-     * Update revenue record
+     * PATCH /api/v1/admin/bus-trip-revenue/:id
+     * Partially update revenue record (only provided fields are updated)
+     * 
+     * Supports full Edit Modal functionality:
+     * - Revenue fields: date_recorded, amount, description, date_expected
+     * - Status management: remittance_status, delete_receivables
+     * - Receivable data: driverReceivable, conductorReceivable (with frequency, number_of_payments)
      */
     updateRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
@@ -144,9 +149,20 @@ export class BusTripRevenueController {
                 throw new ValidationError('Invalid revenue ID');
             }
 
-            const { date_recorded, amount, description } = req.body;
+            const { 
+                date_recorded, 
+                amount, 
+                description, 
+                date_expected,
+                remittance_status,
+                delete_receivables,
+                driverReceivable,
+                conductorReceivable
+            } = req.body;
 
             const data: UpdateRevenueDTO = {};
+            
+            // Revenue fields
             if (date_recorded !== undefined) data.date_recorded = date_recorded;
             if (amount !== undefined) {
                 if (typeof amount !== 'number' || amount < 0) {
@@ -155,6 +171,47 @@ export class BusTripRevenueController {
                 data.amount = amount;
             }
             if (description !== undefined) data.description = description;
+            if (date_expected !== undefined) data.date_expected = date_expected;
+            
+            // Status management
+            if (remittance_status !== undefined) {
+                const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED', 'WRITTEN_OFF'];
+                if (!validStatuses.includes(remittance_status)) {
+                    throw new ValidationError(`Invalid remittance_status. Must be one of: ${validStatuses.join(', ')}`);
+                }
+                data.remittance_status = remittance_status;
+            }
+            if (delete_receivables !== undefined) data.delete_receivables = delete_receivables;
+            
+            // Receivable data
+            if (driverReceivable !== undefined) {
+                // Validate frequency if provided
+                if (driverReceivable.frequency) {
+                    const validFrequencies = ['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'];
+                    if (!validFrequencies.includes(driverReceivable.frequency)) {
+                        throw new ValidationError(`Invalid driver receivable frequency. Must be one of: ${validFrequencies.join(', ')}`);
+                    }
+                }
+                // Validate number_of_payments if provided
+                if (driverReceivable.number_of_payments !== undefined && driverReceivable.number_of_payments < 1) {
+                    throw new ValidationError('Driver receivable number_of_payments must be at least 1');
+                }
+                data.driverReceivable = driverReceivable;
+            }
+            if (conductorReceivable !== undefined) {
+                // Validate frequency if provided
+                if (conductorReceivable.frequency) {
+                    const validFrequencies = ['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'];
+                    if (!validFrequencies.includes(conductorReceivable.frequency)) {
+                        throw new ValidationError(`Invalid conductor receivable frequency. Must be one of: ${validFrequencies.join(', ')}`);
+                    }
+                }
+                // Validate number_of_payments if provided
+                if (conductorReceivable.number_of_payments !== undefined && conductorReceivable.number_of_payments < 1) {
+                    throw new ValidationError('Conductor receivable number_of_payments must be at least 1');
+                }
+                data.conductorReceivable = conductorReceivable;
+            }
 
             const userId = req.user?.sub || 'system';
             const userInfo = req.user;
