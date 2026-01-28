@@ -24,6 +24,7 @@ import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 // Removed: adminJournalEntriesRoutes - replaced by universal /api/journal-entry routes
 import operationalTripExpenseRoutes from './routes/admin/operational-trip-expenses';
+import busTripRevenueRoutes from './routes/admin/bus-trip-revenue';
 // Removed: staffJournalEntryRoutes - replaced by universal /api/journal-entry routes
 
 // Integration routes (for microservices)
@@ -121,6 +122,7 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin', chartOfAccountsRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
   app.use('/api/v1/admin/journal-entry', journalEntryRoutes);  // Automated JE system under Admin namespace
+  app.use('/api/v1/admin/bus-trip-revenue', busTripRevenueRoutes);  // Bus Trip Revenue module
 
   // Operational Trip Expense routes (dedicated module)
   app.use('/api/operational-trip-expenses', operationalTripExpenseRoutes);

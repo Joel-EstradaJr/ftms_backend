@@ -6,21 +6,24 @@
 
 import { Request, Response } from 'express';
 import { syncExternalData } from '../../lib/sync';
+import { busTripRevenueService } from '../services/busTripRevenue.service';
+import { logger } from '../config/logger';
 
 /**
  * POST /api/sync/external
  * 
  * Manually trigger synchronization of all external data
  * This is a hard reload that fetches fresh data from all external systems
+ * After sync, automatically processes unsynced bus trips to create revenue records
  */
 export const triggerExternalDataSync = async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('[API] Manual external data sync triggered');
-    
+
     const result = await syncExternalData();
-    
-    // Build response summary
-    const summary = {
+
+    // Build sync summary
+    const syncSummary = {
       success: result.success,
       startTime: result.startTime.toISOString(),
       endTime: result.endTime.toISOString(),
@@ -70,23 +73,48 @@ export const triggerExternalDataSync = async (req: Request, res: Response): Prom
         },
       },
     };
-    
-    if (result.success) {
+
+    // Automatically process unsynced bus trips to create revenue records
+    logger.info('[SYNC] Processing unsynced bus trips for revenue creation...');
+    let revenueResult = null;
+    try {
+      revenueResult = await busTripRevenueService.processUnsyncedTrips('system');
+      logger.info(`[SYNC] Revenue processing complete: ${revenueResult.processed} processed, ${revenueResult.failed} failed`);
+    } catch (revenueError) {
+      logger.error('[SYNC] Revenue processing failed:', revenueError);
+      revenueResult = {
+        total: 0,
+        processed: 0,
+        failed: 0,
+        error: revenueError instanceof Error ? revenueError.message : String(revenueError),
+      };
+    }
+
+    // Combine results
+    const overallSuccess = result.success && revenueResult && revenueResult.failed === 0;
+
+    if (overallSuccess) {
       res.status(200).json({
         status: 'success',
-        message: 'External data synchronized successfully',
-        data: summary,
+        message: 'External data synchronized and revenue records created successfully',
+        data: {
+          sync: syncSummary,
+          revenue_processing: revenueResult,
+        },
       });
     } else {
       res.status(207).json({
         status: 'partial_success',
-        message: 'External data sync completed with some errors',
-        data: summary,
+        message: 'Sync completed with some issues - check details',
+        data: {
+          sync: syncSummary,
+          revenue_processing: revenueResult,
+        },
       });
     }
   } catch (error) {
     console.error('[API] Error triggering external data sync:', error);
-    
+
     res.status(500).json({
       status: 'error',
       message: 'Failed to synchronize external data',
@@ -103,7 +131,7 @@ export const triggerExternalDataSync = async (req: Request, res: Response): Prom
 export const getSyncStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { prisma } = await import('../config/database');
-    
+
     // Get counts for each local table
     const [
       employeeCount,
@@ -132,7 +160,7 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
       prisma.bus_trip_employee_local.count({ where: { is_deleted: false } }),
       prisma.bus_trip_employee_local.count({ where: { is_deleted: true } }),
     ]);
-    
+
     // Get last sync times
     const [
       lastEmployeeSync,
@@ -157,7 +185,7 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
         select: { last_synced_at: true },
       }),
     ]);
-    
+
     res.status(200).json({
       status: 'success',
       data: {
@@ -195,7 +223,7 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     console.error('[API] Error getting sync status:', error);
-    
+
     res.status(500).json({
       status: 'error',
       message: 'Failed to get sync status',

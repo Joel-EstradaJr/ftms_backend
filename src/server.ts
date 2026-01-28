@@ -4,6 +4,7 @@ import { logger } from './config/logger';
 import { prisma } from './config/database';
 import { initPayrollScheduledJobs } from './jobs/payrollScheduledJobs';
 import { syncExternalData } from '../lib/sync';
+import { busTripRevenueService } from './services/busTripRevenue.service';
 
 const app = createApp();
 
@@ -24,6 +25,16 @@ const startServer = async () => {
         logger.info('✅ External data synchronized successfully');
       } else {
         logger.warn('⚠️ External data sync completed with some errors - check logs for details');
+      }
+
+      // Automatically process unsynced bus trips to create revenue records
+      logger.info('🔄 Processing unsynced bus trips for revenue creation...');
+      try {
+        const revenueResult = await busTripRevenueService.processUnsyncedTrips('system');
+        logger.info(`✅ Revenue processing complete: ${revenueResult.processed} processed, ${revenueResult.failed} failed`);
+      } catch (revenueError) {
+        logger.error('❌ Revenue processing failed:', revenueError);
+        // Don't block server startup on revenue processing failure
       }
     } catch (syncError) {
       logger.error('❌ External data sync failed:', syncError);
