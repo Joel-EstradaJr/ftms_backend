@@ -13,6 +13,14 @@ datasource db {
 // ============================================================================	
 // ENUMS	
 // ============================================================================	
+
+enum receivable_frequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
 enum normal_balance {
   DEBIT
   CREDIT
@@ -61,16 +69,11 @@ enum payable_status {
   WRITTEN_OFF // Cannot be paid; moved to bad debts	
 }
 
-enum revenue_approval_status {
-  PENDING // Auto-filled, awaiting user review/approval	
-  APPROVED // Verified and approved	
-  REJECTED // Rejected / needs correction	
-}
-
-enum payment_method_enum {
+enum payment_method {
   CASH // Cash payments
   BANK_TRANSFER // Bank transfers
-  ONLINE // GCash, PayMaya, PayPal, etc.
+  E_WALLET // GCash, PayMaya, PayPal, etc.
+  REIMBURSEMENT
 }
 
 enum installment_status {
@@ -165,6 +168,41 @@ enum bus_trip_employee_role {
   CONDUCTOR
 }
 
+// ============================================================================
+// SYSTEM CONFIGURATION (Simplified)
+// ============================================================================
+model system_configuration {
+  id                         Int      @id @default(autoincrement())
+  config_code                String   @unique
+  
+  // Required Fields (with defaults)
+  minimum_wage               Decimal  @db.Decimal(12, 2) @default(600.00)
+  duration_to_receivable_hours Int    @default(72)      // 3 days
+  receivable_due_date_days   Int      @default(30)      // 30 days
+  
+  // Driver/Conductor Split (%)
+  driver_share_percentage    Decimal  @db.Decimal(5, 2) @default(50.00)   // 50%
+  conductor_share_percentage Decimal  @db.Decimal(5, 2) @default(50.00)   // 50%
+  
+  // Installment Defaults
+  default_frequency          receivable_frequency @default(WEEKLY)
+  default_number_of_payments Int                  @default(3)
+  
+  is_active                  Boolean  @default(false)
+  
+  // Audit
+  created_by  String?
+  created_at  DateTime  @default(now())
+  updated_by  String?
+  updated_at  DateTime? @updatedAt
+  deleted_by  String?
+  deleted_at  DateTime?
+  is_deleted  Boolean   @default(false)
+  
+  @@index([config_code])
+  @@index([is_active])
+}
+
 // ============================================================================	
 // EXTERNAL SYSTEM DATA (Normalized Local Persistence)
 // Domain Ownership:
@@ -203,6 +241,7 @@ model employee_local {
   payroll            payroll[]
   rental_employees   rental_employee_local[]
   bus_trip_employees bus_trip_employee_local[]
+  receivables        receivable[]
 
   // Indexes
   @@index([last_synced_at])
@@ -617,14 +656,12 @@ model revenue {
   date_expected           DateTime?
   description             String?
   // Accounting workflow
-  accounting_status       revenue_accounting_status @default(DRAFT)
-  // Approval workflow
-  approval_status         revenue_approval_status @default(PENDING)
+  remittance_status       receivable_status @default(PENDING)
   // Payment / Receivable (link only)
   receivable_id           Int?
   driver_receivable_id    Int?
   conductor_receivable_id Int?
-  payment_method          String?
+  payment_method          payment_method? @default(CASH)
   payment_reference       String?
   // Journal Entry
   journal_entry_id        Int?                    @unique
@@ -661,8 +698,7 @@ model revenue {
   @@index([code])
   @@index([revenue_type_id])
   @@index([date_recorded])
-  @@index([accounting_status])
-  @@index([approval_status])
+  @@index([remittance_status])
   @@index([payment_method])
   @@index([receivable_id])
   @@index([driver_receivable_id])
@@ -678,13 +714,14 @@ model receivable {
   // Fields	
   id                    Int               @id @default(autoincrement())
   code                  String            @unique
+  // auto-filled from employee_id if not null, else manual input
   debtor_name           String
+  employee_number           String?  
   description           String?
   total_amount          Decimal           @db.Decimal(12, 2)
+  installment_start_date DateTime?
   due_date              DateTime?
   status                receivable_status @default(PENDING)
-  installment_plan      String?
-  expected_installment  Decimal?          @db.Decimal(12, 2)
   paid_amount           Decimal           @default(0) @db.Decimal(12, 2)
   balance               Decimal           @default(0) @db.Decimal(12, 2)
   last_payment_date     DateTime?
@@ -698,6 +735,7 @@ model receivable {
   driver_shortage      revenue[]                      @relation("revenue_driver_receivable")
   conductor_shortage   revenue[]                      @relation("revenue_conductor_receivable")
   installment_schedule revenue_installment_schedule[]
+  employee             employee_local?                @relation(fields: [employee_number], references: [employee_number], onDelete: SetNull)
 
   // Audit Trail	
   created_by  String?
@@ -715,6 +753,7 @@ model receivable {
   @@index([debtor_name])
   @@index([due_date])
   @@index([status])
+  @@index([employee_number])
   @@index([is_deleted])
   @@index([created_at])
 }
@@ -761,7 +800,7 @@ model revenue_installment_payment {
   revenue_id        Int
   amount_paid       Decimal  @db.Decimal(12, 2)
   payment_date      DateTime @default(now())
-  payment_method    String?
+  payment_method          payment_method? @default(CASH)
   payment_reference String?
   journal_entry_id  Int?     @unique
 
@@ -833,7 +872,7 @@ model expense {
   bus_trip_id            String?
   rental_assignment_id   String?
   payable_id             Int?
-  payment_method         payment_method_enum?
+  payment_method          payment_method? @default(CASH)
   payment_reference      String?
   journal_entry_id       Int?
 
@@ -893,8 +932,6 @@ model payable {
   total_amount          Decimal        @db.Decimal(12, 2)
   due_date              DateTime?
   status                payable_status @default(PENDING)
-  installment_plan      String?
-  expected_installment  Decimal?       @db.Decimal(12, 2)
   paid_amount           Decimal        @default(0) @db.Decimal(12, 2)
   balance               Decimal        @default(0) @db.Decimal(12, 2)
   last_payment_date     DateTime?
@@ -971,7 +1008,7 @@ model expense_installment_payment {
   expense_id        Int
   amount_paid       Decimal  @db.Decimal(12, 2)
   payment_date      DateTime @default(now())
-  payment_method    String?
+  payment_method          payment_method? @default(CASH)
   payment_reference String?
   journal_entry_id  Int?
 
