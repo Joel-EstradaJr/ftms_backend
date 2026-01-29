@@ -5,6 +5,7 @@ import { prisma } from './config/database';
 import { initPayrollScheduledJobs } from './jobs/payrollScheduledJobs';
 import { syncExternalData } from '../lib/sync';
 import { busTripRevenueService } from './services/busTripRevenue.service';
+import { rentalRevenueService } from './services/rentalRevenue.service';
 
 const app = createApp();
 
@@ -35,6 +36,16 @@ const startServer = async () => {
       } catch (revenueError) {
         logger.error('❌ Revenue processing failed:', revenueError);
         // Don't block server startup on revenue processing failure
+      }
+
+      // Automatically process unsynced rentals to create rental revenue records
+      logger.info('🔄 Processing unsynced rentals for rental revenue creation...');
+      try {
+        const rentalRevenueResult = await rentalRevenueService.processUnsyncedRentals('system');
+        logger.info(`✅ Rental revenue processing complete: ${rentalRevenueResult.processed} processed, ${rentalRevenueResult.failed} failed`);
+      } catch (rentalError) {
+        logger.error('❌ Rental revenue processing failed:', rentalError);
+        // Don't block server startup on rental revenue processing failure
       }
     } catch (syncError) {
       logger.error('❌ External data sync failed:', syncError);

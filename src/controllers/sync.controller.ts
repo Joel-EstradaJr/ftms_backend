@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { syncExternalData } from '../../lib/sync';
 import { busTripRevenueService } from '../services/busTripRevenue.service';
+import { rentalRevenueService } from '../services/rentalRevenue.service';
 import { logger } from '../config/logger';
 
 /**
@@ -90,8 +91,26 @@ export const triggerExternalDataSync = async (req: Request, res: Response): Prom
       };
     }
 
+    // Automatically process unsynced rentals to create rental revenue records
+    logger.info('[SYNC] Processing unsynced rentals for rental revenue creation...');
+    let rentalRevenueResult = null;
+    try {
+      rentalRevenueResult = await rentalRevenueService.processUnsyncedRentals('system');
+      logger.info(`[SYNC] Rental revenue processing complete: ${rentalRevenueResult.processed} processed, ${rentalRevenueResult.failed} failed`);
+    } catch (rentalError) {
+      logger.error('[SYNC] Rental revenue processing failed:', rentalError);
+      rentalRevenueResult = {
+        total: 0,
+        processed: 0,
+        failed: 0,
+        error: rentalError instanceof Error ? rentalError.message : String(rentalError),
+      };
+    }
+
     // Combine results
-    const overallSuccess = result.success && revenueResult && revenueResult.failed === 0;
+    const overallSuccess = result.success &&
+      revenueResult && revenueResult.failed === 0 &&
+      rentalRevenueResult && rentalRevenueResult.failed === 0;
 
     if (overallSuccess) {
       res.status(200).json({
@@ -100,6 +119,7 @@ export const triggerExternalDataSync = async (req: Request, res: Response): Prom
         data: {
           sync: syncSummary,
           revenue_processing: revenueResult,
+          rental_revenue_processing: rentalRevenueResult,
         },
       });
     } else {
@@ -109,6 +129,7 @@ export const triggerExternalDataSync = async (req: Request, res: Response): Prom
         data: {
           sync: syncSummary,
           revenue_processing: revenueResult,
+          rental_revenue_processing: rentalRevenueResult,
         },
       });
     }

@@ -43,6 +43,11 @@ const REVENUE_TYPE_DATA = [
   },
   {
     code: 'REVT-003',
+    name: 'Rental Revenue',
+    description: 'Rental service income'
+  },
+  {
+    code: 'REVT-004',
     name: 'Other Revenue',
     description: 'Other miscellaneous revenue sources'
   },
@@ -95,8 +100,11 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     { name: 'Trip Revenue - Boundary', description: 'Fixed daily rental from drivers under boundary system', customSuffix: '000' },
     { name: 'Trip Revenue - Percentage', description: 'Percentage-based trip revenue', customSuffix: '005' },
 
+    // RENTAL REVENUE
+    { name: 'Rental Service Revenue', description: 'Rental services of bus unit income', customSuffix: '010' },
+
     // OTHER REVENUE
-    { name: 'Other Revenue', description: 'Miscellaneous income sources', customSuffix: '010' },
+    { name: 'Other Revenue', description: 'Miscellaneous income sources', customSuffix: '015' },
   ],
 
   Expense: [
