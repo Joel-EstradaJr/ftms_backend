@@ -203,16 +203,28 @@ export class RentalRevenueService {
         }
 
         // Search filter (case-insensitive, partial match across multiple fields)
+        // Matches table columns: Revenue Code, Assignment ID, Status, and related rental/bus data
         if (filters.search) {
-            const searchTerm = filters.search.toLowerCase();
-            where.OR = [
+            const searchTerm = filters.search.trim();
+            
+            // Build OR conditions for text search
+            const searchConditions: Prisma.revenueWhereInput[] = [
                 { code: { contains: searchTerm, mode: 'insensitive' } },
                 { description: { contains: searchTerm, mode: 'insensitive' } },
                 { rental_assignment_id: { contains: searchTerm, mode: 'insensitive' } },
                 { rental: { rental_package: { contains: searchTerm, mode: 'insensitive' } } },
                 { rental: { rental_status: { contains: searchTerm, mode: 'insensitive' } } },
-                { payment_method: { equals: searchTerm.toUpperCase() as payment_method } },
+                { rental: { bus: { license_plate: { contains: searchTerm, mode: 'insensitive' } } } },
+                { rental: { bus: { body_number: { contains: searchTerm, mode: 'insensitive' } } } },
             ];
+            
+            // Only add payment_method search if the term matches a valid enum value
+            const searchUpper = searchTerm.toUpperCase();
+            if (['CASH', 'BANK_TRANSFER', 'E_WALLET', 'REIMBURSEMENT'].includes(searchUpper)) {
+                searchConditions.push({ payment_method: { equals: searchUpper as payment_method } });
+            }
+            
+            where.OR = searchConditions;
         }
 
         // Build order by
