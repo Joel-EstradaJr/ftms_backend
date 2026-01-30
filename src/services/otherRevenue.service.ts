@@ -596,14 +596,14 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
             journalEntryInput = {
                 module: 'OTHER_REVENUE',
                 reference_id: result.id.toString(),
-                description: `Other Revenue - ${result.description || 'Unearned Revenue'}`,
+                description: `${revenueType.name} - ${result.description || 'Unearned Revenue'}`,
                 date: dateRecorded,
                 entries: [
                     {
                         account_code: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE_OTHER,
                         debit: input.amount,
                         credit: 0,
-                        description: 'Accounts Receivable - Other Revenue'
+                        description: `Accounts Receivable - ${revenueType.name}`
                     },
                     {
                         account_code: revenueAccountCode,
@@ -619,7 +619,7 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
             journalEntryInput = {
                 module: 'OTHER_REVENUE',
                 reference_id: result.id.toString(),
-                description: `Other Revenue - ${result.description || revenueType.name}`,
+                description: `${revenueType.name} - ${result.description || revenueType.name}`,
                 date: dateRecorded,
                 entries: [
                     {
@@ -679,14 +679,15 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
         throw new Error('Only records with PENDING status can be edited');
     }
 
-    // Check if journal entry is POSTED - block edit if so
+    // Check if journal entry exists and is NOT in DRAFT status - block edit if so
+    // Journal Entry status is the single source of truth for edit restrictions
     if (existing.journal_entry_id) {
         const journalEntry = await prisma.journal_entry.findUnique({
             where: { id: existing.journal_entry_id },
             select: { status: true }
         });
-        if (journalEntry?.status === 'POSTED') {
-            throw new Error('Cannot edit revenue record - journal entry has been posted');
+        if (journalEntry && journalEntry.status !== 'DRAFT') {
+            throw new Error('Cannot edit revenue record - journal entry is no longer in DRAFT status');
         }
     }
 
@@ -799,6 +800,7 @@ export async function recordPayment(input: RecordPaymentInput) {
     const revenue = await prisma.revenue.findFirst({
         where: { id: input.revenueId, is_deleted: false },
         include: {
+            revenue_type: true,
             receivable: {
                 include: {
                     installment_schedule: {
@@ -978,7 +980,7 @@ export async function recordPayment(input: RecordPaymentInput) {
         const journalEntryInput: CreateAutoJournalEntryInput = {
             module: 'OTHER_REVENUE_PAYMENT',
             reference_id: `${input.revenueId}-payment-${Date.now()}`,
-            description: `Payment for Other Revenue #${input.revenueId}`,
+            description: `Payment for ${revenue.revenue_type.name} #${input.revenueId}`,
             date: paymentDateStr,
             entries: [
                 {
@@ -1034,14 +1036,15 @@ export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
         throw new Error('Only records with PENDING status can be deleted');
     }
 
-    // Check if journal entry is POSTED - block delete if so
+    // Check if journal entry exists and is NOT in DRAFT status - block delete if so
+    // Journal Entry status is the single source of truth for delete restrictions
     if (existing.journal_entry_id) {
         const journalEntry = await prisma.journal_entry.findUnique({
             where: { id: existing.journal_entry_id },
             select: { status: true }
         });
-        if (journalEntry?.status === 'POSTED') {
-            throw new Error('Cannot delete revenue record - journal entry has been posted');
+        if (journalEntry && journalEntry.status !== 'DRAFT') {
+            throw new Error('Cannot delete revenue record - journal entry is no longer in DRAFT status');
         }
     }
 
