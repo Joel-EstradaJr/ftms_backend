@@ -937,6 +937,11 @@ model expense {
   deleted_at  DateTime?
   approved_by String?
   approved_at DateTime?
+  approval_remarks  String?
+  rejected_by       String?
+  rejected_at       DateTime?
+  rejection_remarks String?
+  deletion_remarks  String?
   is_deleted  Boolean   @default(false)
 
   // Indexes	

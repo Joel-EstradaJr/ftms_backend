@@ -140,8 +140,9 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
   ],
 
   Liability: [
-    { name: 'Accounts Payable - Suppliers', description: 'Amounts owed to suppliers', customSuffix: '000' },
-    { name: 'Accounts Payable - Employees', description: 'Salaries and wages payable', customSuffix: '005' },
+    { name: 'Accounts Payable', description: 'Amounts owed to others', customSuffix: '000' },
+    { name: 'Accounts Payable - Suppliers', description: 'Amounts owed to suppliers', customSuffix: '005' },
+    { name: 'Accounts Payable - Employees', description: 'Salaries and wages payable', customSuffix: '010' },
   ],
 
   Revenue: [

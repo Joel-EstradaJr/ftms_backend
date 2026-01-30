@@ -115,6 +115,16 @@
  *           type: string
  *         approved_at:
  *           type: string
+ *         rejected_by:
+ *           type: string
+ *         rejected_at:
+ *           type: string
+ *         approval_remarks:
+ *           type: string
+ *         rejection_remarks:
+ *           type: string
+ *         deletion_remarks:
+ *           type: string
  *
  *     CreateExpenseDTO:
  *       type: object
@@ -400,6 +410,15 @@
  *         required: true
  *         schema:
  *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 description: Reason for deletion
  *     responses:
  *       200:
  *         description: Expense deleted
@@ -414,7 +433,7 @@
  * /api/v1/admin/operational-expenses/{id}/approve:
  *   post:
  *     summary: Approve an expense
- *     description: Changes expense status to APPROVED
+ *     description: Changes expense status to APPROVED and creates a journal entry
  *     tags:
  *       - Admin | Operational Expenses
  *     parameters:
@@ -423,6 +442,15 @@
  *         required: true
  *         schema:
  *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               remarks:
+ *                 type: string
+ *                 description: Optional approval remarks
  *     responses:
  *       200:
  *         description: Expense approved

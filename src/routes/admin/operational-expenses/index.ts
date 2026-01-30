@@ -539,6 +539,13 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         updated_at: expense.updated_at?.toISOString(),
         approved_by: expense.approved_by,
         approved_at: expense.approved_at?.toISOString(),
+        rejected_by: expense.rejected_by,
+        rejected_at: expense.rejected_at?.toISOString(),
+
+        // Remarks
+        approval_remarks: expense.approval_remarks,
+        rejection_remarks: expense.rejection_remarks,
+        deletion_remarks: expense.deletion_remarks,
       },
     });
   } catch (error) {
@@ -739,6 +746,7 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
 router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body;
     const userId = req.user?.sub || 'system';
 
     const expense = await prisma.expense.update({
@@ -747,6 +755,7 @@ router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: N
         is_deleted: true,
         deleted_by: userId,
         deleted_at: new Date(),
+        deletion_remarks: reason || null,
       },
     });
 
@@ -762,18 +771,18 @@ router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: N
 
 /**
  * POST /:id/approve
- * Approve expense and create journal entry
+ * Approve expense and create journal entry with proper lines
  */
 router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    const { remarks } = req.body;
     const userId = req.user?.sub || 'system';
 
     const existing = await prisma.expense.findFirst({
       where: { id: parseInt(id), is_deleted: false },
       include: {
         expense_type: true,
-        account: true,
       },
     });
 
@@ -791,38 +800,128 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
       });
     }
 
-    // Create journal entry for the expense
-    const jeCode = `JE-${existing.code}`;
-    const journalEntry = await prisma.journal_entry.create({
-      data: {
-        code: jeCode,
-        date: new Date(),
-        reference: existing.code,
-        description: `Journal entry for expense: ${existing.expense_type?.name || existing.code}`,
-        status: 'POSTED',
-        created_by: userId,
-      },
-    });
+    // COA account codes
+    const ACCOUNT_CODES = {
+      CASH: '1000',
+      BANK_TRANSFER: '1005',
+      E_WALLET: '1010',
+      ACCOUNTS_PAYABLE: '2000',
+      FUEL_EXPENSE: '4000',
+    };
 
-    // Update expense to approved
-    const expense = await prisma.expense.update({
-      where: { id: parseInt(id) },
-      data: {
-        status: 'APPROVED',
-        approved_by: userId,
-        approved_at: new Date(),
-        journal_entry_id: journalEntry.id,
-      },
+    // Determine credit account based on payment method
+    const getCreditAccountCode = (paymentMethod: string | null): string => {
+      switch (paymentMethod) {
+        case 'BANK_TRANSFER':
+          return ACCOUNT_CODES.BANK_TRANSFER;
+        case 'E_WALLET':
+          return ACCOUNT_CODES.E_WALLET;
+        case 'REIMBURSEMENT':
+          return ACCOUNT_CODES.ACCOUNTS_PAYABLE;
+        default:
+          return ACCOUNT_CODES.CASH;
+      }
+    };
+
+    // Determine journal entry status - ALL auto-generated entries start as DRAFT
+    const getJournalStatus = (): 'DRAFT' => {
+      // Auto-generated entries must be reviewed before posting
+      return 'DRAFT';
+    };
+
+    // Get expense amount
+    const expenseAmount = existing.amount;
+
+    // Get debit and credit accounts
+    const debitAccountCode = ACCOUNT_CODES.FUEL_EXPENSE;
+    const creditAccountCode = getCreditAccountCode(existing.payment_method);
+
+    const [debitAccount, creditAccount] = await Promise.all([
+      prisma.chart_of_account.findFirst({ where: { account_code: debitAccountCode, is_deleted: false } }),
+      prisma.chart_of_account.findFirst({ where: { account_code: creditAccountCode, is_deleted: false } }),
+    ]);
+
+    if (!debitAccount || !creditAccount) {
+      return res.status(400).json({
+        success: false,
+        message: `Chart of accounts not found. Debit: ${debitAccountCode}, Credit: ${creditAccountCode}. Please ensure these accounts exist.`,
+      });
+    }
+
+    // Determine journal status - always DRAFT for auto-generated entries
+    const journalStatus = getJournalStatus();
+
+    // Use transaction to ensure atomicity
+    const result = await prisma.$transaction(async (tx) => {
+      // Create journal entry with proper totals
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const jeCode = `JE-${existing.code}-${timestamp}`;
+
+      const journalEntry = await tx.journal_entry.create({
+        data: {
+          code: jeCode,
+          date: new Date(),
+          reference: existing.code,
+          description: `Journal entry for expense: ${existing.expense_type?.name || 'Operational'} - ${existing.code}`,
+          total_debit: expenseAmount,
+          total_credit: expenseAmount,
+          status: journalStatus,
+          entry_type: 'AUTO_GENERATED',
+          created_by: userId,
+        },
+      });
+
+      // Create journal entry lines
+      await tx.journal_entry_line.createMany({
+        data: [
+          {
+            journal_entry_id: journalEntry.id,
+            account_id: debitAccount.id,
+            line_number: 1,
+            description: `Debit - ${debitAccount.account_name}`,
+            debit: expenseAmount,
+            credit: 0,
+            created_by: userId,
+          },
+          {
+            journal_entry_id: journalEntry.id,
+            account_id: creditAccount.id,
+            line_number: 2,
+            description: `Credit - ${creditAccount.account_name}`,
+            debit: 0,
+            credit: expenseAmount,
+            created_by: userId,
+          },
+        ],
+      });
+
+      // Update expense to approved
+      const expense = await tx.expense.update({
+        where: { id: parseInt(id) },
+        data: {
+          status: 'APPROVED',
+          approved_by: userId,
+          approved_at: new Date(),
+          approval_remarks: remarks || null,
+          journal_entry_id: journalEntry.id,
+        },
+      });
+
+      return { expense, journalEntry, jeCode };
     });
 
     res.json({
       success: true,
-      message: 'Expense approved successfully',
+      message: `Expense approved successfully. Journal entry created with status: ${journalStatus}`,
       data: {
-        id: expense.id,
-        code: expense.code,
-        status: expense.status,
-        journal_entry_code: jeCode,
+        id: result.expense.id,
+        code: result.expense.code,
+        status: result.expense.status,
+        journal_entry_id: result.journalEntry.id,
+        journal_entry_code: result.jeCode,
+        journal_entry_status: journalStatus,
+        total_debit: expenseAmount.toString(),
+        total_credit: expenseAmount.toString(),
       },
     });
   } catch (error) {
@@ -863,7 +962,9 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
       where: { id: parseInt(id) },
       data: {
         status: 'REJECTED',
-        description: reason ? `${existing.description || ''}\n[Rejection Reason: ${reason}]` : existing.description,
+        rejected_by: userId,
+        rejected_at: new Date(),
+        rejection_remarks: reason || null,
         updated_by: userId,
       },
     });
