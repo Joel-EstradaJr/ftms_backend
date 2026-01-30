@@ -7,6 +7,7 @@ import { syncExternalData } from '../lib/sync';
 import { syncDepartments } from '../lib/sync/departmentSync';
 import { busTripRevenueService } from './services/busTripRevenue.service';
 import { rentalRevenueService } from './services/rentalRevenue.service';
+import { operationalExpenseService } from './services/operationalExpense.service';
 
 const app = createApp();
 
@@ -57,6 +58,16 @@ const startServer = async () => {
         logger.error('❌ Rental revenue processing failed:', rentalError);
         // Don't block server startup on rental revenue processing failure
       }
+
+      // Automatically process unsynced trips/rentals to create expense records
+      logger.info('🔄 Processing unsynced trips for expense creation...');
+      try {
+        const expenseResult = await operationalExpenseService.syncAllExpenses('system');
+        logger.info(`✅ Expense processing complete: bus_trips=${expenseResult.busTripResult.created}, rentals=${expenseResult.rentalResult.created}`);
+      } catch (expenseError) {
+        logger.error('❌ Expense processing failed:', expenseError);
+        // Don't block server startup on expense processing failure
+      }
     } catch (syncError) {
       logger.error('❌ External data sync failed:', syncError);
       // Don't block server startup on sync failure
@@ -105,3 +116,4 @@ const startServer = async () => {
 };
 
 startServer();
+
