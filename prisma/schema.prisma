@@ -900,6 +900,8 @@ model expense {
   date_recorded          DateTime?
   date_expected          DateTime?
   description            String?
+  vendor                 String?              @unique // Vendor/creditor name for administrative expenses
+  invoice_number         String?              // Invoice reference number
   status                 expense_status       @default(PENDING)
   bus_trip_assignment_id String?
   bus_trip_id            String?
@@ -957,6 +959,8 @@ model expense {
   @@index([purchase_request_ref])
   @@index([rental_assignment_id])
   @@index([journal_entry_id])
+  @@index([vendor])
+  @@index([invoice_number])
   @@index([is_deleted])
   @@index([created_at])
 }
@@ -969,6 +973,7 @@ model payable {
   description           String?
   total_amount          Decimal        @db.Decimal(12, 2)
   due_date              DateTime?
+  frequency             receivable_frequency @default(WEEKLY) // Payment schedule frequency
   status                payable_status @default(PENDING)
   paid_amount           Decimal        @default(0) @db.Decimal(12, 2)
   balance               Decimal        @default(0) @db.Decimal(12, 2)
