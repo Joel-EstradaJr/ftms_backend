@@ -670,3 +670,112 @@ export async function handleBatchBusWebhook(
     results,
   });
 }
+
+// ============================================================================
+// DEPARTMENT WEBHOOK HANDLER
+// ============================================================================
+
+/**
+ * Department webhook payload from HR System
+ */
+interface DepartmentWebhookPayload {
+  id: number;
+  is_active: boolean;
+  // Optional full data for upsert
+  department_name?: string;
+}
+
+/**
+ * Handle department webhook from HR System
+ * Endpoint: POST /api/webhooks/department
+ */
+export async function handleDepartmentWebhook(
+  req: Request<{}, {}, DepartmentWebhookPayload>,
+  res: Response<WebhookResponse>
+) {
+  const { id, is_active, ...optionalData } = req.body;
+
+  // Validate required fields
+  if (!id || typeof id !== 'number') {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing or invalid required field: id (must be number)',
+    });
+  }
+
+  if (typeof is_active !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing or invalid required field: is_active (must be boolean)',
+    });
+  }
+
+  try {
+    console.log(`[WEBHOOK] Department: ${id}, is_active: ${is_active}`);
+
+    // Check if department exists
+    const existing = await prisma.department_local.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      // If full data provided, create new record
+      if (optionalData.department_name) {
+        const created = await prisma.department_local.create({
+          data: {
+            id,
+            department_name: optionalData.department_name,
+            is_active,
+            is_deleted: false,
+            last_synced_at: new Date(),
+          },
+        });
+
+        return res.status(201).json({
+          success: true,
+          message: 'Department record created via webhook',
+          data: {
+            record_id: String(created.id),
+            is_active: created.is_active,
+            last_synced_at: created.last_synced_at,
+          },
+        });
+      }
+
+      return res.status(404).json({
+        success: false,
+        message: `Department ${id} not found. Provide department_name to create new record.`,
+      });
+    }
+
+    // Update existing record - NEVER modify is_deleted
+    const updated = await prisma.department_local.update({
+      where: { id },
+      data: {
+        is_active,
+        // Optionally update other fields if provided
+        ...(optionalData.department_name && { department_name: optionalData.department_name }),
+        last_synced_at: new Date(),
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Department ${id} ${is_active ? 'activated' : 'deactivated'} via webhook`,
+      data: {
+        record_id: String(updated.id),
+        is_active: updated.is_active,
+        last_synced_at: updated.last_synced_at,
+      },
+    });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[WEBHOOK] Error handling department webhook:`, errorMsg);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error processing department webhook',
+      error: errorMsg,
+    });
+  }
+}

@@ -28,9 +28,11 @@ const ACCOUNT_TYPE_CONFIG = {
 };
 
 /**
- * Revenue Type seed data - MINIMAL SET
+ * Revenue Type seed data - COMPREHENSIVE SET
+ * Covers bus trip, rental, and specific other revenue categories
  */
 const REVENUE_TYPE_DATA = [
+  // Bus Trip Revenue
   {
     code: 'REVT-001',
     name: 'Bus Trip Revenue - Boundary',
@@ -41,15 +43,62 @@ const REVENUE_TYPE_DATA = [
     name: 'Bus Trip Revenue - Percentage',
     description: 'Commission-based income calculated as a percentage of trip earnings'
   },
+  // Rental Revenue
   {
     code: 'REVT-003',
     name: 'Rental Revenue',
-    description: 'Rental service income'
+    description: 'Rental service income from bus unit rentals'
   },
+  // Other Revenue - Specific Categories (10 types)
   {
     code: 'REVT-004',
-    name: 'Other Revenue',
-    description: 'Other miscellaneous revenue sources'
+    name: 'Advertising Revenue',
+    description: 'Income from bus wrap advertising, terminal signage, and promotional placements'
+  },
+  {
+    code: 'REVT-005',
+    name: 'Insurance Commission',
+    description: 'Commission income from passenger insurance partnerships and travel protection fees'
+  },
+  {
+    code: 'REVT-006',
+    name: 'Terminal Fee Income',
+    description: 'Revenue from terminal operations, boarding fees, and station usage charges'
+  },
+  {
+    code: 'REVT-007',
+    name: 'Parking Fee Income',
+    description: 'Parking fees collected from vehicles at terminals and company premises'
+  },
+  {
+    code: 'REVT-008',
+    name: 'Charter Add-on Revenue',
+    description: 'Additional services on charter trips such as tour guide, meals, and special accommodations'
+  },
+  {
+    code: 'REVT-009',
+    name: 'Cargo Handling Fee',
+    description: 'Freight handling, baggage fees, and cargo transportation income'
+  },
+  {
+    code: 'REVT-010',
+    name: 'Penalty Income',
+    description: 'Late fees, violation penalties, cancellation charges, and contractual penalties'
+  },
+  {
+    code: 'REVT-011',
+    name: 'Franchise Income',
+    description: 'Royalties and fees from franchise agreements and route partnerships'
+  },
+  {
+    code: 'REVT-012',
+    name: 'Maintenance Service Income',
+    description: 'Income from providing maintenance services to third-party vehicles'
+  },
+  {
+    code: 'REVT-013',
+    name: 'Miscellaneous Income',
+    description: 'Other minor income sources not classified elsewhere'
   },
 ];
 
@@ -103,8 +152,17 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     // RENTAL REVENUE
     { name: 'Rental Service Revenue', description: 'Rental services of bus unit income', customSuffix: '010' },
 
-    // OTHER REVENUE
-    { name: 'Other Revenue', description: 'Miscellaneous income sources', customSuffix: '015' },
+    // OTHER REVENUE - SPECIFIC ACCOUNTS (10 accounts, matching revenue types)
+    { name: 'Advertising Revenue', description: 'Income from bus wrap advertising, terminal signage, and promotional placements', customSuffix: '020' },
+    { name: 'Insurance Commission Income', description: 'Commission income from passenger insurance partnerships', customSuffix: '025' },
+    { name: 'Terminal Fee Income', description: 'Revenue from terminal operations, boarding fees, and station usage', customSuffix: '030' },
+    { name: 'Parking Fee Income', description: 'Parking fees collected at terminals and company premises', customSuffix: '035' },
+    { name: 'Charter Add-on Revenue', description: 'Additional services on charter trips', customSuffix: '040' },
+    { name: 'Cargo Handling Fee Income', description: 'Freight handling, baggage fees, and cargo transportation', customSuffix: '045' },
+    { name: 'Penalty & Violation Income', description: 'Late fees, violation penalties, and cancellation charges', customSuffix: '050' },
+    { name: 'Franchise & Partnership Income', description: 'Royalties and fees from franchise agreements', customSuffix: '055' },
+    { name: 'Maintenance Service Income', description: 'Income from providing maintenance services to third-party vehicles', customSuffix: '060' },
+    { name: 'Miscellaneous Income', description: 'Other minor income sources not classified elsewhere', customSuffix: '065' },
   ],
 
   Expense: [

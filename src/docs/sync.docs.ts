@@ -16,6 +16,7 @@
  *       Use this endpoint to monitor the state of synchronized data from external systems.
  *       
  *       **Tables monitored:**
+ *       - `department_local` - Department data from HR system
  *       - `employee_local` - Employee data from HR system
  *       - `bus_local` - Bus data from Inventory system
  *       - `rental_local` - Rental assignments from Operations system
@@ -41,6 +42,23 @@
  *                     tables:
  *                       type: object
  *                       properties:
+ *                         department_local:
+ *                           type: object
+ *                           properties:
+ *                             activeRecords:
+ *                               type: integer
+ *                               example: 8
+ *                               description: Number of active (non-deleted) department records
+ *                             softDeletedRecords:
+ *                               type: integer
+ *                               example: 1
+ *                               description: Number of soft-deleted department records
+ *                             lastSyncedAt:
+ *                               type: string
+ *                               format: date-time
+ *                               nullable: true
+ *                               example: '2026-01-25T10:30:00.000Z'
+ *                               description: Timestamp of last synchronization
  *                         employee_local:
  *                           type: object
  *                           properties:
@@ -122,6 +140,10 @@
  *               status: success
  *               data:
  *                 tables:
+ *                   department_local:
+ *                     activeRecords: 8
+ *                     softDeletedRecords: 1
+ *                     lastSyncedAt: '2026-01-25T10:30:00.000Z'
  *                   employee_local:
  *                     activeRecords: 45
  *                     softDeletedRecords: 3
@@ -157,6 +179,72 @@
  *                 message:
  *                   type: string
  *                   example: Failed to get sync status
+ *                 error:
+ *                   type: string
+ *                   example: Database connection error
+ */
+
+/**
+ * @swagger
+ * /api/sync/departments:
+ *   get:
+ *     summary: Get list of active departments
+ *     description: |
+ *       Returns all active (non-deleted) departments from the local department table.
+ *       Use this endpoint to populate department dropdowns in forms.
+ *       
+ *       **Source:** HR System via `EXTERNAL_DEPARTMENT_API_URL`
+ *       **Sync:** Automatically synced on server startup and via POST /api/sync/external
+ *     tags:
+ *       - General | Data Sync
+ *     responses:
+ *       200:
+ *         description: Departments retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         description: Department ID from external HR system
+ *                         example: 1
+ *                       name:
+ *                         type: string
+ *                         description: Department name
+ *                         example: Operations
+ *             example:
+ *               status: success
+ *               data:
+ *                 - id: 1
+ *                   name: Operations
+ *                 - id: 2
+ *                   name: Finance
+ *                 - id: 3
+ *                   name: Human Resources
+ *                 - id: 4
+ *                   name: IT
+ *       500:
+ *         description: Failed to get departments
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: Failed to fetch departments
  *                 error:
  *                   type: string
  *                   example: Database connection error
@@ -313,4 +401,4 @@
  */
 
 // This file is imported by swagger configuration to generate API documentation
-export {};
+export { };

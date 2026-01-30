@@ -7,12 +7,15 @@
  */
 
 import { Router } from 'express';
-import { triggerExternalDataSync, getSyncStatus } from '../controllers/sync.controller';
+import { triggerExternalDataSync, getSyncStatus, getDepartments } from '../controllers/sync.controller';
 
 const router = Router();
 
 // GET /api/sync/status - Get sync status of local data tables
 router.get('/status', getSyncStatus);
+
+// GET /api/sync/departments - Get all active departments for dropdowns
+router.get('/departments', getDepartments);
 
 // POST /api/sync/external - Trigger external data synchronization
 router.post('/external', triggerExternalDataSync);

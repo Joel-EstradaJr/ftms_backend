@@ -9,6 +9,7 @@
  * - POST /api/webhooks/bus             - Single bus update
  * - POST /api/webhooks/rental          - Single rental update
  * - POST /api/webhooks/bus-trip        - Single bus trip update
+ * - POST /api/webhooks/department      - Single department update
  * - POST /api/webhooks/employees/batch - Batch employee update
  * - POST /api/webhooks/buses/batch     - Batch bus update
  */
@@ -21,6 +22,7 @@ import {
   handleBusTripWebhook,
   handleBatchEmployeeWebhook,
   handleBatchBusWebhook,
+  handleDepartmentWebhook,
 } from '../controllers/webhook.controller';
 
 const router = Router();
@@ -373,6 +375,73 @@ router.post('/rental', handleRentalWebhook);
  *               $ref: '#/components/schemas/WebhookErrorResponse'
  */
 router.post('/bus-trip', handleBusTripWebhook);
+
+/**
+ * @swagger
+ * /api/webhooks/department:
+ *   post:
+ *     summary: Receive department lifecycle webhook from HR System
+ *     description: |
+ *       Updates the is_active status of a department record.
+ *       If the department doesn't exist and department_name is provided, creates a new record.
+ *       Never modifies the is_deleted flag (internal lifecycle control).
+ *     tags:
+ *       - General | Webhooks
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - is_active
+ *             properties:
+ *               id:
+ *                 type: integer
+ *                 description: The unique department identifier from HR
+ *                 example: 21
+ *               is_active:
+ *                 type: boolean
+ *                 description: Whether the department is active in the external system
+ *                 example: true
+ *               department_name:
+ *                 type: string
+ *                 description: Optional - for creating new records
+ *                 example: "Human Resource"
+ *     responses:
+ *       200:
+ *         description: Department record updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WebhookSuccessResponse'
+ *       201:
+ *         description: Department record created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WebhookSuccessResponse'
+ *       400:
+ *         description: Invalid request body
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WebhookErrorResponse'
+ *       404:
+ *         description: Department not found and insufficient data to create
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WebhookErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WebhookErrorResponse'
+ */
+router.post('/department', handleDepartmentWebhook);
 
 // ============================================================================
 // BATCH WEBHOOKS

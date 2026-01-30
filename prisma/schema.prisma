@@ -206,10 +206,37 @@ model system_configuration {
 // ============================================================================	
 // EXTERNAL SYSTEM DATA (Normalized Local Persistence)
 // Domain Ownership:
-// - HR owns employees (employee_local)
+// - HR owns employees (employee_local) and departments (department_local)
 // - Inventory owns buses (bus_local)
 // - Operations owns rentals (rental_local) and bus trips (bus_trip_local)
 // ============================================================================	
+
+// ----------------------------------------------------------------------------
+// DEPARTMENT (from HR - store payload AS-IS)
+// External API: env(EXTERNAL_DEPARTMENT_API_URL)
+// ----------------------------------------------------------------------------
+model department_local {
+  // Primary Key - HR identifier
+  id              Int      @id
+
+  // Department details from HR
+  department_name String
+
+  // Lifecycle flags
+  is_active  Boolean @default(true)  // External system lifecycle (from HR)
+  is_deleted Boolean @default(false) // Internal lifecycle (Finance system only)
+
+  // Sync metadata
+  last_synced_at DateTime @default(now())
+
+  // Relations
+  revenues revenue[]
+
+  // Indexes
+  @@index([department_name])
+  @@index([is_active])
+  @@index([is_deleted])
+}
 
 // ----------------------------------------------------------------------------
 // EMPLOYEE (from HR - store payload AS-IS)
@@ -655,6 +682,8 @@ model revenue {
   date_recorded           DateTime?
   date_expected           DateTime?
   description             String?
+  // Department reference (optional - for Other Revenue)
+  department_id           Int?
   // Accounting workflow
   remittance_status       receivable_status @default(PENDING)
   // Payment / Receivable (link only)
@@ -673,6 +702,7 @@ model revenue {
   
   // Relations
   revenue_type         revenue_type                  @relation(fields: [revenue_type_id], references: [id])
+  department           department_local?             @relation(fields: [department_id], references: [id], onDelete: SetNull)
   receivable           receivable?                   @relation("revenue_receivable", fields: [receivable_id], references: [id])
   driver_receivable    receivable?                   @relation("revenue_driver_receivable", fields: [driver_receivable_id], references: [id])
   conductor_receivable receivable?                   @relation("revenue_conductor_receivable", fields: [conductor_receivable_id], references: [id])
@@ -697,6 +727,7 @@ model revenue {
   // Indexes
   @@index([code])
   @@index([revenue_type_id])
+  @@index([department_id])
   @@index([date_recorded])
   @@index([remittance_status])
   @@index([payment_method])

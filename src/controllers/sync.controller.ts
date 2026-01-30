@@ -6,6 +6,7 @@
 
 import { Request, Response } from 'express';
 import { syncExternalData } from '../../lib/sync';
+import { syncDepartments } from '../../lib/sync/departmentSync';
 import { busTripRevenueService } from '../services/busTripRevenue.service';
 import { rentalRevenueService } from '../services/rentalRevenue.service';
 import { logger } from '../config/logger';
@@ -21,15 +22,26 @@ export const triggerExternalDataSync = async (req: Request, res: Response): Prom
   try {
     console.log('[API] Manual external data sync triggered');
 
+    // Sync departments first (no dependencies)
+    logger.info('[SYNC] Syncing departments...');
+    const departmentResult = await syncDepartments();
+
     const result = await syncExternalData();
 
     // Build sync summary
     const syncSummary = {
-      success: result.success,
+      success: result.success && departmentResult.success,
       startTime: result.startTime.toISOString(),
       endTime: result.endTime.toISOString(),
-      totalDurationMs: result.totalDuration,
+      totalDurationMs: result.totalDuration + departmentResult.duration,
       tables: {
+        department_local: {
+          success: departmentResult.success,
+          inserted: departmentResult.inserted,
+          updated: departmentResult.updated,
+          softDeleted: departmentResult.softDeleted,
+          errors: departmentResult.errors,
+        },
         employee_local: {
           success: result.results.employees.success,
           inserted: result.results.employees.stats.inserted,
@@ -155,6 +167,8 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
 
     // Get counts for each local table
     const [
+      departmentCount,
+      departmentDeletedCount,
       employeeCount,
       employeeDeletedCount,
       busCount,
@@ -168,6 +182,8 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
       busTripEmployeeCount,
       busTripEmployeeDeletedCount,
     ] = await Promise.all([
+      prisma.department_local.count({ where: { is_deleted: false } }),
+      prisma.department_local.count({ where: { is_deleted: true } }),
       prisma.employee_local.count({ where: { is_deleted: false } }),
       prisma.employee_local.count({ where: { is_deleted: true } }),
       prisma.bus_local.count({ where: { is_deleted: false } }),
@@ -184,11 +200,16 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
 
     // Get last sync times
     const [
+      lastDepartmentSync,
       lastEmployeeSync,
       lastBusSync,
       lastRentalSync,
       lastBusTripSync,
     ] = await Promise.all([
+      prisma.department_local.findFirst({
+        orderBy: { last_synced_at: 'desc' },
+        select: { last_synced_at: true },
+      }),
       prisma.employee_local.findFirst({
         orderBy: { last_synced_at: 'desc' },
         select: { last_synced_at: true },
@@ -211,6 +232,11 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
       status: 'success',
       data: {
         tables: {
+          department_local: {
+            activeRecords: departmentCount,
+            softDeletedRecords: departmentDeletedCount,
+            lastSyncedAt: lastDepartmentSync?.last_synced_at?.toISOString() || null,
+          },
           employee_local: {
             activeRecords: employeeCount,
             softDeletedRecords: employeeDeletedCount,
@@ -248,6 +274,35 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({
       status: 'error',
       message: 'Failed to get sync status',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+/**
+ * GET /api/sync/departments
+ * 
+ * Get all active departments from local database
+ * Used by frontend to populate department dropdowns
+ */
+export const getDepartments = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { getActiveDepartments } = await import('../../lib/sync/departmentSync');
+    const departments = await getActiveDepartments();
+
+    res.status(200).json({
+      status: 'success',
+      data: departments.map(d => ({
+        id: d.id,
+        name: d.department_name,
+      })),
+    });
+  } catch (error) {
+    console.error('[API] Error getting departments:', error);
+
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get departments',
       error: error instanceof Error ? error.message : String(error),
     });
   }

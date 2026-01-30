@@ -4,6 +4,7 @@ import { logger } from './config/logger';
 import { prisma } from './config/database';
 import { initPayrollScheduledJobs } from './jobs/payrollScheduledJobs';
 import { syncExternalData } from '../lib/sync';
+import { syncDepartments } from '../lib/sync/departmentSync';
 import { busTripRevenueService } from './services/busTripRevenue.service';
 import { rentalRevenueService } from './services/rentalRevenue.service';
 
@@ -21,6 +22,15 @@ const startServer = async () => {
     // Sync external data on startup
     logger.info('🔄 Starting external data synchronization...');
     try {
+      // Sync departments first (no dependencies)
+      logger.info('[SYNC] Step 0: Syncing departments...');
+      const deptResult = await syncDepartments();
+      if (deptResult.success) {
+        logger.info(`[SYNC] department_local: ${deptResult.inserted} inserted, ${deptResult.updated} updated, ${deptResult.softDeleted} soft deleted`);
+      } else {
+        logger.warn(`⚠️ Department sync failed: ${deptResult.errors.join(', ')}`);
+      }
+
       const syncResult = await syncExternalData();
       if (syncResult.success) {
         logger.info('✅ External data synchronized successfully');
