@@ -1748,4 +1748,32 @@ model cash_advance_request {
   @@index([is_deleted])
 }
 
+// ============================================================================
+// ATTACHMENTS - Generic file attachment model for reimbursements and documents
+// ============================================================================
+
+model attachment {
+  id          Int      @id @default(autoincrement())
+  entity_type String   // e.g., "expense", "payable", "revenue"
+  entity_id   String   // The ID of the related entity (as string for flexibility)
+  file_name   String   // Original file name
+  file_type   String   // MIME type (e.g., "image/jpeg", "application/pdf")
+  file_url    String   // URL or path to the stored file
+  file_size   Int?     // File size in bytes
+  description String?  @db.Text // Optional description of the attachment
+
+  // Audit Trail
+  uploaded_by String?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime? @updatedAt
+  is_deleted  Boolean   @default(false)
+
+  // Indexes
+  @@index([entity_type, entity_id])
+  @@index([entity_type])
+  @@index([file_type])
+  @@index([is_deleted])
+  @@index([created_at])
+}
+
 // END OF FINANCE MAIN SCHEMA

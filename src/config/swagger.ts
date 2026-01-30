@@ -100,6 +100,10 @@ to set your token and test authenticated endpoints.
       description: '🔐 Admin – Reference data for expense dropdowns (expense types, payment methods, trips, employees)',
     },
     {
+      name: 'Admin | Attachments',
+      description: '🔐 Admin – File attachment management for expenses, payables, revenues, and other entities',
+    },
+    {
       name: 'Admin | Integration – HR',
       description: '🔐 Admin – HR system employee data synchronization',
     },

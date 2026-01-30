@@ -27,6 +27,7 @@ import operationalTripExpenseRoutes from './routes/admin/operational-trip-expens
 import busTripRevenueRoutes from './routes/admin/bus-trip-revenue';
 import rentalRevenueRoutes from './routes/admin/rental-revenue';
 import otherRevenueRoutes from './routes/otherRevenue.routes';  // Other Revenue module
+import attachmentRoutes from './routes/admin/attachments';  // Attachment module
 // Removed: staffJournalEntryRoutes - replaced by universal /api/journal-entry routes
 
 // Integration routes (for microservices)
@@ -127,6 +128,7 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/bus-trip-revenue', busTripRevenueRoutes);  // Bus Trip Revenue module
   app.use('/api/v1/admin/rental-revenue', rentalRevenueRoutes);  // Rental Revenue module
   app.use('/api/v1/admin/other-revenue', otherRevenueRoutes);  // Other Revenue module
+  app.use('/api/v1/admin/attachments', attachmentRoutes);  // Attachment module
 
   // Operational Trip Expense routes (dedicated module)
   app.use('/api/operational-trip-expenses', operationalTripExpenseRoutes);
