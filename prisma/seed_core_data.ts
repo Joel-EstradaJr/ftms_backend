@@ -136,7 +136,7 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     // RECEIVABLES
     { name: 'Accounts Receivable - Drivers', description: 'Amounts owed by drivers for shortages', customSuffix: '100' },
     { name: 'Accounts Receivable - Conductors', description: 'Amounts owed by conductors for shortages', customSuffix: '105' },
-    { name: 'Accounts Receivable - Other Employees', description: 'Other employee receivables', customSuffix: '110' },
+    { name: 'Accounts Receivable - Other Revenue', description: 'Other employee receivables', customSuffix: '110' },
   ],
 
   Liability: [

@@ -12,6 +12,72 @@
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { Prisma, payment_method, receivable_frequency, receivable_status, installment_status } from '@prisma/client';
+import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+
+// --------------------------
+// COA MAPPINGS
+// --------------------------
+
+/**
+ * Revenue Type Code → Chart of Account Code mapping
+ * Based on seed_core_data.ts COA definitions
+ */
+const REVENUE_TYPE_TO_COA: Record<string, string> = {
+    'REVT-004': '3020', // Advertising Revenue
+    'REVT-005': '3025', // Insurance Commission Income
+    'REVT-006': '3030', // Terminal Fee Income
+    'REVT-007': '3035', // Parking Fee Income
+    'REVT-008': '3040', // Charter Add-on Revenue
+    'REVT-009': '3045', // Cargo Handling Fee Income
+    'REVT-010': '3050', // Penalty & Violation Income
+    'REVT-011': '3055', // Franchise & Partnership Income
+    'REVT-012': '3060', // Maintenance Service Income
+    'REVT-013': '3065', // Miscellaneous Income
+};
+
+/**
+ * Payment method to asset account code mapping
+ */
+const ACCOUNT_CODES = {
+    CASH: '1000',
+    BANK_TRANSFER: '1005',
+    E_WALLET: '1010',
+    ACCOUNTS_RECEIVABLE_OTHER: '1110', // Accounts Receivable - Other Employees
+};
+
+/**
+ * Get asset account code based on payment method
+ */
+function getAssetAccountCode(paymentMethod: payment_method | string | null): string {
+    const method = paymentMethod?.toString().toUpperCase();
+    switch (method) {
+        case 'BANK_TRANSFER':
+            return ACCOUNT_CODES.BANK_TRANSFER;
+        case 'E_WALLET':
+            return ACCOUNT_CODES.E_WALLET;
+        default:
+            return ACCOUNT_CODES.CASH;
+    }
+}
+
+/**
+ * Get revenue account code based on revenue type
+ */
+async function getRevenueAccountCode(revenueTypeId: number): Promise<string> {
+    const revenueType = await prisma.revenue_type.findUnique({
+        where: { id: revenueTypeId },
+        select: { code: true }
+    });
+
+    if (!revenueType) {
+        return '3065'; // Default to Miscellaneous Income
+    }
+
+    return REVENUE_TYPE_TO_COA[revenueType.code] || '3065';
+}
+
+// Journal Entry Service instance
+const journalEntryService = new JournalEntryAutoService();
 
 // --------------------------
 // TYPES
@@ -219,6 +285,7 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
                     select: {
                         id: true,
                         code: true,
+                        status: true,
                         date: true,
                         lines: {
                             select: {
@@ -279,6 +346,12 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
                     balance: Number(s.balance),
                     status: s.status
                 }))
+            } : null,
+            // Journal Entry for edit/delete restrictions
+            journalEntry: r.journal_entry ? {
+                id: r.journal_entry.id,
+                code: r.journal_entry.code,
+                status: r.journal_entry.status
             } : null
         })),
         pagination: {
@@ -511,6 +584,78 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
         return revenue;
     });
 
+    // Generate Journal Entry after transaction completes
+    try {
+        const revenueAccountCode = await getRevenueAccountCode(input.revenue_type_id);
+        const dateRecorded = new Date(input.date_recorded).toISOString().split('T')[0];
+
+        let journalEntryInput: CreateAutoJournalEntryInput;
+
+        if (input.isUnearnedRevenue) {
+            // Unearned Revenue: DR Accounts Receivable, CR Revenue
+            journalEntryInput = {
+                module: 'OTHER_REVENUE',
+                reference_id: result.id.toString(),
+                description: `Other Revenue - ${result.description || 'Unearned Revenue'}`,
+                date: dateRecorded,
+                entries: [
+                    {
+                        account_code: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE_OTHER,
+                        debit: input.amount,
+                        credit: 0,
+                        description: 'Accounts Receivable - Other Revenue'
+                    },
+                    {
+                        account_code: revenueAccountCode,
+                        debit: 0,
+                        credit: input.amount,
+                        description: `Revenue - ${revenueType.name}`
+                    }
+                ]
+            };
+        } else {
+            // Regular Revenue: DR Cash/Bank, CR Revenue
+            const assetAccountCode = getAssetAccountCode(input.payment_method);
+            journalEntryInput = {
+                module: 'OTHER_REVENUE',
+                reference_id: result.id.toString(),
+                description: `Other Revenue - ${result.description || revenueType.name}`,
+                date: dateRecorded,
+                entries: [
+                    {
+                        account_code: assetAccountCode,
+                        debit: input.amount,
+                        credit: 0,
+                        description: `Payment received - ${input.payment_method}`
+                    },
+                    {
+                        account_code: revenueAccountCode,
+                        debit: 0,
+                        credit: input.amount,
+                        description: `Revenue - ${revenueType.name}`
+                    }
+                ]
+            };
+        }
+
+        // Create journal entry
+        const journalEntry = await journalEntryService.createAutoJournalEntry(
+            journalEntryInput,
+            input.created_by
+        );
+
+        // Link journal entry to revenue
+        await prisma.revenue.update({
+            where: { id: result.id },
+            data: { journal_entry_id: journalEntry.id }
+        });
+
+        logger.info(`[OTHER_REVENUE] Created journal entry ${journalEntry.code} for revenue ${code}`);
+    } catch (jeError) {
+        logger.error(`[OTHER_REVENUE] Failed to create journal entry for revenue ${code}:`, jeError);
+        // Don't fail the revenue creation, just log the error
+    }
+
     return result;
 }
 
@@ -532,6 +677,17 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
     // STRICT: Only allow editing for PENDING status
     if (existing.remittance_status !== 'PENDING') {
         throw new Error('Only records with PENDING status can be edited');
+    }
+
+    // Check if journal entry is POSTED - block edit if so
+    if (existing.journal_entry_id) {
+        const journalEntry = await prisma.journal_entry.findUnique({
+            where: { id: existing.journal_entry_id },
+            select: { status: true }
+        });
+        if (journalEntry?.status === 'POSTED') {
+            throw new Error('Cannot edit revenue record - journal entry has been posted');
+        }
     }
 
     // Build update data
@@ -814,6 +970,43 @@ export async function recordPayment(input: RecordPaymentInput) {
         };
     });
 
+    // Generate Journal Entry for payment
+    try {
+        const assetAccountCode = getAssetAccountCode(input.paymentMethod);
+        const paymentDateStr = new Date(input.paymentDate).toISOString().split('T')[0];
+
+        const journalEntryInput: CreateAutoJournalEntryInput = {
+            module: 'OTHER_REVENUE_PAYMENT',
+            reference_id: `${input.revenueId}-payment-${Date.now()}`,
+            description: `Payment for Other Revenue #${input.revenueId}`,
+            date: paymentDateStr,
+            entries: [
+                {
+                    account_code: assetAccountCode,
+                    debit: input.amountPaid,
+                    credit: 0,
+                    description: `Payment received - ${input.paymentMethod}`
+                },
+                {
+                    account_code: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE_OTHER,
+                    debit: 0,
+                    credit: input.amountPaid,
+                    description: 'Reduce Accounts Receivable'
+                }
+            ]
+        };
+
+        const journalEntry = await journalEntryService.createAutoJournalEntry(
+            journalEntryInput,
+            input.recordedBy
+        );
+
+        logger.info(`[OTHER_REVENUE] Created payment journal entry ${journalEntry.code}`);
+    } catch (jeError) {
+        logger.error(`[OTHER_REVENUE] Failed to create payment journal entry:`, jeError);
+        // Don't fail the payment recording, just log the error
+    }
+
     return result;
 }
 
@@ -839,6 +1032,17 @@ export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
     // Only allow deletion for PENDING status
     if (existing.remittance_status !== 'PENDING') {
         throw new Error('Only records with PENDING status can be deleted');
+    }
+
+    // Check if journal entry is POSTED - block delete if so
+    if (existing.journal_entry_id) {
+        const journalEntry = await prisma.journal_entry.findUnique({
+            where: { id: existing.journal_entry_id },
+            select: { status: true }
+        });
+        if (journalEntry?.status === 'POSTED') {
+            throw new Error('Cannot delete revenue record - journal entry has been posted');
+        }
     }
 
     // Use transaction to soft delete revenue and related receivable
