@@ -25,10 +25,12 @@ import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 // Removed: adminJournalEntriesRoutes - replaced by universal /api/journal-entry routes
 // Removed: operationalTripExpenseRoutes - legacy endpoint, replaced by unified expense module
 import operationalExpenseRoutes from './routes/admin/operational-expenses';  // New unified operational expenses
+import otherExpenseRoutes from './routes/admin/other-expense';  // Administrative/Other Expense module
 import busTripRevenueRoutes from './routes/admin/bus-trip-revenue';
 import rentalRevenueRoutes from './routes/admin/rental-revenue';
 import otherRevenueRoutes from './routes/otherRevenue.routes';  // Other Revenue module
 import attachmentRoutes from './routes/admin/attachments';  // Attachment module
+import supplierRoutes from './routes/admin/suppliers';  // Supplier/Vendor module
 // Removed: staffJournalEntryRoutes - replaced by universal /api/journal-entry routes
 
 // Integration routes (for microservices)
@@ -131,6 +133,8 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/other-revenue', otherRevenueRoutes);  // Other Revenue module
   app.use('/api/v1/admin/attachments', attachmentRoutes);  // Attachment module
   app.use('/api/v1/admin/operational-expenses', operationalExpenseRoutes);  // Operational Expense module
+  app.use('/api/v1/admin/other-expense', otherExpenseRoutes);  // Administrative/Other Expense module
+  app.use('/api/v1/admin/suppliers', supplierRoutes);  // Supplier/Vendor module
 
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors

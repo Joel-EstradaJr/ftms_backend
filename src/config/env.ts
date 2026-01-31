@@ -30,6 +30,10 @@ interface Config {
     budgetRequests: string;
   };
 
+  // Inventory API direct access
+  INV_API_BASE_URL: string;
+  INV_SUPPLIER_ENDPOINT: string;
+
   // Security
   corsOrigins: string[];
   rateLimitWindowMs: number;
@@ -63,6 +67,10 @@ export const config: Config = {
     inventory: `${process.env.INV_API_BASE_URL}`,
     budgetRequests: `${process.env.BUDGET_REQUEST_MICRO_BASE_API_URL}`,
   },
+
+  // Inventory API direct access
+  INV_API_BASE_URL: process.env.INV_API_BASE_URL || '',
+  INV_SUPPLIER_ENDPOINT: process.env.INV_SUPPLIER_ENDPOINT || '/api/v1/admin/suppliers',
 
   corsOrigins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3008,http://localhost:4003,http://localhost:4000,http://192.168.1.9:3008').split(','),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),

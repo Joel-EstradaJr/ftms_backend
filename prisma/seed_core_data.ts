@@ -116,10 +116,56 @@ const EXPENSE_TYPE_DATA = [
     name: 'Personnel',
     description: 'Salaries, wages, allowances, and other employee-related expenses'
   },
+  // ADMINISTRATIVE & OTHER EXPENSES (10 types)
   {
     code: 'EXPT-003',
-    name: 'Administrative',
-    description: 'Office supplies, utilities, internet, and administrative costs'
+    name: 'Bad Debt Expense',
+    description: 'Uncollectible accounts written off'
+  },
+  {
+    code: 'EXPT-004',
+    name: 'Office Supplies',
+    description: 'Stationery and office supplies'
+  },
+  {
+    code: 'EXPT-005',
+    name: 'Utilities Expense',
+    description: 'Electricity, water, etc.'
+  },
+  {
+    code: 'EXPT-006',
+    name: 'Rent Expense',
+    description: 'Office or garage rent'
+  },
+  {
+    code: 'EXPT-007',
+    name: 'Internet Subscription',
+    description: 'Internet service costs'
+  },
+  {
+    code: 'EXPT-008',
+    name: 'Professional Fees',
+    description: 'Legal, accounting, consulting fees'
+  },
+  {
+    code: 'EXPT-009',
+    name: 'Insurance Expense',
+    description: 'Insurance premiums'
+  },
+  {
+    code: 'EXPT-010',
+    name: 'License & Permits',
+    description: 'Business licenses and permits'
+  },
+  {
+    code: 'EXPT-011',
+    name: 'Communication Expense',
+    description: 'Phone and communication costs'
+  },
+  {
+    code: 'EXPT-012',
+    name: 'Miscellaneous Expense',
+    description: 'Other administrative expenses'
   },
 ];
 
@@ -180,12 +226,17 @@ const COA_DATA: Record<string, Array<{ name: string; description?: string; custo
     { name: 'Driver/Conductor Allowance', description: 'Daily allowances for staff', customSuffix: '110' },
     { name: 'Salaries & Wages', description: 'Regular employee salaries', customSuffix: '115' },
 
-    // ADMINISTRATIVE & OTHER
+    // ADMINISTRATIVE & OTHER EXPENSES (COA - 10 accounts matching expense types)
     { name: 'Bad Debt Expense', description: 'Uncollectible accounts written off', customSuffix: '200' },
-    { name: 'Office Supplies', description: 'Stationery and office supplies', customSuffix: '205' },
+    { name: 'Office Supplies Expense', description: 'Stationery and office supplies', customSuffix: '205' },
     { name: 'Utilities Expense', description: 'Electricity, water, etc.', customSuffix: '210' },
     { name: 'Rent Expense', description: 'Office or garage rent', customSuffix: '215' },
-    { name: 'Internet Subscription', description: 'Internet service costs', customSuffix: '220' },
+    { name: 'Internet Expense', description: 'Internet service costs', customSuffix: '220' },
+    { name: 'Professional Fees Expense', description: 'Legal, accounting, consulting', customSuffix: '225' },
+    { name: 'Insurance Expense', description: 'Insurance premiums', customSuffix: '230' },
+    { name: 'License & Permit Expense', description: 'Business licenses and permits', customSuffix: '235' },
+    { name: 'Communication Expense', description: 'Phone and communication costs', customSuffix: '240' },
+    { name: 'Miscellaneous Expense', description: 'Other administrative expenses', customSuffix: '245' },
   ],
 };
 

@@ -313,6 +313,91 @@ model bus_local {
 }
 
 // ----------------------------------------------------------------------------
+// SUPPLIER (from Inventory - store payload AS-IS)
+// External API: env(INV_API_BASE_URL) + env(INV_SUPPLIER_ENDPOINT)
+// ----------------------------------------------------------------------------
+model supplier_local {
+  // Primary Key - Auto increment for Finance
+  id              Int       @id @default(autoincrement())
+
+  // External Inventory identifier (unique)
+  supplier_id     String    @unique  // External code from Inventory (e.g., SUP-001)
+  supplier_name   String    @unique
+
+  // Contact details from Inventory
+  contact_number  String?
+  email           String?
+  street          String?
+  barangay        String?
+  city            String?
+  province        String?
+  
+  // Status from Inventory
+  status          String?   @default("ACTIVE")
+  remarks         String?
+  date_created    DateTime?
+  date_updated    DateTime?
+  item_count      Int?
+
+  // Lifecycle flags
+  is_active  Boolean @default(true)   // External system lifecycle (from Inventory)
+  is_deleted Boolean @default(false)  // Internal lifecycle (Finance system only)
+
+  // Sync metadata
+  last_synced_at DateTime @default(now())
+
+  // Relation - one-to-one with vendor
+  vendor vendor?
+
+  // Indexes
+  @@index([supplier_id])
+  @@index([supplier_name])
+  @@index([status])
+  @@index([is_active])
+  @@index([is_deleted])
+  @@index([last_synced_at])
+}
+
+// ----------------------------------------------------------------------------
+// VENDOR (Internal Finance Entity)
+// Unified vendor identity - can be linked to supplier or standalone
+// ----------------------------------------------------------------------------
+model vendor {
+  // Primary Key
+  id                Int       @id @default(autoincrement())
+
+  // Vendor identity (nullable when linked to supplier)
+  code              String?   @unique  // Auto-generated VDR-XXXXX for non-suppliers
+  name              String?   @unique  // User-defined for non-suppliers
+
+  // Optional link to supplier_local (one-to-one)
+  supplier_local_id Int?      @unique
+
+  // Lifecycle flags
+  is_active  Boolean @default(true)
+  is_deleted Boolean @default(false)
+
+  // Audit Trail
+  created_by String?
+  created_at DateTime  @default(now())
+  updated_by String?
+  updated_at DateTime? @updatedAt
+  deleted_by String?
+  deleted_at DateTime?
+
+  // Relations
+  supplier_local supplier_local? @relation(fields: [supplier_local_id], references: [id], onDelete: SetNull)
+  expenses       expense[]
+
+  // Indexes
+  @@index([code])
+  @@index([name])
+  @@index([supplier_local_id])
+  @@index([is_active])
+  @@index([is_deleted])
+}
+
+// ----------------------------------------------------------------------------
 // RENTAL (from Operations)
 // External API: env(OPERATIONS_RENTAL_API_URL)
 // ----------------------------------------------------------------------------
@@ -900,7 +985,7 @@ model expense {
   date_recorded          DateTime?
   date_expected          DateTime?
   description            String?
-  vendor                 String?              @unique // Vendor/creditor name for administrative expenses
+  vendor_id              Int?                 // FK to vendor table
   invoice_number         String?              // Invoice reference number
   status                 expense_status       @default(PENDING)
   bus_trip_assignment_id String?
@@ -918,6 +1003,7 @@ model expense {
 
   // Relations	
   expense_type         expense_type                  @relation(fields: [expense_type_id], references: [id])
+  vendor               vendor?                       @relation(fields: [vendor_id], references: [id], onDelete: SetNull)
   bus_trip             bus_trip_local?               @relation(fields: [bus_trip_assignment_id, bus_trip_id], references: [assignment_id, bus_trip_id], onDelete: SetNull)
   rental               rental_local?                 @relation(fields: [rental_assignment_id], references: [assignment_id], onDelete: SetNull)
   payable              payable?                      @relation(fields: [payable_id], references: [id])
@@ -959,7 +1045,7 @@ model expense {
   @@index([purchase_request_ref])
   @@index([rental_assignment_id])
   @@index([journal_entry_id])
-  @@index([vendor])
+  @@index([vendor_id])
   @@index([invoice_number])
   @@index([is_deleted])
   @@index([created_at])

@@ -8,6 +8,7 @@ import { syncDepartments } from '../lib/sync/departmentSync';
 import { busTripRevenueService } from './services/busTripRevenue.service';
 import { rentalRevenueService } from './services/rentalRevenue.service';
 import { operationalExpenseService } from './services/operationalExpense.service';
+import { supplierSyncService } from './services/supplierSync.service';
 
 const app = createApp();
 
@@ -30,6 +31,19 @@ const startServer = async () => {
         logger.info(`[SYNC] department_local: ${deptResult.inserted} inserted, ${deptResult.updated} updated, ${deptResult.softDeleted} soft deleted`);
       } else {
         logger.warn(`⚠️ Department sync failed: ${deptResult.errors.join(', ')}`);
+      }
+
+      // Sync suppliers from Inventory
+      logger.info('[SYNC] Step 1: Syncing suppliers from Inventory...');
+      try {
+        const supplierResult = await supplierSyncService.syncFromInventory();
+        logger.info(`[SYNC] supplier_local: ${supplierResult.synced} synced, ${supplierResult.errors.length} errors`);
+        if (supplierResult.errors.length > 0) {
+          supplierResult.errors.forEach(err => logger.warn(`[SYNC] Supplier error: ${err}`));
+        }
+      } catch (supplierError) {
+        logger.error('⚠️ Supplier sync failed:', supplierError);
+        // Don't block server startup on supplier sync failure
       }
 
       const syncResult = await syncExternalData();
