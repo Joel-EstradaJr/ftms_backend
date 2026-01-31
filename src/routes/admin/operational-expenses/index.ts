@@ -621,9 +621,6 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
         bus_trip_id: trip_assignment?.operational_trip_bus_trip_id || null,
         rental_assignment_id: trip_assignment?.rental_trip_assignment_id || null,
 
-        // Accounting
-        account_id: accounting_details?.account_id || null,
-
         // Reimbursement
         payable_id: payableId,
 
@@ -664,7 +661,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
       data: {
         id: expense.id,
         code: expense.code,
-        expense_type_name: expense.expense_type?.name,
+        expense_type_name: (expense as any).expense_type?.name,
         amount: parseFloat(expense.amount.toString()),
         status: expense.status,
       },
@@ -717,7 +714,6 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         date_recorded: expense_information?.date_recorded ? new Date(expense_information.date_recorded) : undefined,
         payment_method: expense_information?.payment_method,
         description: remarks,
-        account_id: accounting_details?.account_id,
         updated_by: userId,
       },
       include: {

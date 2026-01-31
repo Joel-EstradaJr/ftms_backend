@@ -3,11 +3,20 @@
  * Handles bus trip and rental trip data synchronization from external Operations system
  */
 
-import { Router } from 'express';
-import { OperationsTripController } from '@/controllers/integration/operations.controller';
+import { Router, Request, Response } from 'express';
 
 const router = Router();
-const controller = new OperationsTripController();
+
+// Placeholder controller - operations.controller module not yet implemented
+const controller = {
+  syncTrips: (req: Request, res: Response) => res.status(501).json({ message: 'Not implemented' }),
+  fetchAndSyncBusTrips: (req: Request, res: Response) => res.status(501).json({ message: 'Not implemented' }),
+  getUnrecordedTrips: (req: Request, res: Response) => res.status(501).json({ message: 'Not implemented' }),
+  syncRentalTrips: (req: Request, res: Response) => res.status(501).json({ message: 'Not implemented' }),
+  fetchAndSyncRentalTrips: (req: Request, res: Response) => res.status(501).json({ message: 'Not implemented' }),
+  getUnrecordedRentalTrips: (req: Request, res: Response) => res.status(501).json({ message: 'Not implemented' }),
+  getRentalTripsByStatus: (req: Request, res: Response) => res.status(501).json({ message: 'Not implemented' }),
+};
 
 // Bus Trips (Operational Trips)
 router.post('/sync-trips', (req, res) => controller.syncTrips(req, res));

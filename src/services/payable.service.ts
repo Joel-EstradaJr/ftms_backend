@@ -17,7 +17,7 @@ export class PayableService {
           total_amount: data.total_amount?.toString() || data.amountDue?.toString(),
           balance: data.total_amount?.toString() || data.amountDue?.toString(),
           due_date: data.due_date ? new Date(data.due_date) : (data.dueDate ? new Date(data.dueDate) : null),
-          installment_plan: data.installment_plan || data.frequency,
+          frequency: data.installment_plan || data.frequency,
           interest_rate: data.interest_rate?.toString() || data.interestRate?.toString(),
           status: 'PENDING',
           created_by: userId,

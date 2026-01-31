@@ -5,7 +5,7 @@
  */
 
 import { PrismaClient, Prisma } from '@prisma/client';
-import { config } from '@/config/env';
+import { config } from '../config/env';
 
 const prisma = new PrismaClient();
 
@@ -63,10 +63,10 @@ export class SupplierSyncService {
             throw new Error(`Failed to fetch suppliers: ${response.status} ${response.statusText}`);
         }
 
-        const result = await response.json();
+        const result = (await response.json()) as { data?: any[]; suppliers?: any[] };
 
         // Handle different response formats
-        const suppliers = result.data || result.suppliers || result || [];
+        const suppliers = result.data || result.suppliers || (Array.isArray(result) ? result : []);
         console.log(`[SupplierSync] Received ${suppliers.length} suppliers from Inventory`);
 
         return suppliers;

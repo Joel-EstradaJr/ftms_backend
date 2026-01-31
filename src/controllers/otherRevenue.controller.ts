@@ -249,7 +249,7 @@ export const update = async (req: Request, res: Response): Promise<void> => {
             input.payment_reference = req.body.payment_reference;
         }
         if (req.body.department_id !== undefined) {
-            input.department_id = req.body.department_id === null ? undefined : parseInt(req.body.department_id.toString());
+            input.department_id = req.body.department_id === null ? undefined : parseInt(req.body.department_id);
         }
         if (req.body.remarks !== undefined) {
             input.remarks = req.body.remarks;

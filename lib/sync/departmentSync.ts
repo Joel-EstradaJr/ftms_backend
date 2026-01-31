@@ -73,7 +73,7 @@ export async function syncDepartments(): Promise<DepartmentSyncResult> {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const departments: ExternalDepartmentPayload[] = await response.json();
+        const departments = (await response.json()) as ExternalDepartmentPayload[];
         console.log(`[SYNC] Received ${departments.length} departments from API`);
 
         if (!Array.isArray(departments)) {
