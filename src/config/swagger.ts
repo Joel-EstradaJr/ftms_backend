@@ -47,24 +47,33 @@ to set your token and test authenticated endpoints.
   },
   servers: (() => {
     const servers = [];
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
     
-    // Production server - prioritize these methods to get HTTPS URL
-    const productionUrl = 
-      process.env.API_BASE_URL || 
-      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
-      (process.env.RAILWAY_STATIC_URL) ||
-      (isProduction ? 'https://ftmsbackend-production.up.railway.app' : null);
+    // Detect if running in Railway/production environment
+    // Railway sets PORT (usually 8080), and various RAILWAY_* vars
+    const isRailway = !!(
+      process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_PUBLIC_DOMAIN ||
+      process.env.RAILWAY_STATIC_URL ||
+      process.env.RAILWAY_SERVICE_NAME ||
+      (process.env.PORT && process.env.PORT !== '4000') // Railway uses different port
+    );
+    const isProduction = process.env.NODE_ENV === 'production' || isRailway;
     
-    if (productionUrl) {
+    // Production server - ALWAYS add this for Railway deployments
+    if (isProduction || isRailway) {
+      const productionUrl = 
+        process.env.API_BASE_URL || 
+        (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+        'https://ftmsbackend-production.up.railway.app'; // Hardcoded fallback
+      
       servers.push({
         url: productionUrl,
         description: 'Production Server',
       });
     }
     
-    // Only add localhost in non-production
-    if (!isProduction) {
+    // Only add localhost in non-production/non-Railway
+    if (!isProduction && !isRailway) {
       servers.push(
         {
           url: `http://localhost:${config.port}`,
