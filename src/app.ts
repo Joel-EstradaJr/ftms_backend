@@ -24,6 +24,8 @@ import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 // Removed: adminJournalEntriesRoutes - replaced by universal /api/journal-entry routes
 // Removed: operationalTripExpenseRoutes - legacy endpoint, replaced by unified expense module
+import dashboardRoutes from './routes/admin/dashboard.routes';
+import budgetAllocationRoutes from './routes/admin/budget-allocation';
 import operationalExpenseRoutes from './routes/admin/operational-expenses';  // New unified operational expenses
 import otherExpenseRoutes from './routes/admin/other-expense';  // Administrative/Other Expense module
 import busTripRevenueRoutes from './routes/admin/bus-trip-revenue';
@@ -37,6 +39,7 @@ import supplierRoutes from './routes/admin/suppliers';  // Supplier/Vendor modul
 import integrationRoutes from './routes/integration';
 
 // Finance integration routes
+// import financeRoutes from './routes/finance/index';   // brian repo
 import financeRoutes from './routes/finance';
 
 // Sync routes (for external data synchronization)
@@ -125,6 +128,8 @@ export const createApp = (): Application => {
   // ===========================
 
   // Admin routes (Full CRUD + additional actions)
+  app.use('/api/v1/dashboard', dashboardRoutes);
+  app.use('/api/v1/admin/budget-allocation', budgetAllocationRoutes);
   app.use('/api/v1/admin', chartOfAccountsRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
   app.use('/api/v1/admin/journal-entry', journalEntryRoutes);  // Automated JE system under Admin namespace
@@ -153,6 +158,7 @@ export const createApp = (): Application => {
   app.use('/api/integration', integrationRoutes);
 
   // Finance integration routes (external system integration)
+  // app.use('/api/finance', financeRoutes);  // brian repo
   app.use('/finance', financeRoutes);
 
   // Sync routes (external data synchronization)
