@@ -14,7 +14,7 @@ import { logger } from '../../config/logger';
 const router = Router();
 
 /**
- * @route   GET /api/finance/budget-requests
+ * @route   GET /finance/budget-requests
  * @desc    List all budget requests
  * @access  Private
  */
@@ -48,7 +48,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * @route   GET /api/finance/budget-requests/:id
+ * @route   GET /finance/budget-requests/:id
  * @desc    Get a single budget request
  * @access  Private
  */
@@ -73,7 +73,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * @route   POST /api/finance/budget-requests/:id/approve
+ * @route   POST /finance/budget-requests/:id/approve
  * @desc    Approve a budget request
  * @access  Private (Admin only)
  */
@@ -135,7 +135,7 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res: Response
 });
 
 /**
- * @route   POST /api/finance/budget-requests/:id/reject
+ * @route   POST /finance/budget-requests/:id/reject
  * @desc    Reject a budget request
  * @access  Private (Admin only)
  */

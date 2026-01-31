@@ -19,7 +19,7 @@ router.use((req, res, next) => {
 });
 
 /**
- * @route   GET /api/finance/purchase-requests
+ * @route   GET /finance/purchase-requests
  * @desc    Get finance purchase requests
  * @access  Private
  */
@@ -44,7 +44,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * @route   GET /api/finance/purchase-requests/:id
+ * @route   GET /finance/purchase-requests/:id
  * @desc    Get single purchase request
  * @access  Private
  */
@@ -65,7 +65,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * @route   PATCH /api/finance/purchase-requests/:id
+ * @route   PATCH /finance/purchase-requests/:id
  * @desc    Update purchase request (status, remarks)
  * @access  Private
  */
@@ -87,7 +87,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * @route   PATCH /api/finance/purchase-requests/items/bulk
+ * @route   PATCH /finance/purchase-requests/items/bulk
  * @desc    Bulk update purchase request items
  * @access  Private
  */
@@ -108,7 +108,7 @@ router.patch('/items/bulk', authenticate, async (req: AuthRequest, res: Response
 });
 
 /**
- * @route   PATCH /api/finance/purchase-requests/items/:id
+ * @route   PATCH /finance/purchase-requests/items/:id
  * @desc    Update single purchase request item
  * @access  Private
  */

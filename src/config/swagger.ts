@@ -127,6 +127,30 @@ to set your token and test authenticated endpoints.
       name: 'Admin | Suppliers',
       description: '🔐 Admin – Manage suppliers and vendors for expense tracking',
     },
+    {
+      name: 'Admin | Dashboard',
+      description: '🔐 Admin – Dashboard summary and forecast data for financial analytics',
+    },
+    {
+      name: 'Admin | Budget Allocation',
+      description: '🔐 Admin – Manage department budget allocations and deductions',
+    },
+
+    // ===========================
+    // FINANCE INTEGRATION ENDPOINTS
+    // ===========================
+    {
+      name: 'Finance | Budget Requests',
+      description: '💰 Finance – Budget request management (list, view, approve, reject)',
+    },
+    {
+      name: 'Finance | Purchase Requests',
+      description: '💰 Finance – Purchase request management for finance approval',
+    },
+    {
+      name: 'Finance | Payroll Integration',
+      description: '💰 Finance – Payroll data integration for external systems',
+    },
 
     // ===========================
     // STAFF ENDPOINTS
@@ -604,6 +628,225 @@ to set your token and test authenticated endpoints.
                 example: 'FTMS System',
               },
             },
+          },
+        },
+      },
+      // Budget Request schema
+      BudgetRequest: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'integer',
+            example: 1,
+          },
+          request_code: {
+            type: 'string',
+            example: 'BR-2026-001',
+          },
+          department_id: {
+            type: 'string',
+            example: 'DEPT-001',
+          },
+          department_name: {
+            type: 'string',
+            example: 'Finance Department',
+          },
+          requested_by: {
+            type: 'string',
+            example: 'John Doe',
+          },
+          requester_position: {
+            type: 'string',
+            example: 'Department Head',
+          },
+          requested_for: {
+            type: 'string',
+            nullable: true,
+          },
+          request_date: {
+            type: 'string',
+            format: 'date',
+          },
+          total_amount: {
+            type: 'number',
+            example: 50000,
+          },
+          status: {
+            type: 'string',
+            enum: ['PENDING', 'APPROVED', 'REJECTED', 'ADJUSTED', 'CLOSED'],
+            example: 'PENDING',
+          },
+          purpose: {
+            type: 'string',
+            nullable: true,
+          },
+          remarks: {
+            type: 'string',
+            nullable: true,
+          },
+          request_type: {
+            type: 'string',
+            enum: ['REGULAR', 'PROJECT_BASED', 'URGENT', 'EMERGENCY'],
+            example: 'REGULAR',
+          },
+          pr_reference_code: {
+            type: 'string',
+            nullable: true,
+          },
+          approved_by: {
+            type: 'string',
+            nullable: true,
+          },
+          approved_at: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+          },
+          rejected_by: {
+            type: 'string',
+            nullable: true,
+          },
+          rejected_at: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+          },
+          rejection_reason: {
+            type: 'string',
+            nullable: true,
+          },
+          aggregated_requested_amount: {
+            type: 'number',
+            example: 50000,
+          },
+          aggregated_approved_amount: {
+            type: 'number',
+            example: 45000,
+          },
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'integer',
+                },
+                description: {
+                  type: 'string',
+                },
+                requested_amount: {
+                  type: 'number',
+                },
+                approved_amount: {
+                  type: 'number',
+                },
+                notes: {
+                  type: 'string',
+                  nullable: true,
+                },
+                category: {
+                  type: 'object',
+                  nullable: true,
+                  properties: {
+                    id: {
+                      type: 'integer',
+                    },
+                    code: {
+                      type: 'string',
+                    },
+                    name: {
+                      type: 'string',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          created_at: {
+            type: 'string',
+            format: 'date-time',
+          },
+          updated_at: {
+            type: 'string',
+            format: 'date-time',
+          },
+        },
+      },
+      // Purchase Request schema
+      PurchaseRequest: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'integer',
+            example: 1,
+          },
+          request_code: {
+            type: 'string',
+            example: 'PR-2026-001',
+          },
+          department_id: {
+            type: 'string',
+          },
+          department_name: {
+            type: 'string',
+          },
+          requested_by: {
+            type: 'string',
+          },
+          request_date: {
+            type: 'string',
+            format: 'date',
+          },
+          total_amount: {
+            type: 'number',
+          },
+          status: {
+            type: 'string',
+            enum: ['PENDING', 'APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED'],
+          },
+          purpose: {
+            type: 'string',
+            nullable: true,
+          },
+          remarks: {
+            type: 'string',
+            nullable: true,
+          },
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'integer',
+                },
+                description: {
+                  type: 'string',
+                },
+                quantity: {
+                  type: 'number',
+                },
+                unit_cost: {
+                  type: 'number',
+                },
+                approved_quantity: {
+                  type: 'number',
+                  nullable: true,
+                },
+                approved_unit_cost: {
+                  type: 'number',
+                  nullable: true,
+                },
+              },
+            },
+          },
+          created_at: {
+            type: 'string',
+            format: 'date-time',
+          },
+          updated_at: {
+            type: 'string',
+            format: 'date-time',
           },
         },
       },
