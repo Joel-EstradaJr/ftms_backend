@@ -116,6 +116,28 @@ router.get('/vendors', async (req: Request, res: Response, next: NextFunction) =
     }
 });
 
+/**
+ * GET /schedule-frequencies
+ * Returns available schedule frequencies for installment plans
+ */
+router.get('/schedule-frequencies', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const frequencies = [
+            { value: 'DAILY', label: 'Daily' },
+            { value: 'WEEKLY', label: 'Weekly' },
+            { value: 'BIWEEKLY', label: 'Bi-Weekly' },
+            { value: 'MONTHLY', label: 'Monthly' },
+        ];
+
+        res.json({
+            success: true,
+            data: frequencies,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // ===========================
 // CRUD Operations
 // ===========================
@@ -341,6 +363,9 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             },
             include: {
                 expense_type: true,
+                vendor: {
+                    include: { supplier_local: true },
+                },
                 payable: {
                     include: {
                         installment_schedule: {
@@ -626,6 +651,15 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         // Check if expense exists and is editable
         const existing = await prisma.expense.findFirst({
             where: { id: parseInt(id), is_deleted: false },
+            include: {
+                payable: {
+                    include: {
+                        installment_schedule: {
+                            where: { is_deleted: false }
+                        }
+                    }
+                }
+            }
         });
 
         if (!existing) {
@@ -647,37 +681,160 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             date_recorded,
             amount,
             description,
-            vendor_id,  // Changed from vendor string to vendor_id FK
+            vendor_id,
             invoice_number,
             payment_method: paymentMethodInput,
             payment_reference,
+            // Schedule fields
+            enable_schedule,
+            frequency,
+            number_of_payments,
+            schedule_start_date,
         } = req.body;
 
-        const expense = await prisma.expense.update({
-            where: { id: parseInt(id) },
-            data: {
-                expense_type_id: expense_type_id || undefined,
-                date_recorded: date_recorded ? new Date(date_recorded) : undefined,
-                amount: amount !== undefined ? amount : undefined,
-                description: description !== undefined ? description : undefined,
-                vendor_id: vendor_id !== undefined ? vendor_id : undefined,
-                invoice_number: invoice_number !== undefined ? invoice_number : undefined,
-                payment_method: paymentMethodInput || undefined,
-                payment_reference: payment_reference !== undefined ? payment_reference : undefined,
-                updated_by: userId,
-            },
-            include: {
-                expense_type: true,
-                vendor: { include: { supplier_local: true } },
-            },
+        const result = await prisma.$transaction(async (tx) => {
+            // Update expense
+            const expense = await tx.expense.update({
+                where: { id: parseInt(id) },
+                data: {
+                    expense_type_id: expense_type_id || undefined,
+                    date_recorded: date_recorded ? new Date(date_recorded) : undefined,
+                    amount: amount !== undefined ? amount : undefined,
+                    description: description !== undefined ? description : undefined,
+                    vendor_id: vendor_id !== undefined ? vendor_id : undefined,
+                    invoice_number: invoice_number !== undefined ? invoice_number : undefined,
+                    payment_method: paymentMethodInput || undefined,
+                    payment_reference: payment_reference !== undefined ? payment_reference : undefined,
+                    updated_by: userId,
+                },
+            });
+
+            // Handle schedule updates if schedule fields are provided
+            if (enable_schedule !== undefined) {
+                if (enable_schedule && frequency && number_of_payments && schedule_start_date) {
+                    // Check if schedule changed
+                    const oldSchedule = existing.payable?.installment_schedule || [];
+                    const scheduleChanged =
+                        oldSchedule.length !== number_of_payments ||
+                        (amount !== undefined && amount !== parseFloat(existing.amount.toString()));
+
+                    if (existing.payable && scheduleChanged) {
+                        // Hard delete old schedule items to avoid unique constraint violation
+                        // (payable_id, installment_number must be unique)
+                        await tx.expense_installment_schedule.deleteMany({
+                            where: {
+                                payable_id: existing.payable.id,
+                            },
+                        });
+
+                        // Update payable amount
+                        const newAmount = amount !== undefined ? amount : parseFloat(existing.amount.toString());
+                        await tx.payable.update({
+                            where: { id: existing.payable.id },
+                            data: {
+                                total_amount: newAmount,
+                                balance: newAmount,
+                                paid_amount: 0,
+                                status: 'PENDING',
+                                updated_by: userId,
+                            },
+                        });
+
+                        // Generate schedule dates
+                        const scheduleIntervalDays =
+                            frequency === 'DAILY' ? 1 :
+                                frequency === 'WEEKLY' ? 7 :
+                                    frequency === 'BIWEEKLY' ? 14 :
+                                        frequency === 'MONTHLY' ? 30 : 30;
+
+                        const installmentAmount = newAmount / number_of_payments;
+                        const startDate = new Date(schedule_start_date);
+
+                        // Create new schedule items
+                        for (let i = 0; i < number_of_payments; i++) {
+                            const dueDate = new Date(startDate);
+                            dueDate.setDate(startDate.getDate() + (i * scheduleIntervalDays));
+
+                            await tx.expense_installment_schedule.create({
+                                data: {
+                                    payable_id: existing.payable.id,
+                                    installment_number: i + 1,
+                                    due_date: dueDate,
+                                    amount_due: installmentAmount,
+                                    amount_paid: 0,
+                                    balance: installmentAmount,
+                                    status: 'PENDING',
+                                    created_by: userId,
+                                },
+                            });
+                        }
+
+                        logger.info(`[OtherExpense] Regenerated schedule for expense ${id}: ${number_of_payments} installments`);
+                    } else if (!existing.payable) {
+                        // Create new payable and schedule if none exists
+                        const payableService = new PayableService();
+                        const newAmount = amount !== undefined ? amount : parseFloat(existing.amount.toString());
+
+                        const payable = await payableService.createPayableWithSchedule(
+                            tx,
+                            {
+                                amount: newAmount,
+                                description: description || existing.description || `Payable for expense`,
+                                vendorId: vendor_id || existing.vendor_id || null,
+                                dueDate: new Date(schedule_start_date),
+                            },
+                            {
+                                frequency,
+                                numberOfPayments: number_of_payments,
+                                startDate: new Date(schedule_start_date),
+                            },
+                            userId
+                        );
+
+                        // Link payable to expense
+                        await tx.expense.update({
+                            where: { id: parseInt(id) },
+                            data: { payable_id: payable.id },
+                        });
+                    }
+                } else {
+                    // enable_schedule is false - remove payable and installments
+                    if (existing.payable) {
+                        // Delete installment schedule items first
+                        await tx.expense_installment_schedule.deleteMany({
+                            where: { payable_id: existing.payable.id },
+                        });
+
+                        // Unlink payable from expense
+                        await tx.expense.update({
+                            where: { id: parseInt(id) },
+                            data: { payable_id: null },
+                        });
+
+                        // Soft delete the payable
+                        await tx.payable.update({
+                            where: { id: existing.payable.id },
+                            data: {
+                                is_deleted: true,
+                                deleted_by: userId,
+                                deleted_at: new Date(),
+                            },
+                        });
+
+                        logger.info(`[OtherExpense] Removed schedule for expense ${id}: payable ${existing.payable.id} deleted`);
+                    }
+                }
+            }
+
+            return expense;
         });
 
         res.json({
             success: true,
             message: 'Expense updated successfully',
             data: {
-                id: expense.id,
-                code: expense.code,
+                id: result.id,
+                code: result.code,
             },
         });
     } catch (error) {
