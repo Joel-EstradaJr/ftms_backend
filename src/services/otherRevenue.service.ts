@@ -276,6 +276,18 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
                                 amount_paid: true,
                                 balance: true,
                                 status: true,
+                                payments: {
+                                    select: {
+                                        id: true,
+                                        amount_paid: true,
+                                        payment_date: true,
+                                        payment_method: true,
+                                        payment_reference: true,
+                                        created_by: true,
+                                        created_at: true
+                                    },
+                                    orderBy: { payment_date: 'desc' }
+                                }
                             },
                             orderBy: { due_date: 'asc' }
                         }
@@ -344,7 +356,17 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
                     amountDue: Number(s.amount_due),
                     amountPaid: Number(s.amount_paid),
                     balance: Number(s.balance),
-                    status: s.status
+                    status: s.status,
+                    // Include payment transaction records for payment history
+                    payments: s.payments?.map(p => ({
+                        id: p.id,
+                        amountPaid: Number(p.amount_paid),
+                        paymentDate: p.payment_date,
+                        paymentMethod: p.payment_method,
+                        paymentReference: p.payment_reference,
+                        createdBy: p.created_by,
+                        createdAt: p.created_at
+                    })) || []
                 }))
             } : null,
             // Journal Entry for edit/delete restrictions
@@ -527,8 +549,14 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
             for (let i = 0; i < input.numberOfPayments; i++) {
                 const scheduleDate = new Date(startDate);
                 switch (input.scheduleFrequency) {
+                    case 'DAILY':
+                        scheduleDate.setDate(startDate.getDate() + i);
+                        break;
                     case 'WEEKLY':
                         scheduleDate.setDate(startDate.getDate() + (i * 7));
+                        break;
+                    case 'BIWEEKLY':
+                        scheduleDate.setDate(startDate.getDate() + (i * 14));
                         break;
                     case 'MONTHLY':
                         scheduleDate.setMonth(startDate.getMonth() + i);
@@ -537,7 +565,8 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
                         scheduleDate.setMonth(startDate.getMonth() + (i * 3));
                         break;
                     default:
-                        scheduleDate.setDate(startDate.getDate() + (i * 7));
+                        // Default to daily for unknown frequencies
+                        scheduleDate.setDate(startDate.getDate() + i);
                 }
 
                 await tx.revenue_installment_schedule.create({
@@ -747,9 +776,84 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
         }
     });
 
+    // If amount was updated and there's an associated receivable (unearned revenue),
+    // recalculate the receivable total and installment schedule
+    if (input.amount !== undefined && updated.receivable) {
+        const newAmount = input.amount;
+        const receivable = updated.receivable;
+        const installments = receivable.installment_schedule;
+
+        if (installments && installments.length > 0) {
+            // Calculate new amount per installment
+            const numberOfPayments = installments.length;
+            const amountPerInstallment = newAmount / numberOfPayments;
+
+            // Update each installment, preserving paid amounts and recalculating balances
+            for (const installment of installments) {
+                const paidAmount = Number(installment.amount_paid);
+                const newAmountDue = amountPerInstallment;
+                const newBalance = Math.max(0, newAmountDue - paidAmount);
+
+                // Determine new status based on payments
+                let newStatus: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' = 'PENDING';
+                if (paidAmount >= newAmountDue) {
+                    newStatus = 'PAID';
+                } else if (paidAmount > 0) {
+                    newStatus = 'PARTIALLY_PAID';
+                } else {
+                    // Check if overdue
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    if (new Date(installment.due_date) < today) {
+                        newStatus = 'OVERDUE';
+                    }
+                }
+
+                await prisma.revenue_installment_schedule.update({
+                    where: { id: installment.id },
+                    data: {
+                        amount_due: newAmountDue,
+                        balance: newBalance,
+                        status: newStatus,
+                        updated_by: input.updated_by,
+                        updated_at: new Date()
+                    }
+                });
+            }
+
+            // Update receivable total_amount
+            await prisma.receivable.update({
+                where: { id: receivable.id },
+                data: {
+                    total_amount: newAmount,
+                    updated_by: input.updated_by,
+                    updated_at: new Date()
+                }
+            });
+
+            logger.info(`[OTHER_REVENUE] Recalculated receivable and ${numberOfPayments} installments for revenue ${updated.code}`);
+        }
+    }
+
     logger.info(`[OTHER_REVENUE] Updated revenue ${updated.code}`);
 
-    return updated;
+    // Re-fetch with updated receivable data
+    const finalResult = await prisma.revenue.findUnique({
+        where: { id },
+        include: {
+            revenue_type: true,
+            department: true,
+            receivable: {
+                include: {
+                    installment_schedule: {
+                        orderBy: { due_date: 'asc' }
+                    }
+                }
+            }
+        }
+    });
+
+    return finalResult;
 }
 
 /**

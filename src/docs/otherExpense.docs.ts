@@ -558,4 +558,82 @@
  *                         type: string
  */
 
+/**
+ * @swagger
+ * /api/v1/admin/other-expense/payment:
+ *   post:
+ *     summary: Record installment payment
+ *     description: |
+ *       Record a payment for an expense installment schedule.
+ *       Supports single and cascade payments across multiple installments.
+ *       Updates installment status, payable balance, and payment tracking.
+ *     tags:
+ *       - Admin | Administrative Expenses
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - expenseId
+ *               - amountPaid
+ *             properties:
+ *               expenseId:
+ *                 type: integer
+ *                 description: ID of the expense record
+ *               scheduleItemId:
+ *                 type: integer
+ *                 description: ID of specific installment to pay
+ *               amountPaid:
+ *                 type: number
+ *                 description: Payment amount
+ *                 example: 5000.00
+ *               paymentDate:
+ *                 type: string
+ *                 format: date
+ *                 description: Payment date (defaults to now)
+ *               paymentMethod:
+ *                 type: string
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
+ *               cascadeBreakdown:
+ *                 type: array
+ *                 description: For cascade payments across multiple installments
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     scheduleItemId:
+ *                       type: integer
+ *                     amountApplied:
+ *                       type: number
+ *     responses:
+ *       200:
+ *         description: Payment recorded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     payableStatus:
+ *                       type: string
+ *                       enum: [PENDING, PARTIALLY_PAID, PAID]
+ *                     totalPaid:
+ *                       type: number
+ *                     totalDue:
+ *                       type: number
+ *                     balance:
+ *                       type: number
+ *       400:
+ *         description: Invalid request or expense without payment schedule
+ *       404:
+ *         description: Expense not found
+ */
+
 export { };

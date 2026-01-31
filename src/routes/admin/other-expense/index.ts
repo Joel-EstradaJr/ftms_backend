@@ -822,13 +822,12 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
                     description: `Admin expense: ${existing.description || existing.expense_type?.name || 'Administrative Expense'}`,
                     total_debit: existing.amount,
                     total_credit: existing.amount,
-                    status: 'POSTED',
+                    status: 'DRAFT',
                     entry_type: 'AUTO_GENERATED',
-                    approved_by: userId,
-                    approved_at: new Date(),
                     created_by: userId,
                 },
             });
+
 
             // Create journal entry lines
             await tx.journal_entry_line.createMany({
@@ -952,6 +951,228 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
     } catch (error) {
         logger.error('Error rejecting expense:', error);
         next(error);
+    }
+});
+
+/**
+ * POST /payment
+ * Record a payment for an expense installment schedule
+ */
+router.post('/payment', async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const {
+            expenseId,
+            scheduleItemId,
+            scheduleItemIds,
+            amountPaid,
+            paymentDate,
+            paymentMethod,
+            cascadeBreakdown,
+        } = req.body;
+
+        const userId = req.user?.sub || 'system';
+
+        // Validate required fields
+        if (!expenseId || !amountPaid) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: expenseId, amountPaid',
+            });
+        }
+
+        // Validate expense exists and has payable
+        const expense = await prisma.expense.findFirst({
+            where: { id: expenseId, is_deleted: false },
+            include: {
+                expense_type: true,
+                payable: {
+                    include: {
+                        installment_schedule: {
+                            orderBy: { installment_number: 'asc' },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!expense) {
+            return res.status(404).json({
+                success: false,
+                message: 'Expense not found',
+            });
+        }
+
+        if (!expense.payable) {
+            return res.status(400).json({
+                success: false,
+                message: 'Expense does not have a payment schedule',
+            });
+        }
+
+        // Use transaction for atomicity
+        const result = await prisma.$transaction(async (tx) => {
+            const payments: any[] = [];
+            let remainingAmount = amountPaid;
+
+            // Process cascade breakdown if provided
+            if (cascadeBreakdown && cascadeBreakdown.length > 0) {
+                for (const breakdown of cascadeBreakdown) {
+                    const installmentId = typeof breakdown.scheduleItemId === 'string'
+                        ? parseInt(breakdown.scheduleItemId)
+                        : breakdown.scheduleItemId;
+
+                    const installment = await tx.expense_installment_schedule.findUnique({
+                        where: { id: installmentId },
+                    });
+
+                    if (!installment) {
+                        logger.warn(`[OTHER_EXPENSE] Installment ${installmentId} not found, skipping`);
+                        continue;
+                    }
+
+                    const currentBalance = Number(installment.balance);
+                    const amountToApply = Math.min(breakdown.amountApplied, currentBalance);
+
+                    if (amountToApply <= 0) continue;
+
+                    // Create payment record
+                    const payment = await tx.expense_installment_payment.create({
+                        data: {
+                            installment_id: installmentId,
+                            expense_id: expenseId,
+                            amount_paid: amountToApply,
+                            payment_date: new Date(paymentDate || new Date()),
+                            payment_method: paymentMethod as payment_method || 'CASH',
+                            created_by: userId,
+                        },
+                    });
+                    payments.push(payment);
+
+                    // Update installment
+                    const newAmountPaid = Number(installment.amount_paid) + amountToApply;
+                    const newBalance = Number(installment.amount_due) - newAmountPaid;
+                    const newStatus = newBalance <= 0
+                        ? 'PAID'
+                        : newAmountPaid > 0
+                            ? 'PARTIALLY_PAID'
+                            : 'PENDING';
+
+                    await tx.expense_installment_schedule.update({
+                        where: { id: installmentId },
+                        data: {
+                            amount_paid: newAmountPaid,
+                            balance: Math.max(0, newBalance),
+                            status: newStatus,
+                            updated_by: userId,
+                            updated_at: new Date(),
+                        },
+                    });
+                }
+            } else {
+                // Simple single installment payment
+                const installmentId = typeof scheduleItemId === 'string'
+                    ? parseInt(scheduleItemId)
+                    : scheduleItemId;
+
+                const installment = await tx.expense_installment_schedule.findUnique({
+                    where: { id: installmentId },
+                });
+
+                if (!installment) {
+                    throw new Error('Installment not found');
+                }
+
+                const currentBalance = Number(installment.balance);
+                const amountToApply = Math.min(amountPaid, currentBalance);
+
+                // Create payment record
+                const payment = await tx.expense_installment_payment.create({
+                    data: {
+                        installment_id: installmentId,
+                        expense_id: expenseId,
+                        amount_paid: amountToApply,
+                        payment_date: new Date(paymentDate || new Date()),
+                        payment_method: paymentMethod as payment_method || 'CASH',
+                        created_by: userId,
+                    },
+                });
+                payments.push(payment);
+
+                // Update installment
+                const newAmountPaid = Number(installment.amount_paid) + amountToApply;
+                const newBalance = Number(installment.amount_due) - newAmountPaid;
+                const newStatus = newBalance <= 0
+                    ? 'PAID'
+                    : newAmountPaid > 0
+                        ? 'PARTIALLY_PAID'
+                        : 'PENDING';
+
+                await tx.expense_installment_schedule.update({
+                    where: { id: installmentId },
+                    data: {
+                        amount_paid: newAmountPaid,
+                        balance: Math.max(0, newBalance),
+                        status: newStatus,
+                        updated_by: userId,
+                        updated_at: new Date(),
+                    },
+                });
+            }
+
+            // Update payable status based on all installments
+            const allInstallments = await tx.expense_installment_schedule.findMany({
+                where: { payable_id: expense.payable!.id },
+            });
+
+            const totalPaid = allInstallments.reduce((sum, i) => sum + Number(i.amount_paid), 0);
+            const totalDue = allInstallments.reduce((sum, i) => sum + Number(i.amount_due), 0);
+            const allPaid = allInstallments.every(i => i.status === 'PAID');
+            const somePaid = allInstallments.some(i => i.status === 'PAID' || i.status === 'PARTIALLY_PAID');
+
+            let payableStatusValue: payable_status = 'PENDING';
+            if (allPaid) {
+                payableStatusValue = 'PAID';
+            } else if (somePaid) {
+                payableStatusValue = 'PARTIALLY_PAID';
+            }
+
+            await tx.payable.update({
+                where: { id: expense.payable!.id },
+                data: {
+                    status: payableStatusValue,
+                    paid_amount: totalPaid,
+                    balance: Math.max(0, totalDue - totalPaid),
+                    last_payment_date: new Date(paymentDate || new Date()),
+
+                    last_payment_amount: amountPaid,
+                    updated_by: userId,
+                    updated_at: new Date(),
+                },
+            });
+
+            logger.info(`[OTHER_EXPENSE] Recorded payment of ${amountPaid} for expense ${expense.code}`);
+
+            return {
+                payments,
+                payableStatus: payableStatusValue,
+
+                totalPaid,
+                totalDue,
+                balance: Math.max(0, totalDue - totalPaid),
+            };
+        });
+
+        res.json({
+            success: true,
+            message: `Payment of ${amountPaid} recorded successfully`,
+            data: result,
+        });
+    } catch (error: any) {
+        logger.error('Error recording expense payment:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to record payment',
+        });
     }
 });
 
