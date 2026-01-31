@@ -51,6 +51,13 @@ enum expense_status {
   COMPLETED
 }
 
+enum revenue_status {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
 enum receivable_status {
   PENDING // Not yet paid at all	
   PARTIALLY_PAID // Some payments received, but balance still exists	
@@ -784,6 +791,10 @@ model revenue {
   rental_assignment_id    String?
   bus_trip_assignment_id  String?
   bus_trip_id             String?
+  
+  // Approval Workflow
+  status                  revenue_status    @default(PENDING)
+  approval_remarks        String?           @db.Text
   
   // Relations
   revenue_type         revenue_type                  @relation(fields: [revenue_type_id], references: [id])

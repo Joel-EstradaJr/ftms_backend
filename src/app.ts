@@ -130,7 +130,6 @@ export const createApp = (): Application => {
   // Admin routes (Full CRUD + additional actions)
   app.use('/api/v1/dashboard', dashboardRoutes);
   app.use('/api/v1/admin/budget-allocation', budgetAllocationRoutes);
-  app.use('/api/v1/admin', chartOfAccountsRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
   app.use('/api/v1/admin/journal-entry', journalEntryRoutes);  // Automated JE system under Admin namespace
   app.use('/api/v1/admin/bus-trip-revenue', busTripRevenueRoutes);  // Bus Trip Revenue module
@@ -140,6 +139,7 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/operational-expenses', operationalExpenseRoutes);  // Operational Expense module
   app.use('/api/v1/admin/other-expense', otherExpenseRoutes);  // Administrative/Other Expense module
   app.use('/api/v1/admin/suppliers', supplierRoutes);  // Supplier/Vendor module
+  app.use('/api/v1/admin', chartOfAccountsRoutes);
 
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors

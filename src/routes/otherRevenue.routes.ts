@@ -657,4 +657,38 @@ router.patch('/:id', otherRevenueController.update);
  */
 router.delete('/:id', otherRevenueController.deleteHandler);
 
+/**
+ * @swagger
+ * /api/v1/admin/other-revenue/{id}/approve:
+ *   patch:
+ *     summary: Approve an other revenue record
+ *     description: Sets status to APPROVED and generates journal entry.
+ *     tags:
+ *       - Admin | Other Revenue
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ */
+router.patch('/:id/approve', otherRevenueController.approve);
+
+/**
+ * @swagger
+ * /api/v1/admin/other-revenue/{id}/reject:
+ *   patch:
+ *     summary: Reject an other revenue record
+ *     description: Sets status to REJECTED with remarks.
+ *     tags:
+ *       - Admin | Other Revenue
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ */
+router.patch('/:id/reject', otherRevenueController.reject);
+
 export default router;

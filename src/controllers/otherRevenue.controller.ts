@@ -15,6 +15,8 @@ import {
     getOtherRevenueTypes,
     recordPayment,
     softDeleteOtherRevenue,
+    approveOtherRevenue,
+    rejectOtherRevenue,
     OtherRevenueCreateInput,
     OtherRevenueUpdateInput,
     RecordPaymentInput
@@ -178,6 +180,9 @@ export const create = async (req: Request, res: Response): Promise<void> => {
             }
         }
 
+        // For Other Revenue, always start with PENDING payment status (requires approval first)
+        (input as any).remittance_status = 'PENDING';
+
         const result = await createOtherRevenue(input);
 
         res.status(201).json({
@@ -244,7 +249,7 @@ export const update = async (req: Request, res: Response): Promise<void> => {
             input.payment_reference = req.body.payment_reference;
         }
         if (req.body.department_id !== undefined) {
-            input.department_id = req.body.department_id === null ? null : parseInt(req.body.department_id);
+            input.department_id = req.body.department_id === null ? undefined : parseInt(req.body.department_id.toString());
         }
         if (req.body.remarks !== undefined) {
             input.remarks = req.body.remarks;
@@ -440,6 +445,92 @@ export const deleteHandler = async (req: Request, res: Response): Promise<void> 
         res.status(500).json({
             status: 'error',
             message: 'Failed to delete revenue record',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+};
+
+/**
+ * PATCH /api/v1/admin/other-revenue/:id/approve
+ * Approve an other revenue record
+ */
+export const approve = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = parseInt(req.params.id);
+        const userId = req.body.userId || 'system';
+
+        if (isNaN(id)) {
+            res.status(400).json({
+                status: 'error',
+                message: 'Invalid revenue ID'
+            });
+            return;
+        }
+
+        const result = await approveOtherRevenue(id, userId);
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Revenue record approved successfully',
+            data: result
+        });
+    } catch (error) {
+        logger.error('[OTHER_REVENUE] Approve error:', error);
+
+        if (error instanceof Error && (error.message.includes('not found') || error.message.includes('Cannot approve'))) {
+            res.status(400).json({
+                status: 'error',
+                message: error.message
+            });
+            return;
+        }
+
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to approve revenue record',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+};
+
+/**
+ * PATCH /api/v1/admin/other-revenue/:id/reject
+ * Reject an other revenue record
+ */
+export const reject = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = parseInt(req.params.id);
+        const { remarks, userId } = req.body;
+
+        if (isNaN(id)) {
+            res.status(400).json({
+                status: 'error',
+                message: 'Invalid revenue ID'
+            });
+            return;
+        }
+
+        const result = await rejectOtherRevenue(id, remarks, userId || 'system');
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Revenue record rejected successfully',
+            data: result
+        });
+    } catch (error) {
+        logger.error('[OTHER_REVENUE] Reject error:', error);
+
+        if (error instanceof Error && (error.message.includes('not found') || error.message.includes('Cannot reject'))) {
+            res.status(400).json({
+                status: 'error',
+                message: error.message
+            });
+            return;
+        }
+
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to reject revenue record',
             error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
