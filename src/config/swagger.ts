@@ -45,21 +45,48 @@ to set your token and test authenticated endpoints.
       url: 'https://ftms.example.com/license',
     },
   },
-  servers: [
-    // Production server first (Railway uses HTTPS)
-    ...(process.env.API_BASE_URL ? [{
-      url: process.env.API_BASE_URL,
-      description: 'Production Server',
-    }] : []),
-    {
-      url: `https://localhost:${config.port}`,
-      description: 'Local Development (HTTPS)',
-    },
-    {
-      url: `http://localhost:${config.port}`,
-      description: 'Local Development (HTTP)',
-    },
-  ],
+  servers: (() => {
+    const servers = [];
+    
+    // Auto-detect Railway production URL (Railway sets RAILWAY_PUBLIC_DOMAIN)
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      servers.push({
+        url: `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`,
+        description: 'Production Server (Railway)',
+      });
+    }
+    
+    // Explicit API_BASE_URL if set
+    if (process.env.API_BASE_URL) {
+      servers.push({
+        url: process.env.API_BASE_URL,
+        description: 'Production Server',
+      });
+    }
+    
+    // Fallback: detect if running in production (NODE_ENV or PORT !== local default)
+    if (process.env.NODE_ENV === 'production' && !process.env.RAILWAY_PUBLIC_DOMAIN && !process.env.API_BASE_URL) {
+      // Use relative URL - Swagger will use the current host
+      servers.push({
+        url: '',
+        description: 'Current Server',
+      });
+    }
+    
+    // Local development servers
+    servers.push(
+      {
+        url: `https://localhost:${config.port}`,
+        description: 'Local Development (HTTPS)',
+      },
+      {
+        url: `http://localhost:${config.port}`,
+        description: 'Local Development (HTTP)',
+      }
+    );
+    
+    return servers;
+  })(),
   tags: [
     // ===========================
     // GENERAL ENDPOINTS
