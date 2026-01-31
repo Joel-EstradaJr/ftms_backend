@@ -47,43 +47,35 @@ to set your token and test authenticated endpoints.
   },
   servers: (() => {
     const servers = [];
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
     
-    // Auto-detect Railway production URL (Railway sets RAILWAY_PUBLIC_DOMAIN)
-    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-      servers.push({
-        url: `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`,
-        description: 'Production Server (Railway)',
-      });
-    }
+    // Production server - prioritize these methods to get HTTPS URL
+    const productionUrl = 
+      process.env.API_BASE_URL || 
+      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+      (process.env.RAILWAY_STATIC_URL) ||
+      (isProduction ? 'https://ftmsbackend-production.up.railway.app' : null);
     
-    // Explicit API_BASE_URL if set
-    if (process.env.API_BASE_URL) {
+    if (productionUrl) {
       servers.push({
-        url: process.env.API_BASE_URL,
+        url: productionUrl,
         description: 'Production Server',
       });
     }
     
-    // Fallback: detect if running in production (NODE_ENV or PORT !== local default)
-    if (process.env.NODE_ENV === 'production' && !process.env.RAILWAY_PUBLIC_DOMAIN && !process.env.API_BASE_URL) {
-      // Use relative URL - Swagger will use the current host
-      servers.push({
-        url: '',
-        description: 'Current Server',
-      });
+    // Only add localhost in non-production
+    if (!isProduction) {
+      servers.push(
+        {
+          url: `http://localhost:${config.port}`,
+          description: 'Local Development (HTTP)',
+        },
+        {
+          url: `https://localhost:${config.port}`,
+          description: 'Local Development (HTTPS)',
+        }
+      );
     }
-    
-    // Local development servers
-    servers.push(
-      {
-        url: `https://localhost:${config.port}`,
-        description: 'Local Development (HTTPS)',
-      },
-      {
-        url: `http://localhost:${config.port}`,
-        description: 'Local Development (HTTP)',
-      }
-    );
     
     return servers;
   })(),
