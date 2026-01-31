@@ -4,7 +4,7 @@
  */
 
 import { Router } from 'express';
-import { HRIntegrationController } from '@/controllers/integration/hr.controller';
+import { HRIntegrationController } from '../../controllers/integration/hr.controller';
 
 const router = Router();
 const controller = new HRIntegrationController();

@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { supplierSyncService } from '@/services/supplierSync.service';
+import { supplierSyncService } from '../../../services/supplierSync.service';
 
 const router = Router();
 

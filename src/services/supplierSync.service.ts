@@ -5,7 +5,7 @@
  */
 
 import { PrismaClient, Prisma } from '@prisma/client';
-import { config } from '@/config/env';
+import { config } from '../config/env';
 
 const prisma = new PrismaClient();
 
