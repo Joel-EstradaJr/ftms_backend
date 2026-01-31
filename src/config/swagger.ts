@@ -46,13 +46,18 @@ to set your token and test authenticated endpoints.
     },
   },
   servers: [
+    // Production server first (Railway uses HTTPS)
+    ...(process.env.API_BASE_URL ? [{
+      url: process.env.API_BASE_URL,
+      description: 'Production Server',
+    }] : []),
     {
       url: `https://localhost:${config.port}`,
       description: 'Local Development (HTTPS)',
     },
     {
-      url: process.env.API_BASE_URL || `https://localhost:${config.port}`,
-      description: 'Production Server',
+      url: `http://localhost:${config.port}`,
+      description: 'Local Development (HTTP)',
     },
   ],
   tags: [
