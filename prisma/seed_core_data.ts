@@ -12,7 +12,7 @@
  * - Handles overflow by finding the lowest available code within the type prefix
  */
 
-import { PrismaClient, normal_balance } from '@prisma/client';
+import { PrismaClient, normal_balance, receivable_frequency } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -28,93 +28,220 @@ const ACCOUNT_TYPE_CONFIG = {
 };
 
 /**
- * Chart of Accounts data organized by account type
- * Each entry includes name, optional description, and optional custom code suffix
+ * Revenue Type seed data - COMPREHENSIVE SET
+ * Covers bus trip, rental, and specific other revenue categories
+ */
+const REVENUE_TYPE_DATA = [
+  // Bus Trip Revenue
+  {
+    code: 'REVT-001',
+    name: 'Bus Trip Revenue - Boundary',
+    description: 'Fixed daily rental income from drivers under the boundary system arrangement'
+  },
+  {
+    code: 'REVT-002',
+    name: 'Bus Trip Revenue - Percentage',
+    description: 'Commission-based income calculated as a percentage of trip earnings'
+  },
+  // Rental Revenue
+  {
+    code: 'REVT-003',
+    name: 'Rental Revenue',
+    description: 'Rental service income from bus unit rentals'
+  },
+  // Other Revenue - Specific Categories (10 types)
+  {
+    code: 'REVT-004',
+    name: 'Advertising Revenue',
+    description: 'Income from bus wrap advertising, terminal signage, and promotional placements'
+  },
+  {
+    code: 'REVT-005',
+    name: 'Insurance Commission',
+    description: 'Commission income from passenger insurance partnerships and travel protection fees'
+  },
+  {
+    code: 'REVT-006',
+    name: 'Terminal Fee Income',
+    description: 'Revenue from terminal operations, boarding fees, and station usage charges'
+  },
+  {
+    code: 'REVT-007',
+    name: 'Parking Fee Income',
+    description: 'Parking fees collected from vehicles at terminals and company premises'
+  },
+  {
+    code: 'REVT-008',
+    name: 'Charter Add-on Revenue',
+    description: 'Additional services on charter trips such as tour guide, meals, and special accommodations'
+  },
+  {
+    code: 'REVT-009',
+    name: 'Cargo Handling Fee',
+    description: 'Freight handling, baggage fees, and cargo transportation income'
+  },
+  {
+    code: 'REVT-010',
+    name: 'Penalty Income',
+    description: 'Late fees, violation penalties, cancellation charges, and contractual penalties'
+  },
+  {
+    code: 'REVT-011',
+    name: 'Franchise Income',
+    description: 'Royalties and fees from franchise agreements and route partnerships'
+  },
+  {
+    code: 'REVT-012',
+    name: 'Maintenance Service Income',
+    description: 'Income from providing maintenance services to third-party vehicles'
+  },
+  {
+    code: 'REVT-013',
+    name: 'Miscellaneous Income',
+    description: 'Other minor income sources not classified elsewhere'
+  },
+];
+
+/**
+ * Expense Type seed data - MINIMAL SET
+ */
+const EXPENSE_TYPE_DATA = [
+  {
+    code: 'EXPT-001',
+    name: 'Operational',
+    description: 'Day-to-day operational expenses (fuel, toll, parking, terminal fees)'
+  },
+  {
+    code: 'EXPT-002',
+    name: 'Personnel',
+    description: 'Salaries, wages, allowances, and other employee-related expenses'
+  },
+  // ADMINISTRATIVE & OTHER EXPENSES (10 types)
+  {
+    code: 'EXPT-003',
+    name: 'Bad Debt Expense',
+    description: 'Uncollectible accounts written off'
+  },
+  {
+    code: 'EXPT-004',
+    name: 'Office Supplies',
+    description: 'Stationery and office supplies'
+  },
+  {
+    code: 'EXPT-005',
+    name: 'Utilities Expense',
+    description: 'Electricity, water, etc.'
+  },
+  {
+    code: 'EXPT-006',
+    name: 'Rent Expense',
+    description: 'Office or garage rent'
+  },
+  {
+    code: 'EXPT-007',
+    name: 'Internet Subscription',
+    description: 'Internet service costs'
+  },
+  {
+    code: 'EXPT-008',
+    name: 'Professional Fees',
+    description: 'Legal, accounting, consulting fees'
+  },
+  {
+    code: 'EXPT-009',
+    name: 'Insurance Expense',
+    description: 'Insurance premiums'
+  },
+  {
+    code: 'EXPT-010',
+    name: 'License & Permits',
+    description: 'Business licenses and permits'
+  },
+  {
+    code: 'EXPT-011',
+    name: 'Communication Expense',
+    description: 'Phone and communication costs'
+  },
+  {
+    code: 'EXPT-012',
+    name: 'Miscellaneous Expense',
+    description: 'Other administrative expenses'
+  },
+];
+
+/**
+ * MINIMAL Chart of Accounts - ONLY ESSENTIAL ACCOUNTS
  */
 const COA_DATA: Record<string, Array<{ name: string; description?: string; customSuffix?: string }>> = {
   Asset: [
-    { name: 'Cash on Hand', description: 'Physical cash held in the office' },
-    { name: 'Petty Cash Fund', description: 'Small amounts for minor expenses' },
-    { name: 'BDO Bank - Current Account', description: 'Primary checking account' },
-    { name: 'BDO Bank - Savings Account', description: 'Savings account for reserves' },
-    { name: 'Accounts Receivable - Customers', description: 'Amounts owed by customers' },
-    { name: 'Accounts Receivable - Employees (Loans)', description: 'Employee loans receivable' },
-    { name: 'Accounts Receivable - Others', description: 'Other receivables' },
-    { name: 'Accounts Receivable - Insurance', description: 'Insurance claims receivable' },
-    { name: 'Advances to Suppliers', description: 'Prepayments to suppliers' },
-    { name: 'Accounts Receivable - Suppliers', description: 'Refunds or credits from suppliers' },
-    { name: 'Inventory - Spare Parts/Tires', description: 'Parts and tire inventory' },
-    { name: 'Prepaid Insurance', description: 'Insurance paid in advance' },
-    { name: 'Buses', description: 'Fleet of buses (fixed asset)' },
-    { name: 'Office Equipment', description: 'Computers, printers, etc.' },
-    { name: 'Furniture & Fixtures', description: 'Office furniture' },
-    { name: 'Accumulated Depreciation - Buses', description: 'Contra-asset for bus depreciation' },
-    { name: 'Accumulated Depreciation - Equipment', description: 'Contra-asset for equipment depreciation' },
+    // CASH & BANK ACCOUNTS
+    { name: 'Cash on Hand', description: 'Physical cash held in the office', customSuffix: '000' },
+    { name: 'Bank Account', description: 'Primary checking account', customSuffix: '005' },
+    { name: 'E-Wallet', description: 'Digital wallet for online transactions', customSuffix: '010' },
+
+    // RECEIVABLES
+    { name: 'Accounts Receivable - Drivers', description: 'Amounts owed by drivers for shortages', customSuffix: '100' },
+    { name: 'Accounts Receivable - Conductors', description: 'Amounts owed by conductors for shortages', customSuffix: '105' },
+    { name: 'Accounts Receivable - Other Revenue', description: 'Other employee receivables', customSuffix: '110' },
   ],
+
   Liability: [
-    { name: 'Accounts Payable - Suppliers', description: 'Amounts owed to suppliers' },
-    { name: 'Accounts Payable - Employees', description: 'Salaries and wages payable' },
-    { name: 'Accrued Expenses Payable', description: 'Expenses incurred but not yet paid' },
-    { name: 'Dividends Payable', description: 'Dividends declared but not paid' },
-    { name: 'Loans Payable - Banks', description: 'Bank loans and financing' },
-    { name: 'Loans Payable - Others', description: 'Other loans payable' },
-    { name: 'Unearned Revenue - Rental Deposits', description: 'Advance payments for rentals' },
+    { name: 'Accounts Payable', description: 'Amounts owed to others', customSuffix: '000' },
+    { name: 'Accounts Payable - Suppliers', description: 'Amounts owed to suppliers', customSuffix: '005' },
+    { name: 'Accounts Payable - Employees', description: 'Salaries and wages payable', customSuffix: '010' },
   ],
+
   Revenue: [
-    { name: 'Trip Revenue - Boundary', description: 'Fixed daily rental from drivers' },
-    { name: 'Trip Revenue - Percentage', description: 'Percentage-based trip revenue' },
-    { name: 'Rental Revenue', description: 'Bus rental income' },
-    { name: 'Advertising Revenue', description: 'Income from bus advertising' },
-    { name: 'Asset Sale Gain', description: 'Gain on sale of assets' },
-    { name: 'Loan Interest Income', description: 'Interest from employee loans' },
-    { name: 'Interest Income', description: 'Bank interest and other interest' },
-    { name: 'Penalty Income', description: 'Late payment penalties collected' },
-    { name: 'Donation Income', description: 'Donations received' },
-    { name: 'Insurance Recovery', description: 'Insurance claim proceeds' },
-    { name: 'Sales Discounts', description: 'Discounts given to customers (contra-revenue)' },
-    { name: 'Miscellaneous Income', description: 'Other income' },
+    // BUS TRIP REVENUE
+    { name: 'Trip Revenue - Boundary', description: 'Fixed daily rental from drivers under boundary system', customSuffix: '000' },
+    { name: 'Trip Revenue - Percentage', description: 'Percentage-based trip revenue', customSuffix: '005' },
+
+    // RENTAL REVENUE
+    { name: 'Rental Service Revenue', description: 'Rental services of bus unit income', customSuffix: '010' },
+
+    // OTHER REVENUE - SPECIFIC ACCOUNTS (10 accounts, matching revenue types)
+    { name: 'Advertising Revenue', description: 'Income from bus wrap advertising, terminal signage, and promotional placements', customSuffix: '020' },
+    { name: 'Insurance Commission Income', description: 'Commission income from passenger insurance partnerships', customSuffix: '025' },
+    { name: 'Terminal Fee Income', description: 'Revenue from terminal operations, boarding fees, and station usage', customSuffix: '030' },
+    { name: 'Parking Fee Income', description: 'Parking fees collected at terminals and company premises', customSuffix: '035' },
+    { name: 'Charter Add-on Revenue', description: 'Additional services on charter trips', customSuffix: '040' },
+    { name: 'Cargo Handling Fee Income', description: 'Freight handling, baggage fees, and cargo transportation', customSuffix: '045' },
+    { name: 'Penalty & Violation Income', description: 'Late fees, violation penalties, and cancellation charges', customSuffix: '050' },
+    { name: 'Franchise & Partnership Income', description: 'Royalties and fees from franchise agreements', customSuffix: '055' },
+    { name: 'Maintenance Service Income', description: 'Income from providing maintenance services to third-party vehicles', customSuffix: '060' },
+    { name: 'Miscellaneous Income', description: 'Other minor income sources not classified elsewhere', customSuffix: '065' },
   ],
+
   Expense: [
-    { name: 'Fuel Expense', description: 'Diesel and other fuel costs' },
-    { name: 'Toll Expense', description: 'Highway and bridge tolls' },
-    { name: 'Parking Expense', description: 'Parking fees' },
-    { name: 'Driver/Conductor Allowance', description: 'Daily allowances for staff' },
-    { name: 'Driver - Conductor Boundary Share Expense', description: 'Driver share under boundary system' },
-    { name: 'Driver-Conductor Percentage Expense', description: 'Driver share under percentage system' },
-    { name: 'Wage Adjustment Expense', description: 'Wage adjustments and corrections' },
-    { name: 'Violation/Penalty Expense', description: 'Traffic violations and fines' },
-    { name: 'Terminal Fees', description: 'Bus terminal and station fees' },
-    { name: 'Maintenance & Repairs', description: 'Vehicle maintenance and repairs' },
-    { name: 'Salaries & Wages', description: 'Employee salaries and wages' },
-    { name: 'Office Supplies', description: 'Stationery and office supplies' },
-    { name: 'Utilities Expense', description: 'Electricity, water, etc.' },
-    { name: 'Insurance Expense', description: 'Vehicle and business insurance' },
-    { name: 'Internet Subscription', description: 'Internet service costs' },
-    { name: 'Professional Fees', description: 'Accounting, legal, consulting fees' },
-    { name: 'Rent Expense', description: 'Office or garage rent' },
-    { name: 'Permits & Licenses', description: 'Business permits and vehicle registrations' },
-    { name: 'Bad Debt Expense', description: 'Uncollectible accounts written off' },
-    { name: 'Miscellaneous Expense', description: 'Other expenses' },
-    { name: 'Purchase Expense - Inventory', description: 'Cost of parts and supplies purchased' },
-    { name: 'Depreciation Expense', description: 'Depreciation of fixed assets' },
-    { name: 'Asset Loss/Write-off', description: 'Loss on disposal or write-off of assets' },
-    { name: 'Bank Charges', description: 'Bank fees and charges' },
-    { name: 'Interest Expense', description: 'Interest on loans and financing' },
+    // OPERATIONAL EXPENSES
+    { name: 'Fuel Expense', description: 'Diesel and other fuel costs for buses', customSuffix: '000' },
+    { name: 'Toll Expense', description: 'Highway and bridge tolls', customSuffix: '005' },
+    { name: 'Parking Expense', description: 'Parking fees', customSuffix: '010' },
+    { name: 'Terminal Fees', description: 'Bus terminal and station fees', customSuffix: '015' },
+    { name: 'Maintenance & Repairs', description: 'Vehicle maintenance and repairs', customSuffix: '020' },
+
+    // PERSONNEL EXPENSES
+    { name: 'Driver - Conductor Boundary Share Expense', description: 'Payment to drivers/conductors under boundary system', customSuffix: '100' },
+    { name: 'Driver - Conductor Percentage Expense', description: 'Payment to drivers/conductors under percentage system', customSuffix: '105' },
+    { name: 'Driver/Conductor Allowance', description: 'Daily allowances for staff', customSuffix: '110' },
+    { name: 'Salaries & Wages', description: 'Regular employee salaries', customSuffix: '115' },
+
+    // ADMINISTRATIVE & OTHER EXPENSES (COA - 10 accounts matching expense types)
+    { name: 'Bad Debt Expense', description: 'Uncollectible accounts written off', customSuffix: '200' },
+    { name: 'Office Supplies Expense', description: 'Stationery and office supplies', customSuffix: '205' },
+    { name: 'Utilities Expense', description: 'Electricity, water, etc.', customSuffix: '210' },
+    { name: 'Rent Expense', description: 'Office or garage rent', customSuffix: '215' },
+    { name: 'Internet Expense', description: 'Internet service costs', customSuffix: '220' },
+    { name: 'Professional Fees Expense', description: 'Legal, accounting, consulting', customSuffix: '225' },
+    { name: 'Insurance Expense', description: 'Insurance premiums', customSuffix: '230' },
+    { name: 'License & Permit Expense', description: 'Business licenses and permits', customSuffix: '235' },
+    { name: 'Communication Expense', description: 'Phone and communication costs', customSuffix: '240' },
+    { name: 'Miscellaneous Expense', description: 'Other administrative expenses', customSuffix: '245' },
   ],
 };
 
 /**
  * Generates the next available account code for a given account type
- * 
- * Algorithm:
- * 1. Query existing non-deleted codes with the same prefix
- * 2. Extract numeric suffixes and find the maximum
- * 3. Increment by 5 (default step)
- * 4. If overflow (>999) or conflict, find lowest available code
- * 
- * @param accountTypePrefix - The account type prefix (1-5)
- * @param customSuffix - Optional custom 3-digit suffix
- * @returns Generated account code (e.g., "1000", "2005")
  */
 async function generateAccountCode(
   accountTypePrefix: string,
@@ -122,15 +249,12 @@ async function generateAccountCode(
 ): Promise<string> {
   if (customSuffix) {
     const customCode = `${accountTypePrefix}${customSuffix.padStart(3, '0')}`;
-    // Check if custom code is available
     const existing = await prisma.chart_of_account.findFirst({
       where: { account_code: customCode, is_deleted: false },
     });
     if (!existing) return customCode;
-    // If custom code conflicts, fall through to auto-generation
   }
 
-  // Get all existing codes with this prefix (excluding soft-deleted)
   const existingCodes = await prisma.chart_of_account.findMany({
     where: {
       account_code: { startsWith: accountTypePrefix },
@@ -140,36 +264,27 @@ async function generateAccountCode(
     orderBy: { account_code: 'asc' },
   });
 
-  // Extract numeric suffixes
   const suffixes = existingCodes
     .map((c) => parseInt(c.account_code.slice(1), 10))
     .filter((n) => !isNaN(n));
 
   if (suffixes.length === 0) {
-    // First account of this type: start at X000
     return `${accountTypePrefix}000`;
   }
 
-  // Find the maximum suffix
   const maxSuffix = Math.max(...suffixes);
-
-  // Try incrementing by 5
   let nextSuffix = maxSuffix + 5;
 
-  // Check for overflow (suffix must be ≤ 999)
   if (nextSuffix > 999) {
-    // Find the lowest available code within range
     nextSuffix = findLowestAvailableSuffix(suffixes);
   }
 
-  // Ensure uniqueness
   const proposedCode = `${accountTypePrefix}${nextSuffix.toString().padStart(3, '0')}`;
   const conflict = await prisma.chart_of_account.findFirst({
     where: { account_code: proposedCode, is_deleted: false },
   });
 
   if (conflict) {
-    // Should rarely happen, but find next available
     nextSuffix = findLowestAvailableSuffix(suffixes);
   }
 
@@ -177,43 +292,35 @@ async function generateAccountCode(
 }
 
 /**
- * Finds the lowest available suffix in the range [0, 999]
- * that is not already used
- * 
- * @param usedSuffixes - Array of already used numeric suffixes
- * @returns The lowest available suffix
+ * Finds the lowest available suffix
  */
 function findLowestAvailableSuffix(usedSuffixes: number[]): number {
   const sortedSuffixes = [...new Set(usedSuffixes)].sort((a, b) => a - b);
-  
+
   for (let i = 0; i <= 999; i += 5) {
     if (!sortedSuffixes.includes(i)) {
       return i;
     }
   }
 
-  // If all multiples of 5 are taken, find any available number
   for (let i = 0; i <= 999; i++) {
     if (!sortedSuffixes.includes(i)) {
       return i;
     }
   }
 
-  // Should never reach here unless 1000 codes exist
   throw new Error('Account code range exhausted for this account type');
 }
 
 /**
  * Seeds account types into the database
- * Skips creation if account type already exists
  */
 async function seedAccountTypes() {
   console.log('🌱 Seeding Account Types...');
 
   for (const [name, config] of Object.entries(ACCOUNT_TYPE_CONFIG)) {
-    // Check if account type exists by name OR code
     const existing = await prisma.account_type.findFirst({
-      where: { 
+      where: {
         OR: [
           { name, is_deleted: false },
           { code: config.prefix, is_deleted: false }
@@ -243,13 +350,81 @@ async function seedAccountTypes() {
 }
 
 /**
+ * Seeds expense types into the database
+ */
+async function seedExpenseTypes() {
+  console.log('🌱 Seeding Expense Types...');
+
+  for (const expenseType of EXPENSE_TYPE_DATA) {
+    const existing = await prisma.expense_type.findFirst({
+      where: {
+        OR: [
+          { code: expenseType.code, is_deleted: false },
+          { name: expenseType.name, is_deleted: false }
+        ]
+      },
+    });
+
+    if (existing) {
+      console.log(`  ⏭️  Expense Type "${expenseType.name}" already exists (ID: ${existing.id}, Code: ${existing.code})`);
+      continue;
+    }
+
+    const created = await prisma.expense_type.create({
+      data: {
+        code: expenseType.code,
+        name: expenseType.name,
+        description: expenseType.description,
+        created_by: 'system',
+        updated_by: 'system',
+      },
+    });
+
+    console.log(`  ✅ Created Expense Type: ${created.code} - ${created.name}`);
+  }
+
+  console.log('');
+}
+
+/**
+ * Seeds revenue types into the database
+ */
+async function seedRevenueTypes() {
+  console.log('🌱 Seeding Revenue Types...');
+
+  for (const revenueType of REVENUE_TYPE_DATA) {
+    const existing = await prisma.revenue_type.findFirst({
+      where: {
+        OR: [
+          { code: revenueType.code, is_deleted: false },
+          { name: revenueType.name, is_deleted: false }
+        ]
+      },
+    });
+
+    if (existing) {
+      console.log(`  ⏭️  Revenue Type "${revenueType.name}" already exists (ID: ${existing.id}, Code: ${existing.code})`);
+      continue;
+    }
+
+    const created = await prisma.revenue_type.create({
+      data: {
+        code: revenueType.code,
+        name: revenueType.name,
+        description: revenueType.description,
+        created_by: 'system',
+        updated_by: 'system',
+      },
+    });
+
+    console.log(`  ✅ Created Revenue Type: ${created.code} - ${created.name}`);
+  }
+
+  console.log('');
+}
+
+/**
  * Seeds Chart of Accounts with auto-generated account codes
- * 
- * Process:
- * 1. Iterate through each account type
- * 2. For each COA entry, generate unique account code
- * 3. Skip if account already exists (by name and type)
- * 4. Create new COA record with proper audit fields
  */
 async function seedChartOfAccounts() {
   console.log('🌱 Seeding Chart of Accounts...');
@@ -257,7 +432,6 @@ async function seedChartOfAccounts() {
   for (const [accountTypeName, accounts] of Object.entries(COA_DATA)) {
     console.log(`\n  📊 ${accountTypeName}:`);
 
-    // Get account type ID and config
     const accountType = await prisma.account_type.findFirst({
       where: { name: accountTypeName, is_deleted: false },
     });
@@ -269,9 +443,7 @@ async function seedChartOfAccounts() {
 
     const config = ACCOUNT_TYPE_CONFIG[accountTypeName as keyof typeof ACCOUNT_TYPE_CONFIG];
 
-    // Seed each account
     for (const account of accounts) {
-      // Check if account already exists
       const existing = await prisma.chart_of_account.findFirst({
         where: {
           account_name: account.name,
@@ -285,10 +457,8 @@ async function seedChartOfAccounts() {
         continue;
       }
 
-      // Generate account code
       const accountCode = await generateAccountCode(config.prefix, account.customSuffix);
 
-      // Create chart of account record
       const coa = await prisma.chart_of_account.create({
         data: {
           account_code: accountCode,
@@ -309,8 +479,59 @@ async function seedChartOfAccounts() {
 }
 
 /**
+ * Seeds default system configuration into the database
+ * Only creates config if no active configuration exists
+ */
+async function seedSystemConfiguration() {
+  console.log('🌱 Seeding System Configuration...');
+
+  // Check if an active config already exists
+  const existingConfig = await prisma.system_configuration.findFirst({
+    where: { is_active: true, is_deleted: false },
+  });
+
+  if (existingConfig) {
+    console.log(`  ⏭️  Active system configuration already exists (ID: ${existingConfig.id}, Code: ${existingConfig.config_code})`);
+    console.log(`      - Minimum Wage: ₱${existingConfig.minimum_wage}`);
+    console.log(`      - Duration to Receivable: ${existingConfig.duration_to_receivable_hours} hours`);
+    console.log(`      - Receivable Due Date: ${existingConfig.receivable_due_date_days} days`);
+    console.log(`      - Driver Share: ${existingConfig.driver_share_percentage}%`);
+    console.log(`      - Conductor Share: ${existingConfig.conductor_share_percentage}%`);
+    console.log(`      - Default Frequency: ${existingConfig.default_frequency}`);
+    console.log(`      - Default # of Payments: ${existingConfig.default_number_of_payments}`);
+    console.log('');
+    return;
+  }
+
+  // Create default configuration
+  const config = await prisma.system_configuration.create({
+    data: {
+      config_code: 'DEFAULT',
+      minimum_wage: 600.00,
+      duration_to_receivable_hours: 72,  // 3 days
+      receivable_due_date_days: 30,
+      driver_share_percentage: 50.00,
+      conductor_share_percentage: 50.00,
+      default_frequency: 'WEEKLY' as receivable_frequency,
+      default_number_of_payments: 3,
+      is_active: true,
+      created_by: 'system',
+    },
+  });
+
+  console.log(`  ✅ Created System Configuration: ${config.config_code} (ID: ${config.id})`);
+  console.log(`      - Minimum Wage: ₱${config.minimum_wage}`);
+  console.log(`      - Duration to Receivable: ${config.duration_to_receivable_hours} hours`);
+  console.log(`      - Receivable Due Date: ${config.receivable_due_date_days} days`);
+  console.log(`      - Driver Share: ${config.driver_share_percentage}%`);
+  console.log(`      - Conductor Share: ${config.conductor_share_percentage}%`);
+  console.log(`      - Default Frequency: ${config.default_frequency}`);
+  console.log(`      - Default # of Payments: ${config.default_number_of_payments}`);
+  console.log('');
+}
+
+/**
  * Main seeder function
- * Executes all seeding operations in sequence
  */
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════╗');
@@ -319,7 +540,10 @@ async function main() {
 
   try {
     await seedAccountTypes();
+    await seedExpenseTypes();
+    await seedRevenueTypes();
     await seedChartOfAccounts();
+    await seedSystemConfiguration();
 
     console.log('✨ Seeding completed successfully!\n');
   } catch (error) {

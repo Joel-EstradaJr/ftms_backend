@@ -20,8 +20,7 @@
 
 6.
     # Run Prisma migrations
-    npx prisma migrate dev --name initial_database; npx prisma db seed
-
+    npx prisma migrate dev --name initial_database; npx prisma db seed ; pnpm prisma:seed:journal
 7.
     # Set up the OCR service
     cd ocr_service
@@ -43,3 +42,8 @@
     cd ftms_deployed
     npm run dev
     # Click on the link in the terminal to access the project.
+
+
+
+# Generate Token:
+npx tsx src/utils/generateToken.ts

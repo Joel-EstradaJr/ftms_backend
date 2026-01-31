@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "tsx prisma/seed_core_data.ts"
+    "prisma:seed": "tsx prisma/seed_core_data.ts",
+    "prisma:seed:journal": "tsx prisma/seed_journal_entries.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
@@ -22,6 +23,7 @@
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.12",
+    "@types/node-cron": "^3.0.11",
     "@types/uuid": "^10.0.0",
     "axios": "^1.9.0",
     "chart.js": "^4.4.9",
@@ -45,6 +47,7 @@
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.515.0",
     "morgan": "^1.10.1",
+    "node-cron": "^4.2.1",
     "react-chartjs-2": "^5.3.0",
     "react-day-picker": "^9.7.0",
     "react-dropzone": "^14.3.8",
@@ -52,6 +55,8 @@
     "react-hot-toast": "^2.5.2",
     "react-webcam": "^7.2.0",
     "redis": "^5.8.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "sweetalert2": "^11.22.0",
     "tailwind-merge": "^3.3.1",
     "tesseract.js": "^6.0.1",
@@ -70,6 +75,8 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^20.19.27",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "eslint": "^9",
     "nodemon": "^3.1.10",
     "prisma": "^6.8.2",

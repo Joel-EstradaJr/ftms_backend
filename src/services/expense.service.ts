@@ -47,10 +47,10 @@ export class ExpenseService {
         date_recorded: new Date(data.dateRecorded || new Date()),
         created_by: userId,
       };
-      
+
       // Remove any invalid fields
       delete createData.dateRecorded;
-      
+
       const expense = await prisma.expense.create({
         data: createData,
       });
@@ -259,7 +259,9 @@ export class ExpenseService {
       const updatedExpense = await prisma.expense.update({
         where: { id },
         data: {
-          approval_status: 'APPROVED',
+          status: 'APPROVED',
+          approved_by: userId,
+          approved_at: new Date(),
           updated_by: userId,
           updated_at: new Date(),
         },
@@ -297,7 +299,7 @@ export class ExpenseService {
       const updatedExpense = await prisma.expense.update({
         where: { id },
         data: {
-          approval_status: 'REJECTED',
+          status: 'REJECTED',
           description: reason,
           updated_by: userId,
           updated_at: new Date(),

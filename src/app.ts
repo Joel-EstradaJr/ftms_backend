@@ -6,11 +6,12 @@ import morgan from 'morgan';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { errorHandler } from './middleware/errorHandler';
+import { setupSwagger, addDocsInfoToHealth, validateSwaggerSpec } from './middleware/swagger.middleware';
 
 // Routes
 // Temporarily commented out routes with compilation errors
 // import staffRevenueRoutes from './routes/staff/revenue.routes';
-// import staffExpenseRoutes from './routes/staff/expense.routes';
+import staffExpenseRoutes from './routes/staff/expense.routes';
 // import staffPayrollRoutes from './routes/staff/payroll.routes';
 // import staffReimbursementRoutes from './routes/staff/reimbursement.routes';
 // import staffBudgetRoutes from './routes/staff/budget.routes';
@@ -21,17 +22,52 @@ import { errorHandler } from './middleware/errorHandler';
 // import staffLoanRoutes from './routes/staff/loan.routes';
 import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
+// Removed: adminJournalEntriesRoutes - replaced by universal /api/journal-entry routes
+// Removed: operationalTripExpenseRoutes - legacy endpoint, replaced by unified expense module
+import dashboardRoutes from './routes/admin/dashboard.routes';
+import budgetAllocationRoutes from './routes/admin/budget-allocation';
+import operationalExpenseRoutes from './routes/admin/operational-expenses';  // New unified operational expenses
+import otherExpenseRoutes from './routes/admin/other-expense';  // Administrative/Other Expense module
+import busTripRevenueRoutes from './routes/admin/bus-trip-revenue';
+import rentalRevenueRoutes from './routes/admin/rental-revenue';
+import otherRevenueRoutes from './routes/otherRevenue.routes';  // Other Revenue module
+import attachmentRoutes from './routes/admin/attachments';  // Attachment module
+import supplierRoutes from './routes/admin/suppliers';  // Supplier/Vendor module
+// Removed: staffJournalEntryRoutes - replaced by universal /api/journal-entry routes
 
 // Integration routes (for microservices)
 import integrationRoutes from './routes/integration';
 
+// Finance integration routes
+// import financeRoutes from './routes/finance/index';   // brian repo
+import financeRoutes from './routes/finance';
+
+// Sync routes (for external data synchronization)
+import syncRoutes from './routes/sync.routes';
+
+// Webhook routes (for external system lifecycle events)
+import webhookRoutes from './routes/webhook.routes';
+
+// Journal Entry routes (automated JE system)
+import journalEntryRoutes from './routes/journalEntry.routes';
+
 export const createApp = (): Application => {
   const app = express();
+
+  // Trust proxy headers (required for Railway, Heroku, AWS ELB, etc.)
+  // This allows req.protocol to correctly return 'https' when behind a reverse proxy
+  // Railway sets X-Forwarded-Proto header which Express will use when this is enabled
+  app.set('trust proxy', 1);
+
+  // Validate Swagger specification on startup (if enabled)
+  if (config.enableApiDocs) {
+    validateSwaggerSpec();
+  }
 
   // Security middleware
   app.use(helmet());
   app.use(cors({
-    origin: config.corsOrigins,
+    origin: config.nodeEnv === 'development' ? true : config.corsOrigins,
     credentials: true,
   }));
 
@@ -49,19 +85,32 @@ export const createApp = (): Application => {
     },
   }));
 
+  // Setup Swagger/OpenAPI documentation (if enabled)
+  setupSwagger(app);
+
   // Health check
-  app.get('/health', (req, res) => {
-    res.json({
+  app.get('/health', addDocsInfoToHealth, (req, res) => {
+    const response: any = {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: config.nodeEnv,
-    });
+    };
+
+    // Add API documentation links if enabled
+    if (res.locals.docsInfo?.enabled) {
+      response.documentation = {
+        swagger_ui: res.locals.docsInfo.path,
+        openapi_spec: res.locals.docsInfo.openApiSpec,
+      };
+    }
+
+    res.json(response);
   });
 
   // API info endpoint
   app.get('/', (req, res) => {
-    res.json({
+    const response: any = {
       name: 'FTMS Backend API',
       version: '1.0.0',
       description: 'Financial Transaction Management System - Pure Backend',
@@ -69,25 +118,42 @@ export const createApp = (): Application => {
         health: '/health',
         api: '/api/v1',
       },
-    });
+    };
+
+    // Add documentation link if enabled
+    if (config.enableApiDocs) {
+      response.documentation = config.apiDocsPath;
+    }
+
+    res.json(response);
   });
 
   // ===========================
   // API Routes
   // ===========================
-  
+
   // Admin routes (Full CRUD + additional actions)
-  app.use('/api/v1/admin', chartOfAccountsRoutes);
+  app.use('/api/v1/dashboard', dashboardRoutes);
+  app.use('/api/v1/admin/budget-allocation', budgetAllocationRoutes);
   app.use('/api/v1/admin/payroll-periods', adminPayrollPeriodsRoutes);
-  
+  app.use('/api/v1/admin/journal-entry', journalEntryRoutes);  // Automated JE system under Admin namespace
+  app.use('/api/v1/admin/bus-trip-revenue', busTripRevenueRoutes);  // Bus Trip Revenue module
+  app.use('/api/v1/admin/rental-revenue', rentalRevenueRoutes);  // Rental Revenue module
+  app.use('/api/v1/admin/other-revenue', otherRevenueRoutes);  // Other Revenue module
+  app.use('/api/v1/admin/attachments', attachmentRoutes);  // Attachment module
+  app.use('/api/v1/admin/operational-expenses', operationalExpenseRoutes);  // Operational Expense module
+  app.use('/api/v1/admin/other-expense', otherExpenseRoutes);  // Administrative/Other Expense module
+  app.use('/api/v1/admin/suppliers', supplierRoutes);  // Supplier/Vendor module
+  app.use('/api/v1/admin', chartOfAccountsRoutes);
+
   // Staff routes (Limited access - read + create for some modules)
   // Temporarily commented out routes with compilation errors
   // app.use('/api/v1/staff/revenues', staffRevenueRoutes);
-  // app.use('/api/v1/staff/expenses', staffExpenseRoutes);
+  app.use('/api/v1/staff/expenses', staffExpenseRoutes);
   // app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
   // app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
   // app.use('/api/v1/staff/budgets', staffBudgetRoutes);
-  // app.use('/api/v1/staff/journalEntries', staffJournalEntryRoutes);
+  // Removed: /api/v1/staff/journal-entries - replaced by /api/journal-entry
   // app.use('/api/v1/staff/assets', staffAssetRoutes);
   // app.use('/api/v1/staff/receivables', staffReceivableRoutes);
   // app.use('/api/v1/staff/payables', staffPayableRoutes);
@@ -95,6 +161,16 @@ export const createApp = (): Application => {
 
   // Integration routes (machine-to-machine communication)
   app.use('/api/integration', integrationRoutes);
+
+  // Finance integration routes (external system integration)
+  // app.use('/api/finance', financeRoutes);  // brian repo
+  app.use('/finance', financeRoutes);
+
+  // Sync routes (external data synchronization)
+  app.use('/api/sync', syncRoutes);
+
+  // Webhook routes (external system lifecycle events)
+  app.use('/api/webhooks', webhookRoutes);
 
   // 404 handler
   app.use((req, res) => {

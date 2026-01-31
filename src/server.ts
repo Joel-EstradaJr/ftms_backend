@@ -2,7 +2,13 @@ import { createApp } from './app';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { prisma } from './config/database';
-import { redis } from './config/redis';
+import { initPayrollScheduledJobs } from './jobs/payrollScheduledJobs';
+import { syncExternalData } from '../lib/sync';
+import { syncDepartments } from '../lib/sync/departmentSync';
+import { busTripRevenueService } from './services/busTripRevenue.service';
+import { rentalRevenueService } from './services/rentalRevenue.service';
+import { operationalExpenseService } from './services/operationalExpense.service';
+import { supplierSyncService } from './services/supplierSync.service';
 
 const app = createApp();
 
@@ -12,12 +18,73 @@ const startServer = async () => {
     await prisma.$connect();
     logger.info('✅ Database connected successfully');
 
-    // Test Redis connection
+    // Initialize scheduled jobs
+    initPayrollScheduledJobs();
+
+    // Sync external data on startup
+    logger.info('🔄 Starting external data synchronization...');
     try {
-      await redis.ping();
-      logger.info('✅ Redis connected successfully');
-    } catch (redisError) {
-      logger.warn('⚠️ Redis connection failed (continuing without cache):', redisError);
+      // Sync departments first (no dependencies)
+      logger.info('[SYNC] Step 0: Syncing departments...');
+      const deptResult = await syncDepartments();
+      if (deptResult.success) {
+        logger.info(`[SYNC] department_local: ${deptResult.inserted} inserted, ${deptResult.updated} updated, ${deptResult.softDeleted} soft deleted`);
+      } else {
+        logger.warn(`⚠️ Department sync failed: ${deptResult.errors.join(', ')}`);
+      }
+
+      // Sync suppliers from Inventory
+      logger.info('[SYNC] Step 1: Syncing suppliers from Inventory...');
+      try {
+        const supplierResult = await supplierSyncService.syncFromInventory();
+        logger.info(`[SYNC] supplier_local: ${supplierResult.synced} synced, ${supplierResult.errors.length} errors`);
+        if (supplierResult.errors.length > 0) {
+          supplierResult.errors.forEach(err => logger.warn(`[SYNC] Supplier error: ${err}`));
+        }
+      } catch (supplierError) {
+        logger.error('⚠️ Supplier sync failed:', supplierError);
+        // Don't block server startup on supplier sync failure
+      }
+
+      const syncResult = await syncExternalData();
+      if (syncResult.success) {
+        logger.info('✅ External data synchronized successfully');
+      } else {
+        logger.warn('⚠️ External data sync completed with some errors - check logs for details');
+      }
+
+      // Automatically process unsynced bus trips to create revenue records
+      logger.info('🔄 Processing unsynced bus trips for revenue creation...');
+      try {
+        const revenueResult = await busTripRevenueService.processUnsyncedTrips('system');
+        logger.info(`✅ Revenue processing complete: ${revenueResult.processed} processed, ${revenueResult.failed} failed`);
+      } catch (revenueError) {
+        logger.error('❌ Revenue processing failed:', revenueError);
+        // Don't block server startup on revenue processing failure
+      }
+
+      // Automatically process unsynced rentals to create rental revenue records
+      logger.info('🔄 Processing unsynced rentals for rental revenue creation...');
+      try {
+        const rentalRevenueResult = await rentalRevenueService.processUnsyncedRentals('system');
+        logger.info(`✅ Rental revenue processing complete: ${rentalRevenueResult.processed} processed, ${rentalRevenueResult.failed} failed`);
+      } catch (rentalError) {
+        logger.error('❌ Rental revenue processing failed:', rentalError);
+        // Don't block server startup on rental revenue processing failure
+      }
+
+      // Automatically process unsynced trips/rentals to create expense records
+      logger.info('🔄 Processing unsynced trips for expense creation...');
+      try {
+        const expenseResult = await operationalExpenseService.syncAllExpenses('system');
+        logger.info(`✅ Expense processing complete: bus_trips=${expenseResult.busTripResult.created}, rentals=${expenseResult.rentalResult.created}`);
+      } catch (expenseError) {
+        logger.error('❌ Expense processing failed:', expenseError);
+        // Don't block server startup on expense processing failure
+      }
+    } catch (syncError) {
+      logger.error('❌ External data sync failed:', syncError);
+      // Don't block server startup on sync failure
     }
 
     // Start server
@@ -26,28 +93,21 @@ const startServer = async () => {
       logger.info(`📍 Port: ${config.port}`);
       logger.info(`🌍 Environment: ${config.nodeEnv}`);
       logger.info(`🏥 Health check: http://localhost:${config.port}/health`);
-      logger.info(`📚 API documentation: http://localhost:${config.port}/`);
+      logger.info(`📚 API documentation: http://localhost:${config.port}/docs`);
     });
 
     // Graceful shutdown
     const gracefulShutdown = async (signal: string) => {
       logger.info(`${signal} received, shutting down gracefully...`);
-      
+
       server.close(async () => {
         logger.info('HTTP server closed');
-        
+
         try {
           await prisma.$disconnect();
           logger.info('Database disconnected');
         } catch (err) {
           logger.error('Error disconnecting database:', err);
-        }
-
-        try {
-          await redis.quit();
-          logger.info('Redis disconnected');
-        } catch (err) {
-          logger.error('Error disconnecting Redis:', err);
         }
 
         process.exit(0);
@@ -70,3 +130,4 @@ const startServer = async () => {
 };
 
 startServer();
+

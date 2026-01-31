@@ -18,7 +18,7 @@ import { HREmployeeData } from '../../types/payroll.types';
 import { logger } from '../../config/logger';
 
 export class HRPayrollClient {
-  private static readonly HR_BASE_URL = process.env.HR_API_URL || 'http://localhost:3002';
+  private static readonly HR_BASE_URL = process.env.HR_API_BASE_URL || 'http://localhost:3002';
   private static readonly HR_API_KEY = process.env.HR_API_KEY;
 
   /**
@@ -95,6 +95,27 @@ export class HRPayrollClient {
       return response.data.exists && response.data.isActive;
     } catch (error) {
       logger.error(`Error validating employee ${employeeNumber}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Send payroll distribution webhook to HR
+   */
+  static async sendPayrollDistribution(payload: any): Promise<boolean> {
+    try {
+      await axios.post(
+        `${this.HR_BASE_URL}/finance/webhooks/payroll/distribution`,
+        payload,
+        this.getConfig()
+      );
+
+      logger.info(`Sent payroll distribution webhook to HR for period ${payload.payroll_period_code}`);
+      return true;
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
+      logger.error(`Error sending payroll distribution webhook to HR: ${errorMessage}`);
+      // Don't throw - allow release to succeed even if webhook fails
       return false;
     }
   }

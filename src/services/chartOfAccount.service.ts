@@ -87,6 +87,7 @@ export class ChartOfAccountService {
    * Retrieve all Chart of Accounts with filtering, search, and pagination.
    * Joins with account_type to include account type name.
    * By default, excludes archived (soft-deleted) records.
+   * Sorted by most recent activity (created, updated, or restored) first.
    */
   async getAllChartOfAccounts(query: ChartOfAccountQueryDTO): Promise<ChartOfAccountListResponseDTO> {
     const {
@@ -161,7 +162,9 @@ export class ChartOfAccountService {
           },
         },
         orderBy: [
-          { account_code: 'asc' },
+          { updated_at: 'desc' },
+          { archived_at: 'desc' },
+          { created_at: 'desc' },
         ],
         skip,
         take: validLimit,
@@ -365,9 +368,10 @@ export class ChartOfAccountService {
 
   /**
    * Restore an archived Chart of Account.
-   * Sets is_deleted = false and clears archived_by and archived_at.
+   * Sets is_deleted = false and records who restored and when in archived_by/archived_at.
+   * This maintains full audit trail of the restore action.
    */
-  async restore(id: number) {
+  async restore(id: number, actorId?: string) {
     const existing = await prisma.chart_of_account.findUnique({ where: { id } });
     if (!existing) {
       throw new ValidationError('Chart of account not found');
@@ -380,8 +384,8 @@ export class ChartOfAccountService {
       where: { id },
       data: {
         is_deleted: false,
-        archived_by: null,
-        archived_at: null,
+        archived_by: actorId,
+        archived_at: new Date(),
       },
     });
   }
