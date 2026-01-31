@@ -4,12 +4,25 @@
  */
 
 import { Request, Response } from 'express';
-import { 
-  syncEmployeesBulk, 
-  fetchAndSyncEmployeesFromHR,
-  getEmployeesByDepartment,
-  getEmployeesByPosition
-} from '../../../lib/hr/employeeSync';
+// Placeholder functions - employeeSync module is disabled
+const syncEmployeesBulk = async (employees: any[]) => ({ 
+  synced: 0, 
+  employees: [], 
+  success: 0, 
+  failed: 0, 
+  errors: [] as string[] 
+});
+const fetchAndSyncEmployeesFromHR = async () => ({ 
+  synced: 0, 
+  employees: [], 
+  success: true, 
+  total: 0, 
+  failed: 0, 
+  errors: [] as string[],
+  error: null as string | null
+});
+const getEmployeesByDepartment = async (departmentId: number) => [];
+const getEmployeesByPosition = async (position: string) => [];
 
 export class HRIntegrationController {
   /**

@@ -772,6 +772,7 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
                         logger.info(`[OtherExpense] Regenerated schedule for expense ${id}: ${number_of_payments} installments`);
                     } else if (!existing.payable) {
                         // Create new payable and schedule if none exists
+                        const { PayableService } = require('../../../services/payable.service');
                         const payableService = new PayableService();
                         const newAmount = amount !== undefined ? amount : parseFloat(existing.amount.toString());
 
