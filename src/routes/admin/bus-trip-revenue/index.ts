@@ -644,4 +644,89 @@ router.get('/:id', busTripRevenueController.getRevenueById);
  */
 router.patch('/:id', busTripRevenueController.updateRevenue);
 
+// ============================================================================
+// ARCHIVE / RESTORE / DELETE ENDPOINTS
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/v1/admin/bus-trip-revenue/{id}/archive:
+ *   patch:
+ *     tags:
+ *       - Bus Trip Revenue
+ *     summary: Archive a revenue record (soft delete)
+ *     description: |
+ *       Archives a revenue record by setting is_deleted=true.
+ *       Cannot archive revenue with pending or partial receivables.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Revenue ID
+ *     responses:
+ *       200:
+ *         description: Revenue archived successfully
+ *       400:
+ *         description: Revenue already archived or has pending receivables
+ *       404:
+ *         description: Revenue not found
+ */
+router.patch('/:id/archive', busTripRevenueController.archiveRevenue);
+
+/**
+ * @swagger
+ * /api/v1/admin/bus-trip-revenue/{id}/restore:
+ *   patch:
+ *     tags:
+ *       - Bus Trip Revenue
+ *     summary: Restore an archived revenue record
+ *     description: |
+ *       Restores an archived revenue record by setting is_deleted=false.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Revenue ID
+ *     responses:
+ *       200:
+ *         description: Revenue restored successfully
+ *       400:
+ *         description: Revenue is not archived
+ *       404:
+ *         description: Revenue not found
+ */
+router.patch('/:id/restore', busTripRevenueController.restoreRevenue);
+
+/**
+ * @swagger
+ * /api/v1/admin/bus-trip-revenue/{id}/permanent:
+ *   delete:
+ *     tags:
+ *       - Bus Trip Revenue
+ *     summary: Permanently delete an archived revenue record
+ *     description: |
+ *       Permanently deletes an archived revenue record.
+ *       Only archived records can be permanently deleted.
+ *       This action is irreversible.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Revenue ID
+ *     responses:
+ *       200:
+ *         description: Revenue permanently deleted
+ *       400:
+ *         description: Revenue is not archived
+ *       404:
+ *         description: Revenue not found
+ */
+router.delete('/:id/permanent', busTripRevenueController.hardDeleteRevenue);
+
 export default router;

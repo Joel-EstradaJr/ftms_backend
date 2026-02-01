@@ -777,6 +777,201 @@ export class JournalEntryAutoService {
   }
 
   // --------------------------------------------------------------------------
+  // ARCHIVE JOURNAL ENTRY (SOFT DELETE WITH ARCHIVE SEMANTICS)
+  // --------------------------------------------------------------------------
+
+  /**
+   * Archive a DRAFT journal entry
+   * Only DRAFT entries can be archived
+   */
+  async archiveJournalEntry(
+    id: number,
+    userId: string,
+    userInfo?: any,
+    req?: any
+  ) {
+    logger.info(`[JournalEntryAutoService] Archiving JE ID: ${id}`);
+
+    const existingJE = await prisma.journal_entry.findUnique({
+      where: { id },
+      include: { lines: true },
+    });
+
+    if (!existingJE) {
+      throw new NotFoundError(`Journal entry ${id} not found`);
+    }
+
+    if (existingJE.is_deleted) {
+      throw new BadRequestError('Journal entry is already archived');
+    }
+
+    if (existingJE.status !== 'DRAFT') {
+      throw new BadRequestError(
+        `Cannot archive journal entry with status ${existingJE.status}. Only DRAFT entries can be archived.`
+      );
+    }
+
+    // Archive in transaction (JE and lines)
+    const result = await prisma.$transaction(async (tx) => {
+      // Archive lines
+      await tx.journal_entry_line.updateMany({
+        where: { journal_entry_id: id },
+        data: {
+          is_deleted: true,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+
+      // Archive journal entry
+      return await tx.journal_entry.update({
+        where: { id },
+        data: {
+          is_deleted: true,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+    });
+
+    // Audit log
+    await AuditLogClient.logUpdate(
+      'Journal Entry',
+      { id, code: existingJE.code },
+      { is_deleted: false },
+      { is_deleted: true, archived_by: userId },
+      { id: userId, name: userInfo?.username, role: userInfo?.role },
+      req
+    );
+
+    logger.info(`[JournalEntryAutoService] Archived JE: ${existingJE.code}`);
+    return { success: true, message: `Journal entry ${existingJE.code} has been archived`, data: this.transformJournalEntry(result) };
+  }
+
+  // --------------------------------------------------------------------------
+  // RESTORE JOURNAL ENTRY
+  // --------------------------------------------------------------------------
+
+  /**
+   * Restore an archived journal entry
+   */
+  async restoreJournalEntry(
+    id: number,
+    userId: string,
+    userInfo?: any,
+    req?: any
+  ) {
+    logger.info(`[JournalEntryAutoService] Restoring JE ID: ${id}`);
+
+    const existingJE = await prisma.journal_entry.findUnique({
+      where: { id },
+      include: { lines: true },
+    });
+
+    if (!existingJE) {
+      throw new NotFoundError(`Journal entry ${id} not found`);
+    }
+
+    if (!existingJE.is_deleted) {
+      throw new BadRequestError('Journal entry is not archived');
+    }
+
+    // Restore in transaction (JE and lines)
+    const result = await prisma.$transaction(async (tx) => {
+      // Restore lines
+      await tx.journal_entry_line.updateMany({
+        where: { journal_entry_id: id },
+        data: {
+          is_deleted: false,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+
+      // Restore journal entry
+      return await tx.journal_entry.update({
+        where: { id },
+        data: {
+          is_deleted: false,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+    });
+
+    // Audit log
+    await AuditLogClient.logUpdate(
+      'Journal Entry',
+      { id, code: existingJE.code },
+      { is_deleted: true },
+      { is_deleted: false, restored_by: userId },
+      { id: userId, name: userInfo?.username, role: userInfo?.role },
+      req
+    );
+
+    logger.info(`[JournalEntryAutoService] Restored JE: ${existingJE.code}`);
+    return { success: true, message: `Journal entry ${existingJE.code} has been restored`, data: this.transformJournalEntry(result) };
+  }
+
+  // --------------------------------------------------------------------------
+  // HARD DELETE JOURNAL ENTRY (PERMANENT)
+  // --------------------------------------------------------------------------
+
+  /**
+   * Permanently delete an archived journal entry
+   * Only archived entries can be permanently deleted
+   */
+  async hardDeleteJournalEntry(
+    id: number,
+    userId: string,
+    userInfo?: any,
+    req?: any
+  ) {
+    logger.info(`[JournalEntryAutoService] Hard deleting JE ID: ${id}`);
+
+    const existingJE = await prisma.journal_entry.findUnique({
+      where: { id },
+      include: { lines: true },
+    });
+
+    if (!existingJE) {
+      throw new NotFoundError(`Journal entry ${id} not found`);
+    }
+
+    if (!existingJE.is_deleted) {
+      throw new BadRequestError(
+        'Cannot permanently delete an active journal entry. Archive it first.'
+      );
+    }
+
+    // Hard delete in transaction (lines first, then JE)
+    await prisma.$transaction(async (tx) => {
+      // Delete lines
+      await tx.journal_entry_line.deleteMany({
+        where: { journal_entry_id: id },
+      });
+
+      // Delete journal entry
+      await tx.journal_entry.delete({
+        where: { id },
+      });
+    });
+
+    // Audit log
+    await AuditLogClient.logDelete(
+      'Journal Entry',
+      { id, code: existingJE.code },
+      existingJE,
+      { id: userId, name: userInfo?.username, role: userInfo?.role },
+      'Permanent deletion',
+      req
+    );
+
+    logger.info(`[JournalEntryAutoService] Permanently deleted JE: ${existingJE.code}`);
+    return { success: true, message: `Journal entry ${existingJE.code} has been permanently deleted` };
+  }
+
+  // --------------------------------------------------------------------------
   // GET JOURNAL ENTRY BY ID
   // --------------------------------------------------------------------------
 

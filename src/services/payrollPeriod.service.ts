@@ -678,4 +678,165 @@ export class PayrollPeriodService {
       throw error;
     }
   }
+
+  // --------------------------------------------------------------------------
+  // ARCHIVE / RESTORE / HARD DELETE
+  // --------------------------------------------------------------------------
+
+  /**
+   * Archive a payroll period (soft delete with archive semantics)
+   */
+  async archivePayrollPeriod(id: number, userId: string, userInfo?: any, req?: any) {
+    try {
+      const period = await prisma.payroll_period.findUnique({
+        where: { id },
+        select: { id: true, payroll_period_code: true, is_deleted: true, status: true },
+      });
+
+      if (!period) {
+        throw new NotFoundError(`Payroll period with ID ${id} not found`);
+      }
+
+      if (period.is_deleted) {
+        throw new ValidationError('Payroll period is already archived');
+      }
+
+      // Prevent archiving draft or processing periods
+      if (period.status === payroll_period_status.DRAFT || period.status === payroll_period_status.PARTIAL) {
+        throw new ValidationError('Cannot archive draft or partial payroll period. Delete it instead.');
+      }
+
+      const result = await prisma.payroll_period.update({
+        where: { id },
+        data: {
+          is_deleted: true,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+
+      await AuditLogClient.logUpdate(
+        'Payroll Period',
+        { id, code: period.payroll_period_code },
+        { is_deleted: false },
+        { is_deleted: true, archived_by: userId },
+        { id: userId, name: userInfo?.username, role: userInfo?.role },
+        req
+      );
+
+      logger.info(`Payroll period ${id} archived by ${userId}`);
+      return { success: true, message: `Payroll period ${period.payroll_period_code} has been archived`, data: result };
+    } catch (error) {
+      logger.error(`Error archiving payroll period ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restore an archived payroll period
+   */
+  async restorePayrollPeriod(id: number, userId: string, userInfo?: any, req?: any) {
+    try {
+      const period = await prisma.payroll_period.findUnique({
+        where: { id },
+        select: { id: true, payroll_period_code: true, is_deleted: true },
+      });
+
+      if (!period) {
+        throw new NotFoundError(`Payroll period with ID ${id} not found`);
+      }
+
+      if (!period.is_deleted) {
+        throw new ValidationError('Payroll period is not archived');
+      }
+
+      const result = await prisma.payroll_period.update({
+        where: { id },
+        data: {
+          is_deleted: false,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+
+      await AuditLogClient.logUpdate(
+        'Payroll Period',
+        { id, code: period.payroll_period_code },
+        { is_deleted: true },
+        { is_deleted: false, restored_by: userId },
+        { id: userId, name: userInfo?.username, role: userInfo?.role },
+        req
+      );
+
+      logger.info(`Payroll period ${id} restored by ${userId}`);
+      return { success: true, message: `Payroll period ${period.payroll_period_code} has been restored`, data: result };
+    } catch (error) {
+      logger.error(`Error restoring payroll period ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Permanently delete an archived payroll period
+   */
+  async hardDeletePayrollPeriod(id: number, userId: string, userInfo?: any, req?: any) {
+    try {
+      const period = await prisma.payroll_period.findUnique({
+        where: { id },
+        select: { id: true, payroll_period_code: true, is_deleted: true },
+      });
+
+      if (!period) {
+        throw new NotFoundError(`Payroll period with ID ${id} not found`);
+      }
+
+      if (!period.is_deleted) {
+        throw new ValidationError('Cannot permanently delete an active payroll period. Archive it first.');
+      }
+
+      // Delete associated payroll records first
+      await prisma.$transaction(async (tx) => {
+        // Delete benefit/deduction lines for associated payrolls
+        const payrolls = await tx.payroll.findMany({
+          where: { payroll_period_id: id },
+          select: { id: true },
+        });
+
+        const payrollIds = payrolls.map(p => p.id);
+
+        await tx.payroll_benefit.deleteMany({
+          where: { payroll_id: { in: payrollIds } },
+        });
+
+        await tx.payroll_deduction.deleteMany({
+          where: { payroll_id: { in: payrollIds } },
+        });
+
+        // Delete payrolls
+        await tx.payroll.deleteMany({
+          where: { payroll_period_id: id },
+        });
+
+        // Delete the payroll period
+        await tx.payroll_period.delete({
+          where: { id },
+        });
+      });
+
+      await AuditLogClient.logDelete(
+        'Payroll Period',
+        { id, code: period.payroll_period_code },
+        period,
+        { id: userId, name: userInfo?.username, role: userInfo?.role },
+        'Permanent deletion',
+        req
+      );
+
+      logger.info(`Payroll period ${id} permanently deleted by ${userId}`);
+      return { success: true, message: `Payroll period ${period.payroll_period_code} has been permanently deleted` };
+    } catch (error) {
+      logger.error(`Error permanently deleting payroll period ${id}:`, error);
+      throw error;
+    }
+  }
 }

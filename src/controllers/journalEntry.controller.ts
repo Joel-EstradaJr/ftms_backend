@@ -80,4 +80,40 @@ export class JournalEntryController {
       next(error);
     }
   };
+
+  archive = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) throw new ValidationError('Invalid journal entry ID');
+
+      const result = await this.service.archiveJournalEntry(id, req.user!.sub, req.user, req);
+      res.json({ success: true, message: 'Journal entry archived successfully', data: result });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  restore = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) throw new ValidationError('Invalid journal entry ID');
+
+      const result = await this.service.restoreJournalEntry(id, req.user!.sub, req.user, req);
+      res.json({ success: true, message: 'Journal entry restored successfully', data: result });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  hardDelete = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) throw new ValidationError('Invalid journal entry ID');
+
+      await this.service.hardDeleteJournalEntry(id, req.user!.sub, req.user, req);
+      res.json({ success: true, message: 'Journal entry permanently deleted' });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

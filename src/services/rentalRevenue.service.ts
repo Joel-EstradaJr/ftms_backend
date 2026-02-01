@@ -1030,6 +1030,127 @@ export class RentalRevenueService {
             results,
         };
     }
+
+    // --------------------------------------------------------------------------
+    // ARCHIVE / RESTORE / DELETE RENTAL REVENUE
+    // --------------------------------------------------------------------------
+
+    /**
+     * Archive a rental revenue record (soft delete)
+     */
+    async archiveRentalRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[RentalRevenueService] Archiving rental revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            select: { id: true, code: true, is_deleted: true, remittance_status: true },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (revenue.is_deleted) {
+            throw new BadRequestError('Revenue record is already archived');
+        }
+
+        const result = await prisma.revenue.update({
+            where: { id },
+            data: {
+                is_deleted: true,
+                archived_by: userId,
+                archived_at: new Date(),
+            },
+        });
+
+        await AuditLogClient.logUpdate(
+            'Revenue',
+            { id, code: revenue.code },
+            { is_deleted: false },
+            { is_deleted: true, archived_by: userId },
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            req
+        );
+
+        logger.info(`[RentalRevenueService] Archived rental revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been archived`, data: result };
+    }
+
+    /**
+     * Restore an archived rental revenue record
+     */
+    async restoreRentalRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[RentalRevenueService] Restoring rental revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            select: { id: true, code: true, is_deleted: true },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (!revenue.is_deleted) {
+            throw new BadRequestError('Revenue record is not archived');
+        }
+
+        const result = await prisma.revenue.update({
+            where: { id },
+            data: {
+                is_deleted: false,
+                archived_by: userId,
+                archived_at: new Date(),
+            },
+        });
+
+        await AuditLogClient.logUpdate(
+            'Revenue',
+            { id, code: revenue.code },
+            { is_deleted: true },
+            { is_deleted: false, restored_by: userId },
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            req
+        );
+
+        logger.info(`[RentalRevenueService] Restored rental revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been restored`, data: result };
+    }
+
+    /**
+     * Permanently delete an archived rental revenue record
+     */
+    async hardDeleteRentalRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[RentalRevenueService] Hard deleting rental revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (!revenue.is_deleted) {
+            throw new BadRequestError('Cannot permanently delete an active revenue record. Archive it first.');
+        }
+
+        await prisma.revenue.delete({
+            where: { id },
+        });
+
+        await AuditLogClient.logDelete(
+            'Revenue',
+            { id, code: revenue.code },
+            revenue,
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            'Permanent deletion',
+            req
+        );
+
+        logger.info(`[RentalRevenueService] Permanently deleted rental revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been permanently deleted` };
+    }
 }
 
 // Export singleton instance

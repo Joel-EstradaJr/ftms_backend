@@ -273,6 +273,78 @@ export class JournalEntryAutoController {
   };
 
   // --------------------------------------------------------------------------
+  // ARCHIVE JOURNAL ENTRY (SOFT DELETE)
+  // PATCH /api/journal-entry/:id/archive
+  // --------------------------------------------------------------------------
+  archive = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('Invalid journal entry ID');
+      }
+
+      const result = await this.service.archiveJournalEntry(
+        id,
+        req.user!.sub,
+        req.user,
+        req
+      );
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // RESTORE JOURNAL ENTRY
+  // PATCH /api/journal-entry/:id/restore
+  // --------------------------------------------------------------------------
+  restore = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('Invalid journal entry ID');
+      }
+
+      const result = await this.service.restoreJournalEntry(
+        id,
+        req.user!.sub,
+        req.user,
+        req
+      );
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // HARD DELETE JOURNAL ENTRY (PERMANENT)
+  // DELETE /api/journal-entry/:id/permanent
+  // --------------------------------------------------------------------------
+  hardDelete = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('Invalid journal entry ID');
+      }
+
+      const result = await this.service.hardDeleteJournalEntry(
+        id,
+        req.user!.sub,
+        req.user,
+        req
+      );
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // --------------------------------------------------------------------------
   // GET JOURNAL ENTRY BY ID
   // GET /api/journal-entry/:id
   // --------------------------------------------------------------------------
