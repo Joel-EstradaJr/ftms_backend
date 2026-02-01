@@ -5,6 +5,8 @@
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { budget_allocation_type } from '@prisma/client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { Request } from 'express';
 
 // ============================================================================
 // DTOs and Interfaces
@@ -140,9 +142,9 @@ class BudgetAllocationService {
     /**
      * Allocate budget to a department (INCREASE)
      */
-    async allocateBudget(data: AllocateBudgetDTO, userId: string): Promise<AllocationResult> {
+    async allocateBudget(data: AllocateBudgetDTO, userId: string, req?: Request): Promise<AllocationResult> {
         try {
-            return await prisma.$transaction(async (tx) => {
+            const result = await prisma.$transaction(async (tx) => {
                 // Find the department budget
                 const departmentBudget = await tx.department_budget.findUnique({
                     where: { department_id: data.department_id },
@@ -232,8 +234,29 @@ class BudgetAllocationService {
                     allocation_id: allocation.id,
                     new_allocated_budget: newStartingBudget,
                     new_remaining_budget: newRemainingBudget,
+                    department_id: data.department_id,
+                    department_name: departmentBudget.department_name,
                 };
             });
+
+            // Audit log for budget allocation (CREATE action for new allocation record)
+            await AuditLogClient.logCreate(
+                AuditEntityTypes.BUDGET_ALLOCATION,
+                { id: result.allocation_id, code: `${data.department_id}-${data.period}` },
+                {
+                    type: 'INCREASE',
+                    department_id: data.department_id,
+                    amount: data.amount,
+                    period: data.period,
+                    notes: data.notes,
+                    new_allocated_budget: result.new_allocated_budget,
+                    new_remaining_budget: result.new_remaining_budget,
+                },
+                { id: userId },
+                req
+            );
+
+            return result;
         } catch (error) {
             logger.error('[BudgetAllocationService] allocateBudget error:', error);
             throw error;
@@ -243,9 +266,9 @@ class BudgetAllocationService {
     /**
      * Deduct budget from a department (DECREASE)
      */
-    async deductBudget(data: DeductBudgetDTO, userId: string): Promise<AllocationResult> {
+    async deductBudget(data: DeductBudgetDTO, userId: string, req?: Request): Promise<AllocationResult> {
         try {
-            return await prisma.$transaction(async (tx) => {
+            const result = await prisma.$transaction(async (tx) => {
                 // Find the department budget
                 const departmentBudget = await tx.department_budget.findUnique({
                     where: { department_id: data.department_id },
@@ -327,8 +350,29 @@ class BudgetAllocationService {
                     allocation_id: allocation.id,
                     new_allocated_budget: newStartingBudget,
                     new_remaining_budget: newRemainingBudget,
+                    department_id: data.department_id,
+                    department_name: departmentBudget.department_name,
                 };
             });
+
+            // Audit log for budget deduction (CREATE action for new deduction record)
+            await AuditLogClient.logCreate(
+                AuditEntityTypes.BUDGET_ALLOCATION,
+                { id: result.allocation_id, code: `${data.department_id}-${data.period}-DEDUCT` },
+                {
+                    type: 'DECREASE',
+                    department_id: data.department_id,
+                    amount: data.amount,
+                    period: data.period,
+                    notes: data.notes,
+                    new_allocated_budget: result.new_allocated_budget,
+                    new_remaining_budget: result.new_remaining_budget,
+                },
+                { id: userId },
+                req
+            );
+
+            return result;
         } catch (error) {
             logger.error('[BudgetAllocationService] deductBudget error:', error);
             throw error;

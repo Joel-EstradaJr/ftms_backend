@@ -3,6 +3,9 @@
 import { prisma } from '../config/database';
 import { AccountTypeCreateDTO } from '../types/accountType.types';
 import { ValidationError } from '../utils/errors';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { logger } from '../config/logger';
+import { Request } from 'express';
 
 export class AccountTypeService {
   /**
@@ -43,7 +46,7 @@ export class AccountTypeService {
    * Create or revive an account type.
    * Soft-deleted records are treated as available (Requirement #5).
    */
-  async create(dto: AccountTypeCreateDTO, actorId?: string) {
+  async create(dto: AccountTypeCreateDTO, actorId?: string, req?: Request) {
     if (!dto.code || !dto.name) throw new ValidationError('code and name are required');
     // Existing active?
     const active = await prisma.account_type.findFirst({ where: { code: dto.code, is_deleted: false } });
@@ -52,7 +55,7 @@ export class AccountTypeService {
     // Check soft-deleted for revival by code OR name
     const softDeleted = await prisma.account_type.findFirst({ where: { code: dto.code, is_deleted: true } });
     if (softDeleted) {
-      return prisma.account_type.update({
+      const revived = await prisma.account_type.update({
         where: { id: softDeleted.id },
         data: {
           name: dto.name,
@@ -65,9 +68,20 @@ export class AccountTypeService {
           updated_by: actorId,
         },
       });
+
+      // Audit log for revival (treated as UNARCHIVE)
+      await AuditLogClient.logUnarchive(
+        AuditEntityTypes.ACCOUNT_TYPE,
+        { id: revived.id, code: revived.code },
+        { id: actorId || 'system' },
+        { name: revived.name, description: revived.description },
+        req
+      );
+
+      return revived;
     }
 
-    return prisma.account_type.create({
+    const created = await prisma.account_type.create({
       data: {
         code: dto.code,
         name: dto.name,
@@ -75,12 +89,23 @@ export class AccountTypeService {
         created_by: actorId,
       },
     });
+
+    // Audit log for creation
+    await AuditLogClient.logCreate(
+      AuditEntityTypes.ACCOUNT_TYPE,
+      { id: created.id, code: created.code },
+      created,
+      { id: actorId || 'system' },
+      req
+    );
+
+    return created;
   }
 
   /**
    * Update an account type by ID.
    */
-  async update(id: number, dto: Partial<AccountTypeCreateDTO>, actorId?: string) {
+  async update(id: number, dto: Partial<AccountTypeCreateDTO>, actorId?: string, req?: Request) {
     const existing = await prisma.account_type.findUnique({ where: { id } });
     if (!existing) throw new ValidationError('Account type not found');
 
@@ -100,7 +125,7 @@ export class AccountTypeService {
       if (conflict) throw new ValidationError(`Account type name '${dto.name}' already exists`);
     }
 
-    return prisma.account_type.update({
+    const updated = await prisma.account_type.update({
       where: { id },
       data: {
         ...(dto.code && { code: dto.code }),
@@ -109,13 +134,25 @@ export class AccountTypeService {
         updated_by: actorId,
       },
     });
+
+    // Audit log for update
+    await AuditLogClient.logUpdate(
+      AuditEntityTypes.ACCOUNT_TYPE,
+      { id: updated.id, code: updated.code },
+      existing,
+      updated,
+      { id: actorId || 'system' },
+      req
+    );
+
+    return updated;
   }
 
   /**
    * Archive an account type (soft delete).
    * Sets is_deleted = true and records archived_by and archived_at.
    */
-  async archive(id: number, actorId?: string) {
+  async archive(id: number, actorId?: string, req?: Request) {
     const existing = await prisma.account_type.findUnique({ where: { id } });
     if (!existing) throw new ValidationError('Account type not found');
     if (existing.is_deleted) throw new ValidationError('Account type is already archived');
@@ -128,7 +165,7 @@ export class AccountTypeService {
       throw new ValidationError(`Cannot archive account type with ${activeAccounts} active chart of accounts. Archive or delete them first.`);
     }
 
-    return prisma.account_type.update({
+    const archived = await prisma.account_type.update({
       where: { id },
       data: {
         is_deleted: true,
@@ -136,18 +173,29 @@ export class AccountTypeService {
         archived_at: new Date(),
       },
     });
+
+    // Audit log for archive
+    await AuditLogClient.logArchive(
+      AuditEntityTypes.ACCOUNT_TYPE,
+      { id: archived.id, code: archived.code },
+      { id: actorId || 'system' },
+      { name: archived.name },
+      req
+    );
+
+    return archived;
   }
 
   /**
    * Restore an archived account type.
    * Sets is_deleted = false and updates archived_by/archived_at to track restore action.
    */
-  async restore(id: number, actorId?: string) {
+  async restore(id: number, actorId?: string, req?: Request) {
     const existing = await prisma.account_type.findUnique({ where: { id } });
     if (!existing) throw new ValidationError('Account type not found');
     if (!existing.is_deleted) throw new ValidationError('Account type is not archived');
 
-    return prisma.account_type.update({
+    const restored = await prisma.account_type.update({
       where: { id },
       data: {
         is_deleted: false,
@@ -155,16 +203,37 @@ export class AccountTypeService {
         archived_at: new Date(),
       },
     });
+
+    // Audit log for unarchive
+    await AuditLogClient.logUnarchive(
+      AuditEntityTypes.ACCOUNT_TYPE,
+      { id: restored.id, code: restored.code },
+      { id: actorId || 'system' },
+      { name: restored.name },
+      req
+    );
+
+    return restored;
   }
 
   /**
    * Hard delete an account type.
    * Only allowed for archived records.
    */
-  async delete(id: number, actorId?: string) {
+  async delete(id: number, actorId?: string, req?: Request) {
     const existing = await prisma.account_type.findUnique({ where: { id } });
     if (!existing) throw new ValidationError('Account type not found');
     if (!existing.is_deleted) throw new ValidationError('Account type must be archived before deletion');
+
+    // Audit log for delete (before hard delete)
+    await AuditLogClient.logDelete(
+      AuditEntityTypes.ACCOUNT_TYPE,
+      { id: existing.id, code: existing.code },
+      existing,
+      { id: actorId || 'system' },
+      'Hard delete of archived account type',
+      req
+    );
 
     // Record deletion audit before hard delete
     await prisma.account_type.update({

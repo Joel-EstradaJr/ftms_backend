@@ -13,6 +13,8 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { Prisma, payment_method, receivable_frequency, receivable_status, installment_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { Request } from 'express';
 
 // --------------------------
 // COA MAPPINGS
@@ -625,6 +627,14 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
         return revenue;
     });
 
+    // Audit log for creation (outside transaction to not block main operation)
+    await AuditLogClient.logCreate(
+        AuditEntityTypes.OTHER_REVENUE,
+        { id: result.id, code: result.code },
+        result,
+        { id: input.created_by || 'system' }
+    );
+
     return result;
 }
 
@@ -741,6 +751,15 @@ export async function approveOtherRevenue(id: number, userId: string) {
         return updated;
     });
 
+    // Audit log for approval
+    await AuditLogClient.logApprove(
+        AuditEntityTypes.OTHER_REVENUE,
+        { id: record.id, code: record.code },
+        { id: userId },
+        { status: (record as any).status },
+        { status: 'APPROVED', remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID' }
+    );
+
     // Generate JE after status update - non-blocking so approval succeeds even if JE fails
     let jeError: Error | null = null;
     try {
@@ -776,6 +795,16 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
             updated_at: new Date()
         } as any
     });
+
+    // Audit log for rejection
+    await AuditLogClient.logReject(
+        AuditEntityTypes.OTHER_REVENUE,
+        { id: record.id, code: record.code },
+        { id: userId },
+        remarks,
+        { status: (record as any).status },
+        { status: 'REJECTED', approval_remarks: remarks }
+    );
 
     logger.info(`[OTHER_REVENUE] Rejected revenue ${record.code} by ${userId}${remarks ? `. Reason: ${remarks}` : ''}`);
     return result;
@@ -945,6 +974,17 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
             }
         }
     });
+
+    // Audit log for update
+    if (finalResult) {
+        await AuditLogClient.logUpdate(
+            AuditEntityTypes.OTHER_REVENUE,
+            { id: finalResult.id, code: finalResult.code },
+            existing,
+            finalResult,
+            { id: input.updated_by || 'system' }
+        );
+    }
 
     return finalResult;
 }

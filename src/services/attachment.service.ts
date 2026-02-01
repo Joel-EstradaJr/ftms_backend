@@ -1,6 +1,8 @@
 import { prisma } from '../config/database';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { Request } from 'express';
 
 export interface CreateAttachmentDTO {
   entity_type: string;
@@ -29,7 +31,7 @@ export class AttachmentService {
   /**
    * Create a new attachment record
    */
-  async createAttachment(data: CreateAttachmentDTO, userId?: string) {
+  async createAttachment(data: CreateAttachmentDTO, userId?: string, req?: Request) {
     try {
       // Validate required fields
       if (!data.entity_type || !data.entity_id || !data.file_name || !data.file_type || !data.file_url) {
@@ -54,6 +56,15 @@ export class AttachmentService {
           uploaded_by: data.uploaded_by || userId,
         },
       });
+
+      // Audit log for creation
+      await AuditLogClient.logCreate(
+        AuditEntityTypes.ATTACHMENT,
+        { id: attachment.id, code: `${data.entity_type}/${data.entity_id}/${attachment.file_name}` },
+        attachment,
+        { id: userId || 'system' },
+        req
+      );
 
       logger.info(`Attachment created: ${attachment.id} for ${data.entity_type}/${data.entity_id} by user ${userId || 'system'}`);
       return attachment;
@@ -112,7 +123,7 @@ export class AttachmentService {
   /**
    * Update attachment metadata
    */
-  async updateAttachment(id: number, data: UpdateAttachmentDTO, userId?: string) {
+  async updateAttachment(id: number, data: UpdateAttachmentDTO, userId?: string, req?: Request) {
     try {
       // Check if attachment exists
       const existing = await this.getAttachmentById(id);
@@ -126,6 +137,16 @@ export class AttachmentService {
         },
       });
 
+      // Audit log for update
+      await AuditLogClient.logUpdate(
+        AuditEntityTypes.ATTACHMENT,
+        { id: attachment.id, code: `${attachment.entity_type}/${attachment.entity_id}/${attachment.file_name}` },
+        existing,
+        attachment,
+        { id: userId || 'system' },
+        req
+      );
+
       logger.info(`Attachment updated: ${id} by user ${userId || 'system'}`);
       return attachment;
     } catch (error) {
@@ -137,10 +158,10 @@ export class AttachmentService {
   /**
    * Soft delete an attachment
    */
-  async deleteAttachment(id: number, userId?: string) {
+  async deleteAttachment(id: number, userId?: string, req?: Request) {
     try {
       // Check if attachment exists
-      await this.getAttachmentById(id);
+      const existing = await this.getAttachmentById(id);
 
       const attachment = await prisma.attachment.update({
         where: { id },
@@ -149,6 +170,16 @@ export class AttachmentService {
           updated_at: new Date(),
         },
       });
+
+      // Audit log for delete
+      await AuditLogClient.logDelete(
+        AuditEntityTypes.ATTACHMENT,
+        { id: existing.id, code: `${existing.entity_type}/${existing.entity_id}/${existing.file_name}` },
+        existing,
+        { id: userId || 'system' },
+        'Soft delete',
+        req
+      );
 
       logger.info(`Attachment soft-deleted: ${id} by user ${userId || 'system'}`);
       return attachment;

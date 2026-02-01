@@ -5,6 +5,9 @@
 
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { logger } from '../config/logger';
+import { Request } from 'express';
 
 // Cast to any to work around IDE type caching after prisma generate
 const prisma = new PrismaClient();
@@ -117,6 +120,14 @@ export class ApprovalService {
             },
         });
 
+        // Audit log for creation (webhook received from EMS)
+        await AuditLogClient.logCreate(
+            AuditEntityTypes.CASH_ADVANCE,
+            { id: request.id, code: request.request_number },
+            request,
+            { id: 'ems_webhook', name: 'EMS System', department: 'HR' }
+        );
+
         console.log(`✅ Cash advance ${dto.cashAdvanceRequestNumber} saved to database with status PENDING`);
 
         return { success: true, message: 'Cash advance request received', data: request };
@@ -161,7 +172,7 @@ export class ApprovalService {
     /**
      * Update cash advance status and trigger webhook to EMS
      */
-    async updateStatus(id: number, dto: UpdateStatusDto) {
+    async updateStatus(id: number, dto: UpdateStatusDto, req?: Request) {
         const request = await prisma.cash_advance_request.findFirst({
             where: { id, is_deleted: false },
         });
@@ -185,6 +196,28 @@ export class ApprovalService {
                 reviewed_at: new Date(),
             },
         });
+
+        // Audit log for approval/rejection
+        if (dto.status === 'APPROVED') {
+            await AuditLogClient.logApprove(
+                AuditEntityTypes.CASH_ADVANCE,
+                { id: request.id, code: request.request_number },
+                { id: dto.reviewedBy || 'system', department: 'Finance' },
+                { status: request.status },
+                { status: 'APPROVED', approved_amount: dto.approvedAmount },
+                req
+            );
+        } else {
+            await AuditLogClient.logReject(
+                AuditEntityTypes.CASH_ADVANCE,
+                { id: request.id, code: request.request_number },
+                { id: dto.reviewedBy || 'system', department: 'Finance' },
+                dto.rejectionReason,
+                { status: request.status },
+                { status: 'REJECTED', rejection_reason: dto.rejectionReason },
+                req
+            );
+        }
 
         // Trigger webhook to EMS Gateway
         await this.sendStatusUpdateToEMS({
