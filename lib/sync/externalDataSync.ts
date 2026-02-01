@@ -309,6 +309,8 @@ async function syncEmployees(employees: ExternalEmployeePayload[]): Promise<Sync
         });
         stats.softDeleted = idsToSoftDelete.length;
       }
+    }, {
+      timeout: 60000, // 60 seconds timeout for large employee syncs
     });
     
     console.log(`[SYNC] employee_local: ${stats.inserted} inserted, ${stats.updated} updated, ${stats.softDeleted} soft deleted`);
@@ -405,6 +407,8 @@ async function syncBuses(buses: ExternalBusPayload[]): Promise<SyncResult> {
         });
         stats.softDeleted = idsToSoftDelete.length;
       }
+    }, {
+      timeout: 60000, // 60 seconds timeout for bus syncs
     });
     
     console.log(`[SYNC] bus_local: ${stats.inserted} inserted, ${stats.updated} updated, ${stats.softDeleted} soft deleted`);
@@ -617,6 +621,8 @@ async function syncRentals(rentals: ExternalRentalPayload[]): Promise<{ rental: 
         });
         rentalEmployeeStats.softDeleted++;
       }
+    }, {
+      timeout: 60000, // 60 seconds timeout for rental syncs
     });
     
     console.log(`[SYNC] rental_local: ${rentalStats.inserted} inserted, ${rentalStats.updated} updated, ${rentalStats.softDeleted} soft deleted`);
@@ -925,6 +931,8 @@ async function syncBusTrips(busTrips: ExternalBusTripPayload[]): Promise<{ busTr
         });
         busTripEmployeeStats.softDeleted++;
       }
+    }, {
+      timeout: 60000, // 60 seconds timeout for bus trip syncs
     });
     
     console.log(`[SYNC] bus_trip_local: ${busTripStats.inserted} inserted, ${busTripStats.updated} updated, ${busTripStats.softDeleted} soft deleted`);
