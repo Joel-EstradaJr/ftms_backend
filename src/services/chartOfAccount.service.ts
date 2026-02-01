@@ -8,6 +8,9 @@ import {
   ChartOfAccountListItemDTO 
 } from '../types/chartOfAccount.types';
 import { ValidationError } from '../utils/errors';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { logger } from '../config/logger';
+import { Request } from 'express';
 
 interface GenerateResult { code: string; suffix: number; }
 
@@ -49,7 +52,7 @@ export class ChartOfAccountService {
   /**
    * Create a Chart of Account entry applying code generation logic.
    */
-  async create(dto: ChartOfAccountCreateDTO, actorId?: string) {
+  async create(dto: ChartOfAccountCreateDTO, actorId?: string, req?: Request) {
     if (!dto.account_name) throw new ValidationError('account_name is required');
     if (!dto.normal_balance) throw new ValidationError('normal_balance is required');
     if (!dto.account_type_id && !dto.account_type_code) throw new ValidationError('Provide account_type_id or account_type_code');
@@ -71,7 +74,7 @@ export class ChartOfAccountService {
 
     const { code } = await this.generateAccountCode(accountType.id, accountType.code, dto.custom_suffix);
 
-    return prisma.chart_of_account.create({
+    const created = await prisma.chart_of_account.create({
       data: {
         account_code: code,
         account_name: dto.account_name,
@@ -81,6 +84,17 @@ export class ChartOfAccountService {
         created_by: actorId,
       },
     });
+
+    // Audit log for creation
+    await AuditLogClient.logCreate(
+      AuditEntityTypes.CHART_OF_ACCOUNT,
+      { id: created.id, code: created.account_code },
+      created,
+      { id: actorId || 'system' },
+      req
+    );
+
+    return created;
   }
 
   /**
@@ -244,7 +258,7 @@ export class ChartOfAccountService {
    * Update a Chart of Account by ID.
    * Validates uniqueness constraints and account code format.
    */
-  async update(id: number, updates: Partial<ChartOfAccountCreateDTO> & { account_code?: string }, actorId?: string) {
+  async update(id: number, updates: Partial<ChartOfAccountCreateDTO> & { account_code?: string }, actorId?: string, req?: Request) {
     // Fetch existing record
     const existing = await prisma.chart_of_account.findUnique({ where: { id } });
     if (!existing) {
@@ -330,7 +344,7 @@ export class ChartOfAccountService {
       updateData.description = updates.description;
     }
 
-    return prisma.chart_of_account.update({
+    const updated = await prisma.chart_of_account.update({
       where: { id },
       data: updateData,
       include: {
@@ -341,13 +355,25 @@ export class ChartOfAccountService {
         },
       },
     });
+
+    // Audit log for update
+    await AuditLogClient.logUpdate(
+      AuditEntityTypes.CHART_OF_ACCOUNT,
+      { id: updated.id, code: updated.account_code },
+      existing,
+      updated,
+      { id: actorId || 'system' },
+      req
+    );
+
+    return updated;
   }
 
   /**
    * Archive a Chart of Account (soft delete).
    * Sets is_deleted = true and records archived_by and archived_at.
    */
-  async archive(id: number, actorId?: string) {
+  async archive(id: number, actorId?: string, req?: Request) {
     const existing = await prisma.chart_of_account.findUnique({ where: { id } });
     if (!existing) {
       throw new ValidationError('Chart of account not found');
@@ -356,7 +382,7 @@ export class ChartOfAccountService {
       throw new ValidationError('Chart of account is already archived');
     }
 
-    return prisma.chart_of_account.update({
+    const archived = await prisma.chart_of_account.update({
       where: { id },
       data: {
         is_deleted: true,
@@ -364,6 +390,17 @@ export class ChartOfAccountService {
         archived_at: new Date(),
       },
     });
+
+    // Audit log for archive
+    await AuditLogClient.logArchive(
+      AuditEntityTypes.CHART_OF_ACCOUNT,
+      { id: archived.id, code: archived.account_code },
+      { id: actorId || 'system' },
+      { account_name: archived.account_name },
+      req
+    );
+
+    return archived;
   }
 
   /**
@@ -371,7 +408,7 @@ export class ChartOfAccountService {
    * Sets is_deleted = false and records who restored and when in archived_by/archived_at.
    * This maintains full audit trail of the restore action.
    */
-  async restore(id: number, actorId?: string) {
+  async restore(id: number, actorId?: string, req?: Request) {
     const existing = await prisma.chart_of_account.findUnique({ where: { id } });
     if (!existing) {
       throw new ValidationError('Chart of account not found');
@@ -380,7 +417,7 @@ export class ChartOfAccountService {
       throw new ValidationError('Chart of account is not archived');
     }
 
-    return prisma.chart_of_account.update({
+    const restored = await prisma.chart_of_account.update({
       where: { id },
       data: {
         is_deleted: false,
@@ -388,6 +425,17 @@ export class ChartOfAccountService {
         archived_at: new Date(),
       },
     });
+
+    // Audit log for unarchive
+    await AuditLogClient.logUnarchive(
+      AuditEntityTypes.CHART_OF_ACCOUNT,
+      { id: restored.id, code: restored.account_code },
+      { id: actorId || 'system' },
+      { account_name: restored.account_name },
+      req
+    );
+
+    return restored;
   }
 
   /**
@@ -395,7 +443,7 @@ export class ChartOfAccountService {
    * Only allowed for archived records.
    * Records deleted_by and deleted_at before deletion.
    */
-  async delete(id: number, actorId?: string) {
+  async delete(id: number, actorId?: string, req?: Request) {
     const existing = await prisma.chart_of_account.findUnique({ where: { id } });
     if (!existing) {
       throw new ValidationError('Chart of account not found');
@@ -403,6 +451,16 @@ export class ChartOfAccountService {
     if (!existing.is_deleted) {
       throw new ValidationError('Chart of account must be archived before deletion');
     }
+
+    // Audit log for delete (before hard delete)
+    await AuditLogClient.logDelete(
+      AuditEntityTypes.CHART_OF_ACCOUNT,
+      { id: existing.id, code: existing.account_code },
+      existing,
+      { id: actorId || 'system' },
+      'Hard delete of archived chart of account',
+      req
+    );
 
     // Record deletion audit before hard delete
     await prisma.chart_of_account.update({

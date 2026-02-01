@@ -604,5 +604,87 @@ router.post('/:id/pay-balance', rentalRevenueController.payBalance);
  *               type: string
  *               format: date-time
  */
+// ============================================================================
+// ARCHIVE / RESTORE / DELETE ENDPOINTS
+// ============================================================================
 
+/**
+ * @swagger
+ * /api/v1/admin/rental-revenue/{id}/archive:
+ *   patch:
+ *     tags:
+ *       - Rental Revenue
+ *     summary: Archive a rental revenue record (soft delete)
+ *     description: |
+ *       Archives a rental revenue record by setting is_deleted=true.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Revenue ID
+ *     responses:
+ *       200:
+ *         description: Revenue archived successfully
+ *       400:
+ *         description: Revenue already archived
+ *       404:
+ *         description: Revenue not found
+ */
+router.patch('/:id/archive', rentalRevenueController.archiveRentalRevenue);
+
+/**
+ * @swagger
+ * /api/v1/admin/rental-revenue/{id}/restore:
+ *   patch:
+ *     tags:
+ *       - Rental Revenue
+ *     summary: Restore an archived rental revenue record
+ *     description: |
+ *       Restores an archived rental revenue record by setting is_deleted=false.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Revenue ID
+ *     responses:
+ *       200:
+ *         description: Revenue restored successfully
+ *       400:
+ *         description: Revenue is not archived
+ *       404:
+ *         description: Revenue not found
+ */
+router.patch('/:id/restore', rentalRevenueController.restoreRentalRevenue);
+
+/**
+ * @swagger
+ * /api/v1/admin/rental-revenue/{id}/permanent:
+ *   delete:
+ *     tags:
+ *       - Rental Revenue
+ *     summary: Permanently delete an archived rental revenue record
+ *     description: |
+ *       Permanently deletes an archived rental revenue record.
+ *       Only archived records can be permanently deleted.
+ *       This action is irreversible.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Revenue ID
+ *     responses:
+ *       200:
+ *         description: Revenue permanently deleted
+ *       400:
+ *         description: Revenue is not archived
+ *       404:
+ *         description: Revenue not found
+ */
+router.delete('/:id/permanent', rentalRevenueController.hardDeleteRentalRevenue);
 export default router;

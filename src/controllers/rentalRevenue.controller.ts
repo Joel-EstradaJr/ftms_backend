@@ -387,6 +387,9 @@ export class RentalRevenueController {
      * Record balance payment for a rental
      * 
      * Sets balance_amount to 0 and full_payment_date to today
+    /**
+     * POST /api/v1/admin/rental-revenue/:id/pay-balance
+     * Pay the outstanding balance on a rental
      * Updates rental_status to 'completed'
      */
     payBalance = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -420,6 +423,76 @@ export class RentalRevenueController {
                 message: 'Balance paid successfully. Rental is now completed.',
                 data: revenue,
             });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    // --------------------------------------------------------------------------
+    // ARCHIVE / RESTORE / DELETE RENTAL REVENUE
+    // --------------------------------------------------------------------------
+
+    /**
+     * PATCH /api/v1/admin/rental-revenue/:id/archive
+     * Archive a rental revenue record (soft delete)
+     */
+    archiveRentalRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
+        try {
+            const id = parseInt(req.params.id);
+            if (isNaN(id)) {
+                throw new ValidationError('Invalid revenue ID');
+            }
+
+            const userId = req.user?.sub || 'system';
+            const userInfo = req.user;
+
+            const result = await rentalRevenueService.archiveRentalRevenue(id, userId, userInfo, req);
+
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * PATCH /api/v1/admin/rental-revenue/:id/restore
+     * Restore an archived rental revenue record
+     */
+    restoreRentalRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
+        try {
+            const id = parseInt(req.params.id);
+            if (isNaN(id)) {
+                throw new ValidationError('Invalid revenue ID');
+            }
+
+            const userId = req.user?.sub || 'system';
+            const userInfo = req.user;
+
+            const result = await rentalRevenueService.restoreRentalRevenue(id, userId, userInfo, req);
+
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * DELETE /api/v1/admin/rental-revenue/:id/permanent
+     * Permanently delete an archived rental revenue record
+     */
+    hardDeleteRentalRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
+        try {
+            const id = parseInt(req.params.id);
+            if (isNaN(id)) {
+                throw new ValidationError('Invalid revenue ID');
+            }
+
+            const userId = req.user?.sub || 'system';
+            const userInfo = req.user;
+
+            const result = await rentalRevenueService.hardDeleteRentalRevenue(id, userId, userInfo, req);
+
+            res.status(200).json(result);
         } catch (error) {
             next(error);
         }

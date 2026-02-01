@@ -1909,6 +1909,158 @@ export class BusTripRevenueService {
             results,
         };
     }
+
+    // --------------------------------------------------------------------------
+    // ARCHIVE / RESTORE / DELETE REVENUE
+    // --------------------------------------------------------------------------
+
+    /**
+     * Archive a revenue record (soft delete)
+     */
+    async archiveRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[BusTripRevenueService] Archiving revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            select: { id: true, code: true, is_deleted: true, remittance_status: true },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (revenue.is_deleted) {
+            throw new BadRequestError('Revenue record is already archived');
+        }
+
+        // Prevent archiving if there are unpaid receivables
+        if (revenue.remittance_status === 'PENDING' || revenue.remittance_status === 'PARTIALLY_PAID') {
+            throw new BadRequestError('Cannot archive revenue with pending or partial receivables');
+        }
+
+        const result = await prisma.revenue.update({
+            where: { id },
+            data: {
+                is_deleted: true,
+                archived_by: userId,
+                archived_at: new Date(),
+            },
+        });
+
+        await AuditLogClient.logUpdate(
+            'Revenue',
+            { id, code: revenue.code },
+            { is_deleted: false },
+            { is_deleted: true, archived_by: userId },
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            req
+        );
+
+        logger.info(`[BusTripRevenueService] Archived revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been archived`, data: result };
+    }
+
+    /**
+     * Restore an archived revenue record
+     */
+    async restoreRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[BusTripRevenueService] Restoring revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            select: { id: true, code: true, is_deleted: true },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (!revenue.is_deleted) {
+            throw new BadRequestError('Revenue record is not archived');
+        }
+
+        const result = await prisma.revenue.update({
+            where: { id },
+            data: {
+                is_deleted: false,
+                archived_by: userId,
+                archived_at: new Date(),
+            },
+        });
+
+        await AuditLogClient.logUpdate(
+            'Revenue',
+            { id, code: revenue.code },
+            { is_deleted: true },
+            { is_deleted: false, restored_by: userId },
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            req
+        );
+
+        logger.info(`[BusTripRevenueService] Restored revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been restored`, data: result };
+    }
+
+    /**
+     * Permanently delete an archived revenue record
+     */
+    async hardDeleteRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[BusTripRevenueService] Hard deleting revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            include: {
+                driver_receivable: { include: { installment_schedule: true } },
+                conductor_receivable: { include: { installment_schedule: true } },
+            },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (!revenue.is_deleted) {
+            throw new BadRequestError('Cannot permanently delete an active revenue record. Archive it first.');
+        }
+
+        await prisma.$transaction(async (tx) => {
+            // Delete installment schedules first
+            if (revenue.driver_receivable_id) {
+                await tx.revenue_installment_schedule.deleteMany({
+                    where: { receivable_id: revenue.driver_receivable_id },
+                });
+                await tx.receivable.delete({
+                    where: { id: revenue.driver_receivable_id },
+                });
+            }
+
+            if (revenue.conductor_receivable_id) {
+                await tx.revenue_installment_schedule.deleteMany({
+                    where: { receivable_id: revenue.conductor_receivable_id },
+                });
+                await tx.receivable.delete({
+                    where: { id: revenue.conductor_receivable_id },
+                });
+            }
+
+            // Delete the revenue record
+            await tx.revenue.delete({
+                where: { id },
+            });
+        });
+
+        await AuditLogClient.logDelete(
+            'Revenue',
+            { id, code: revenue.code },
+            revenue,
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            'Permanent deletion',
+            req
+        );
+
+        logger.info(`[BusTripRevenueService] Permanently deleted revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been permanently deleted` };
+    }
 }
 
 // Export singleton instance

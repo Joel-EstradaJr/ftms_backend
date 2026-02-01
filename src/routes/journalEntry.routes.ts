@@ -704,6 +704,97 @@ router.delete('/:id', controller.delete);
 
 /**
  * @swagger
+ * /api/v1/admin/journal-entry/{id}/archive:
+ *   patch:
+ *     summary: Archive a journal entry (soft delete)
+ *     description: |
+ *       Archives a DRAFT journal entry by setting is_deleted=true.
+ *       Only DRAFT entries can be archived.
+ *     tags: [Admin | Journal Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Journal entry ID
+ *     responses:
+ *       200:
+ *         description: Journal entry archived successfully
+ *       400:
+ *         description: Entry is not DRAFT or already archived
+ *       404:
+ *         description: Journal entry not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.patch('/:id/archive', controller.archive);
+
+/**
+ * @swagger
+ * /api/v1/admin/journal-entry/{id}/restore:
+ *   patch:
+ *     summary: Restore an archived journal entry
+ *     description: |
+ *       Restores an archived journal entry by setting is_deleted=false.
+ *       Only archived entries can be restored.
+ *     tags: [Admin | Journal Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Journal entry ID
+ *     responses:
+ *       200:
+ *         description: Journal entry restored successfully
+ *       400:
+ *         description: Entry is not archived
+ *       404:
+ *         description: Journal entry not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.patch('/:id/restore', controller.restore);
+
+/**
+ * @swagger
+ * /api/v1/admin/journal-entry/{id}/permanent:
+ *   delete:
+ *     summary: Permanently delete an archived journal entry
+ *     description: |
+ *       Permanently deletes an archived journal entry.
+ *       Only archived entries can be permanently deleted.
+ *       This action is irreversible.
+ *     tags: [Admin | Journal Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Journal entry ID
+ *     responses:
+ *       200:
+ *         description: Journal entry permanently deleted
+ *       400:
+ *         description: Entry is not archived
+ *       404:
+ *         description: Journal entry not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete('/:id/permanent', controller.hardDelete);
+
+/**
+ * @swagger
  * /api/v1/admin/journal-entry:
  *   get:
  *     summary: List journal entries with filters
