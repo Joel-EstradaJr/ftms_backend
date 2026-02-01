@@ -532,16 +532,13 @@ export class PayrollPeriodService {
       });
 
       await AuditLogClient.log({
-        moduleName: 'Payroll Period Management',
-        action: 'RELEASE',
-        performedBy: userId,
-        performedByName: userInfo?.username,
-        performedByRole: userInfo?.role,
-        recordId: id.toString(),
-        recordCode: period.payroll_period_code,
-        newValues: updatedPeriod,
-        ipAddress: req?.ip,
-        userAgent: req?.headers?.['user-agent'],
+        entity_type: 'payroll_period',
+        entity_id: id.toString(),
+        action_type_code: 'UPDATE',
+        action_by: userId,
+        action_from: 'Payroll Period Management',
+        new_data: { ...updatedPeriod, code: period.payroll_period_code, action: 'RELEASE' },
+        ip_address: req?.ip,
       });
 
       logger.info(`Payroll period ${id} released by ${userId}`);
@@ -804,11 +801,8 @@ export class PayrollPeriodService {
 
         const payrollIds = payrolls.map(p => p.id);
 
-        await tx.payroll_benefit.deleteMany({
-          where: { payroll_id: { in: payrollIds } },
-        });
-
-        await tx.payroll_deduction.deleteMany({
+        // Delete payroll items (benefits, deductions, earnings)
+        await tx.payroll_item.deleteMany({
           where: { payroll_id: { in: payrollIds } },
         });
 

@@ -1934,7 +1934,7 @@ export class BusTripRevenueService {
         }
 
         // Prevent archiving if there are unpaid receivables
-        if (revenue.remittance_status === 'PENDING' || revenue.remittance_status === 'PARTIAL') {
+        if (revenue.remittance_status === 'PENDING' || revenue.remittance_status === 'PARTIALLY_PAID') {
             throw new BadRequestError('Cannot archive revenue with pending or partial receivables');
         }
 

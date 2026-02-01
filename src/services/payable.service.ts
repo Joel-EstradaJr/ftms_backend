@@ -192,16 +192,13 @@ export class PayableService {
       });
 
       await AuditLogClient.log({
-        moduleName: 'Account Payable',
-        action: 'PAYMENT_RECORDED',
-        recordId: id.toString(),
-        recordCode: payable.code,
-        performedBy: userId,
-        performedByName: userInfo?.username,
-        performedByRole: userInfo?.role,
-        newValues: { paymentAmount: payment, newBalance, status: newStatus },
-        ipAddress: req?.ip,
-        userAgent: req?.headers?.['user-agent'],
+        entity_type: 'payable',
+        entity_id: id.toString(),
+        action_type_code: 'UPDATE',
+        action_by: userId,
+        action_from: 'Account Payable',
+        new_data: { paymentAmount: payment, newBalance, status: newStatus, code: payable.code },
+        ip_address: req?.ip,
       });
 
       logger.info(`Payment recorded for payable: ${payable.code}`);

@@ -308,9 +308,9 @@ export class JournalEntryService {
         throw new ValidationError('Journal entry is already archived');
       }
 
-      // Prevent archiving posted/approved entries
-      if (entry.status === 'POSTED' || entry.status === 'APPROVED') {
-        throw new ValidationError('Cannot archive a posted or approved journal entry');
+      // Prevent archiving posted entries
+      if (entry.status === 'POSTED') {
+        throw new ValidationError('Cannot archive a posted journal entry');
       }
 
       const updatedEntry = await prisma.journal_entry.update({
@@ -434,7 +434,7 @@ export class JournalEntryService {
       }
 
       // Delete associated journal lines first
-      await prisma.journal_line.deleteMany({
+      await prisma.journal_entry_line.deleteMany({
         where: { journal_entry_id: id },
       });
 
