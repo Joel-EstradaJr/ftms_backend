@@ -68,6 +68,130 @@ export class BusTripRevenueService {
     }
 
     // --------------------------------------------------------------------------
+    // SEARCH HELPER METHODS
+    // --------------------------------------------------------------------------
+
+    /**
+     * Month name to number mapping for date search
+     */
+    private static readonly MONTH_MAP: Record<string, number> = {
+        'january': 1, 'jan': 1,
+        'february': 2, 'feb': 2,
+        'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4,
+        'may': 5,
+        'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9, 'sept': 9,
+        'october': 10, 'oct': 10,
+        'november': 11, 'nov': 11,
+        'december': 12, 'dec': 12
+    };
+
+    /**
+     * Payment status display name mapping for search
+     */
+    private static readonly STATUS_MAP: Record<string, payment_status[]> = {
+        'pending': ['PENDING'],
+        'partial': ['PARTIALLY_PAID'],
+        'partially': ['PARTIALLY_PAID'],
+        'partially_paid': ['PARTIALLY_PAID'],
+        'complete': ['COMPLETED'],
+        'completed': ['COMPLETED'],
+        'paid': ['COMPLETED', 'PARTIALLY_PAID'],
+        'overdue': ['OVERDUE'],
+        'cancel': ['CANCELLED'],
+        'cancelled': ['CANCELLED'],
+        'written': ['WRITTEN_OFF'],
+        'written_off': ['WRITTEN_OFF'],
+        'write_off': ['WRITTEN_OFF'],
+    };
+
+    /**
+     * Assignment type mapping for search
+     */
+    private static readonly ASSIGNMENT_TYPE_MAP: Record<string, string[]> = {
+        'bound': ['BOUNDARY'],
+        'boundary': ['BOUNDARY'],
+        'percent': ['PERCENTAGE'],
+        'percentage': ['PERCENTAGE'],
+    };
+
+    /**
+     * Parse search term and return structured search criteria
+     * Handles multi-token expressions like "January 11" or "Jan 15 2026"
+     */
+    private parseSearchTerm(search: string): {
+        monthNumber?: number;
+        dayNumber?: number;
+        yearNumber?: number;
+        numericValue?: number;
+        paymentStatuses?: payment_status[];
+        assignmentTypes?: string[];
+        textSearch: string;
+    } {
+        const searchLower = search.toLowerCase().trim();
+        const result: ReturnType<typeof this.parseSearchTerm> = { textSearch: search };
+
+        // Split search into tokens to handle expressions like "January 11" or "Jan 15 2026"
+        const tokens = searchLower.split(/\s+/).filter(t => t.length > 0);
+
+        // Process each token
+        for (const token of tokens) {
+            // Check for month name match
+            for (const [monthName, monthNum] of Object.entries(BusTripRevenueService.MONTH_MAP)) {
+                if (monthName === token || monthName.startsWith(token) || token.startsWith(monthName)) {
+                    result.monthNumber = monthNum;
+                    break;
+                }
+            }
+
+            // Check for numeric value in token (could be day or year)
+            const numericMatch = token.match(/^(\d+)$/);
+            if (numericMatch) {
+                const num = parseInt(numericMatch[1], 10);
+                
+                // If it's 1-31, it's a day
+                if (num >= 1 && num <= 31) {
+                    result.dayNumber = num;
+                }
+                
+                // If it's a 4-digit number starting with 19 or 20, it's a year
+                if (num >= 1900 && num <= 2100) {
+                    result.yearNumber = num;
+                }
+            }
+        }
+
+        // Check for payment status match (on full search term)
+        for (const [statusKey, statuses] of Object.entries(BusTripRevenueService.STATUS_MAP)) {
+            if (statusKey.startsWith(searchLower) || searchLower.startsWith(statusKey) || searchLower.includes(statusKey)) {
+                result.paymentStatuses = statuses;
+                break;
+            }
+        }
+
+        // Check for assignment type match (on full search term)
+        for (const [typeKey, types] of Object.entries(BusTripRevenueService.ASSIGNMENT_TYPE_MAP)) {
+            if (typeKey.startsWith(searchLower) || searchLower.startsWith(typeKey) || searchLower.includes(typeKey)) {
+                result.assignmentTypes = types;
+                break;
+            }
+        }
+
+        // Check for numeric value for trip revenue (on full search term, ignoring currency symbols)
+        // Only treat as trip revenue if it's a larger number (> 31) or has decimals
+        const fullNumericMatch = search.replace(/[₱,\s]/g, '').match(/^(\d+\.?\d*)$/);
+        if (fullNumericMatch) {
+            const num = parseFloat(fullNumericMatch[1]);
+            result.numericValue = num;
+        }
+
+        return result;
+    }
+
+    // --------------------------------------------------------------------------
     // CODE GENERATION (Using Unified Code Generator)
     // --------------------------------------------------------------------------
 
@@ -465,12 +589,230 @@ export class BusTripRevenueService {
             where.bus_trip = busTripFilters;
         }
 
-        // Search across multiple fields
+        // Enhanced search across multiple fields with intelligent matching
         if (filters.search) {
-            where.OR = [
+            const searchCriteria = this.parseSearchTerm(filters.search);
+            const orConditions: Prisma.revenueWhereInput[] = [
+                // Text-based searches
                 { code: { contains: filters.search, mode: 'insensitive' } },
                 { bus_trip: { bus: { body_number: { contains: filters.search, mode: 'insensitive' } } } },
             ];
+
+            // Add payment status search if matched
+            if (searchCriteria.paymentStatuses && searchCriteria.paymentStatuses.length > 0) {
+                orConditions.push({ payment_status: { in: searchCriteria.paymentStatuses } });
+            }
+
+            // Add assignment type search if matched
+            if (searchCriteria.assignmentTypes && searchCriteria.assignmentTypes.length > 0) {
+                orConditions.push({ 
+                    bus_trip: { assignment_type: { in: searchCriteria.assignmentTypes } } 
+                });
+            }
+
+            // Add numeric search for trip_revenue
+            // Only search trip_revenue if the number is > 31 (to avoid matching day numbers)
+            // OR if there's no date context (month/year)
+            if (searchCriteria.numericValue !== undefined && 
+                (searchCriteria.numericValue > 31 || 
+                 (!searchCriteria.monthNumber && !searchCriteria.yearNumber))) {
+                const numVal = searchCriteria.numericValue;
+                // Use string-based contains matching for numeric search
+                // This allows "100" to match "1000", "1100", "1200" etc.
+                // Convert to string and search in the numeric range
+                const numStr = numVal.toString();
+                
+                // If the search is an exact whole number, match values that contain these digits
+                // For example: "100" should match 100, 1000, 1100, 1200, etc.
+                // "1300" should match 1300, 13000, etc.
+                if (numVal >= 100) {
+                    // For 3+ digit numbers, do an exact match or prefix match
+                    orConditions.push({
+                        bus_trip: {
+                            trip_revenue: {
+                                gte: new Prisma.Decimal(numVal),
+                                lt: new Prisma.Decimal(numVal + 1)
+                            }
+                        }
+                    });
+                } else if (numVal > 31) {
+                    // For numbers 32-99, also do exact match
+                    orConditions.push({
+                        bus_trip: {
+                            trip_revenue: {
+                                gte: new Prisma.Decimal(numVal),
+                                lt: new Prisma.Decimal(numVal + 1)
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Add date-based search for month + day + year combinations
+            const currentYear = new Date().getFullYear();
+            
+            // If we have both month and day (e.g., "January 11")
+            if (searchCriteria.monthNumber !== undefined && searchCriteria.dayNumber !== undefined) {
+                const month = searchCriteria.monthNumber;
+                const day = searchCriteria.dayNumber;
+                const year = searchCriteria.yearNumber || currentYear;
+                
+                // Validate the day exists in the month
+                const daysInMonth = new Date(year, month, 0).getDate();
+                if (day <= daysInMonth) {
+                    const targetDate = new Date(year, month - 1, day);
+                    const nextDate = new Date(year, month - 1, day + 1);
+                    
+                    // If no year specified, check multiple years
+                    if (!searchCriteria.yearNumber) {
+                        for (let y = currentYear - 4; y <= currentYear + 1; y++) {
+                            const daysInMonthY = new Date(y, month, 0).getDate();
+                            if (day <= daysInMonthY) {
+                                const targetDateY = new Date(y, month - 1, day);
+                                const nextDateY = new Date(y, month - 1, day + 1);
+                                
+                                orConditions.push({
+                                    date_recorded: {
+                                        gte: targetDateY,
+                                        lt: nextDateY
+                                    }
+                                });
+                                
+                                orConditions.push({
+                                    bus_trip: {
+                                        date_assigned: {
+                                            gte: targetDateY,
+                                            lt: nextDateY
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } else {
+                        // Specific year provided
+                        orConditions.push({
+                            date_recorded: {
+                                gte: targetDate,
+                                lt: nextDate
+                            }
+                        });
+                        
+                        orConditions.push({
+                            bus_trip: {
+                                date_assigned: {
+                                    gte: targetDate,
+                                    lt: nextDate
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            // Month only search (e.g., "January")
+            else if (searchCriteria.monthNumber !== undefined && !searchCriteria.dayNumber) {
+                const month = searchCriteria.monthNumber;
+                const year = searchCriteria.yearNumber;
+                
+                if (year) {
+                    // Specific month and year
+                    const startOfMonth = new Date(year, month - 1, 1);
+                    const endOfMonth = new Date(year, month, 0, 23, 59, 59);
+                    
+                    orConditions.push({
+                        date_recorded: {
+                            gte: startOfMonth,
+                            lte: endOfMonth
+                        }
+                    });
+                    
+                    orConditions.push({
+                        bus_trip: {
+                            date_assigned: {
+                                gte: startOfMonth,
+                                lte: endOfMonth
+                            }
+                        }
+                    });
+                } else {
+                    // Month across multiple years
+                    for (let y = currentYear - 4; y <= currentYear + 1; y++) {
+                        const startOfMonth = new Date(y, month - 1, 1);
+                        const endOfMonth = new Date(y, month, 0, 23, 59, 59);
+                        
+                        orConditions.push({
+                            date_recorded: {
+                                gte: startOfMonth,
+                                lte: endOfMonth
+                            }
+                        });
+                        
+                        orConditions.push({
+                            bus_trip: {
+                                date_assigned: {
+                                    gte: startOfMonth,
+                                    lte: endOfMonth
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            // Year only search (e.g., "2026")
+            else if (searchCriteria.yearNumber !== undefined && !searchCriteria.monthNumber) {
+                const year = searchCriteria.yearNumber;
+                const startOfYear = new Date(year, 0, 1);
+                const endOfYear = new Date(year, 11, 31, 23, 59, 59);
+                
+                orConditions.push({
+                    date_recorded: {
+                        gte: startOfYear,
+                        lte: endOfYear
+                    }
+                });
+                
+                orConditions.push({
+                    bus_trip: {
+                        date_assigned: {
+                            gte: startOfYear,
+                            lte: endOfYear
+                        }
+                    }
+                });
+            }
+            // Day only search (e.g., "15" for 15th of any month) - only if pure day number and <= 31
+            else if (searchCriteria.dayNumber !== undefined && 
+                     !searchCriteria.monthNumber && 
+                     !searchCriteria.yearNumber && 
+                     searchCriteria.numericValue !== undefined &&
+                     searchCriteria.numericValue <= 31) {
+                const day = searchCriteria.dayNumber;
+                
+                for (let month = 0; month < 12; month++) {
+                    const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
+                    if (day <= daysInMonth) {
+                        const targetDate = new Date(currentYear, month, day);
+                        const nextDate = new Date(currentYear, month, day + 1);
+                        
+                        orConditions.push({
+                            date_recorded: {
+                                gte: targetDate,
+                                lt: nextDate
+                            }
+                        });
+                        
+                        orConditions.push({
+                            bus_trip: {
+                                date_assigned: {
+                                    gte: targetDate,
+                                    lt: nextDate
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            where.OR = orConditions;
         }
 
         // Sorting
