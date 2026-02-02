@@ -303,7 +303,7 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       where,
       skip,
       take: limitNum,
-      orderBy: { date_recorded: 'desc' },
+      orderBy: { updated_at: 'desc' },
       include: {
         expense_type: {
           select: {
@@ -626,6 +626,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 
         // Reimbursement
         payable_id: payableId,
+        updated_at: new Date(),
 
         created_by: userId,
       },

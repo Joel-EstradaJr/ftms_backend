@@ -345,6 +345,7 @@ export class OperationalExpenseService {
                     bus_trip_assignment_id: expenseData.bus_trip_assignment_id,
                     bus_trip_id: expenseData.bus_trip_id,
                     rental_assignment_id: expenseData.rental_assignment_id,
+                    updated_at: new Date(),
                     created_by: userId,
                 },
             });

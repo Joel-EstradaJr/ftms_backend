@@ -35,7 +35,7 @@ export const list = async (req: Request, res: Response): Promise<void> => {
         const endDate = req.query.endDate as string | undefined;
         const revenueTypeId = req.query.revenueTypeId ? parseInt(req.query.revenueTypeId as string) : undefined;
         const status = req.query.status as string | undefined;
-        const sortBy = (req.query.sortBy as 'date_recorded' | 'amount' | 'created_at') || 'date_recorded';
+        const sortBy = (req.query.sortBy as 'date_recorded' | 'amount' | 'created_at' | 'updated_at') || 'updated_at';
         const sortOrder = (req.query.sortOrder as 'asc' | 'desc') || 'desc';
 
         const result = await listOtherRevenue({

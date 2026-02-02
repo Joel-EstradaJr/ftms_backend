@@ -45,6 +45,7 @@ export class ExpenseService {
         ...data,
         amount: data.amount.toString(),
         date_recorded: new Date(data.dateRecorded || new Date()),
+        updated_at: new Date(),
         created_by: userId,
       };
 
@@ -117,7 +118,7 @@ export class ExpenseService {
           where,
           skip,
           take: limit,
-          orderBy: { date_recorded: 'desc' },
+          orderBy: { updated_at: 'desc' },
         }),
         prisma.expense.count({ where }),
       ]);

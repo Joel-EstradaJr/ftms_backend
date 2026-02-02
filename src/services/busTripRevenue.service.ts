@@ -479,8 +479,10 @@ export class BusTripRevenueService {
             orderBy.date_recorded = filters.sort_order || 'desc';
         } else if (filters.sort_by === 'amount') {
             orderBy.amount = filters.sort_order || 'desc';
+        } else if (filters.sort_by === 'updated_at') {
+            orderBy.updated_at = filters.sort_order || 'desc';
         } else {
-            orderBy.created_at = 'desc';
+            orderBy.updated_at = filters.sort_order || 'desc';
         }
 
         const skip = (page - 1) * limit;
@@ -934,6 +936,7 @@ export class BusTripRevenueService {
                     bus_trip_assignment_id: data.assignment_id,
                     bus_trip_id: data.bus_trip_id,
                     created_by: userId,
+                    updated_at: new Date()
                 },
             });
 
