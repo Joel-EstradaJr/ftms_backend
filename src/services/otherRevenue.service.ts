@@ -91,7 +91,7 @@ export interface OtherRevenueListParams {
     endDate?: string;
     revenueTypeId?: number;
     status?: string;
-    sortBy?: 'date_recorded' | 'amount' | 'created_at';
+    sortBy?: 'date_recorded' | 'amount' | 'created_at' | 'updated_at';
     sortOrder?: 'asc' | 'desc';
 }
 
@@ -250,13 +250,31 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
         }
     }
 
+
+
+    // Build order by
+    let orderBy: any;
+    switch (sortBy) {
+        case 'updated_at':
+            orderBy = { updated_at: sortOrder };
+            break;
+        case 'date_recorded':
+            orderBy = { date_recorded: sortOrder };
+            break;
+        case 'amount':
+            orderBy = { amount: sortOrder };
+            break;
+        default:
+            orderBy = { updated_at: sortOrder };
+    }
+
     // Execute query
     const [records, totalCount] = await Promise.all([
         prisma.revenue.findMany({
             where,
             skip,
             take: limit,
-            orderBy: { [sortBy]: sortOrder },
+            orderBy,
             include: {
                 revenue_type: {
                     select: { id: true, code: true, name: true }
@@ -607,7 +625,8 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
                 // Otherwise, fall back to original logic: PENDING for unearned, PAID for single payments
                 remittance_status: (input as any).remittance_status || (input.isUnearnedRevenue ? 'PENDING' : 'PAID'),
                 status: 'PENDING' as any, // Initial status is always PENDING
-                created_by: input.created_by
+                created_by: input.created_by,
+                updated_at: new Date()
             } as any,
             include: {
                 revenue_type: true,

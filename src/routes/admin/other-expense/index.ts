@@ -158,7 +158,7 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
             status,
             amount_min,
             amount_max,
-            sort_by = 'date_recorded',
+            sort_by = 'updated_at',
             sort_order = 'desc',
         } = req.query;
 
@@ -233,10 +233,10 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
         const orderBy: any = {};
         const sortField = sort_by as string;
         const sortDir = (sort_order as string).toLowerCase() === 'asc' ? 'asc' : 'desc';
-        if (['date_recorded', 'code', 'vendor', 'amount', 'status', 'created_at'].includes(sortField)) {
+        if (['date_recorded', 'code', 'vendor', 'amount', 'status', 'created_at', 'updated_at'].includes(sortField)) {
             orderBy[sortField] = sortDir;
         } else {
-            orderBy.date_recorded = 'desc';
+            orderBy.updated_at = 'desc';
         }
 
         // Get total count
@@ -609,6 +609,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
                     payment_method: paymentMethod,
                     payment_reference,
                     payable_id: payableId,
+                    updated_at: new Date(),
                     created_by: userId,
                 },
                 include: {

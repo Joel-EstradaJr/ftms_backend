@@ -206,7 +206,7 @@ export class RentalRevenueService {
         // Matches table columns: Revenue Code, Assignment ID, Status, and related rental/bus data
         if (filters.search) {
             const searchTerm = filters.search.trim();
-            
+
             // Build OR conditions for text search
             const searchConditions: Prisma.revenueWhereInput[] = [
                 { code: { contains: searchTerm, mode: 'insensitive' } },
@@ -217,19 +217,19 @@ export class RentalRevenueService {
                 { rental: { bus: { license_plate: { contains: searchTerm, mode: 'insensitive' } } } },
                 { rental: { bus: { body_number: { contains: searchTerm, mode: 'insensitive' } } } },
             ];
-            
+
             // Only add payment_method search if the term matches a valid enum value
             const searchUpper = searchTerm.toUpperCase();
             if (['CASH', 'BANK_TRANSFER', 'E_WALLET', 'REIMBURSEMENT'].includes(searchUpper)) {
                 searchConditions.push({ payment_method: { equals: searchUpper as payment_method } });
             }
-            
+
             where.OR = searchConditions;
         }
 
         // Build order by
         const orderBy: Prisma.revenueOrderByWithRelationInput = {};
-        const sortField = filters.sort_by || 'created_at';
+        const sortField = filters.sort_by || 'updated_at';
         const sortOrder = filters.sort_order || 'desc';
 
         switch (sortField) {
@@ -244,10 +244,13 @@ export class RentalRevenueService {
                 break;
             case 'balance_amount':
                 // Sort by rental balance - requires raw query or different approach
-                orderBy.created_at = sortOrder;
+                orderBy.updated_at = sortOrder;
+                break;
+            case 'updated_at':
+                orderBy.updated_at = sortOrder;
                 break;
             default:
-                orderBy.created_at = sortOrder;
+                orderBy.updated_at = sortOrder;
         }
 
         // Execute query
@@ -482,6 +485,7 @@ export class RentalRevenueService {
                 remittance_status: 'PENDING',
                 rental_assignment_id: data.assignment_id,
                 created_by: userId,
+                updated_at: new Date(),
             },
         });
 

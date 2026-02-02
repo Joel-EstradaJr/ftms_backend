@@ -19,7 +19,7 @@ const ACCOUNT_CODES = {
     E_WALLET: '1010',
     ACCOUNTS_PAYABLE: '2000',
     FUEL_EXPENSE: '4000', // Account code 4000 - Fuel Expense per user requirement // Seeded expense account
-    
+
 };
 
 const EXPENSE_TYPE_CODE = 'EXPT-001'; // Operational/Fuel expense type code
@@ -347,6 +347,7 @@ export class OperationalExpenseService {
                     bus_trip_assignment_id: expenseData.bus_trip_assignment_id,
                     bus_trip_id: expenseData.bus_trip_id,
                     rental_assignment_id: expenseData.rental_assignment_id,
+                    updated_at: new Date(),
                     created_by: userId,
                 },
             });

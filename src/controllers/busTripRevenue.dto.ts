@@ -19,7 +19,7 @@ export interface RevenueListFilters {
     trip_revenue_min?: number;
     trip_revenue_max?: number;
     search?: string;
-    sort_by?: 'date_assigned' | 'date_recorded' | 'trip_revenue' | 'amount';
+    sort_by?: 'date_assigned' | 'date_recorded' | 'trip_revenue' | 'amount' | 'updated_at';
     sort_order?: 'asc' | 'desc';
 }
 
@@ -94,11 +94,11 @@ export interface UpdateRevenueDTO {
     amount?: number;
     description?: string;
     date_expected?: string;
-    
+
     // Status management
     remittance_status?: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'WRITTEN_OFF';
     delete_receivables?: boolean;  // Signal to delete existing receivables (revert to PAID)
-    
+
     // Receivable data (when creating/updating receivables due to shortage)
     driverReceivable?: UpdateReceivableDTO;
     conductorReceivable?: UpdateReceivableDTO;
