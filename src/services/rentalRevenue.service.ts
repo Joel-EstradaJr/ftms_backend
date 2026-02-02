@@ -10,6 +10,7 @@ import { logger } from '../config/logger';
 import { Prisma, payment_method, receivable_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
 import { AuditLogClient } from '../integrations/audit/audit.client';
+import { generateCode } from '../utils/codeGenerator';
 import {
     RentalRevenueListFilters,
     RentalRevenueListItem,
@@ -63,32 +64,15 @@ export class RentalRevenueService {
     }
 
     // --------------------------------------------------------------------------
-    // CODE GENERATION
+    // CODE GENERATION (Using Unified Code Generator)
     // --------------------------------------------------------------------------
 
     /**
-     * Generate unique revenue code in format REV-YYYY-XXXX
+     * Generate unique revenue code using unified code generator
+     * Format: REV-YYYY-XXXX
      */
     private async generateRevenueCode(): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `REV-${year}-`;
-
-        const lastRevenue = await prisma.revenue.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNumber = 1;
-        if (lastRevenue?.code) {
-            const parts = lastRevenue.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1;
-            }
-        }
-
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        return generateCode('revenue');
     }
 
     // --------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors
 import { logger } from '../config/logger';
 import { Prisma, receivable_frequency, receivable_status, payment_method } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+import { generateCode } from '../utils/codeGenerator';
 import {
     RevenueListFilters,
     CreateRevenueDTO,
@@ -57,58 +58,24 @@ export class BusTripRevenueService {
     }
 
     // --------------------------------------------------------------------------
-    // CODE GENERATION
+    // CODE GENERATION (Using Unified Code Generator)
     // --------------------------------------------------------------------------
 
     /**
-     * Generate unique revenue code in format REV-YYYY-XXXX
+     * Generate unique revenue code using unified code generator
+     * Format: REV-YYYY-XXXX
      */
     private async generateRevenueCode(): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `REV-${year}-`;
-
-        const lastRevenue = await prisma.revenue.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNumber = 1;
-        if (lastRevenue?.code) {
-            const parts = lastRevenue.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1;
-            }
-        }
-
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        return generateCode('revenue');
     }
 
     /**
-   * Generate unique receivable code in format RCVL-YYYY-XXXX
-   * @param offset - Optional offset to generate sequential codes in same call (default 0)
-   */
+     * Generate unique receivable code using unified code generator
+     * Format: REC-YYYY-XXXX
+     * @param offset - Optional offset to generate sequential codes in same call (default 0)
+     */
     private async generateReceivableCode(offset: number = 0): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `RCVL-${year}-`;
-
-        const lastReceivable = await prisma.receivable.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNumber = 1 + offset;
-        if (lastReceivable?.code) {
-            const parts = lastReceivable.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1 + offset;
-            }
-        }
-
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        return generateCode('receivable', offset);
     }
 
     /**

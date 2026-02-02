@@ -15,6 +15,7 @@ import { Prisma, payment_method, receivable_frequency, receivable_status, instal
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
 import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { Request } from 'express';
+import { generateCode } from '../utils/codeGenerator';
 
 // --------------------------
 // COA MAPPINGS
@@ -128,15 +129,6 @@ export interface OtherRevenueUpdateInput {
 // --------------------------
 // HELPERS
 // --------------------------
-
-/**
- * Generates a unique revenue code
- */
-function generateRevenueCode(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substr(2, 5);
-    return `REV-OTH-${timestamp}-${random}`.toUpperCase();
-}
 
 /**
  * Combines department, description, and remarks into full description
@@ -501,7 +493,8 @@ export async function getOtherRevenueById(id: number) {
  * Create a new other revenue record
  */
 export async function createOtherRevenue(input: OtherRevenueCreateInput) {
-    const code = generateRevenueCode();
+    // Use unified code generator
+    const code = await generateCode('revenue');
     // Build description from description and remarks only (department now stored in department_id)
     const fullDescription = input.remarks
         ? `${input.description} (${input.remarks})`
@@ -538,9 +531,11 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
 
         // Create receivable if unearned revenue
         if (input.isUnearnedRevenue && input.scheduleFrequency && input.numberOfPayments) {
+            // Use unified code generator for receivable
+            const receivableCode = await generateCode('receivable');
             const receivable = await tx.receivable.create({
                 data: {
-                    code: `RCV-${code}`,
+                    code: receivableCode,
                     debtor_name: departmentName,
                     description: fullDescription,
                     total_amount: input.amount,

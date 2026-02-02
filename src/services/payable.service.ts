@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { AuditLogClient } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
+import { generateCode } from '../utils/codeGenerator';
 
 export class PayableService {
   /**
@@ -9,9 +10,12 @@ export class PayableService {
    */
   async createPayable(data: any, userId: string, userInfo?: any, req?: any) {
     try {
+      // Use unified code generator if code not provided
+      const code = data.code || data.referenceCode || await generateCode('payable');
+      
       const payable = await prisma.payable.create({
         data: {
-          code: data.code || data.referenceCode,
+          code,
           creditor_name: data.creditor_name || data.entityName,
           description: data.description,
           total_amount: data.total_amount?.toString() || data.amountDue?.toString(),

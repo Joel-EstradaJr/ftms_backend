@@ -3,6 +3,7 @@ import { AuditLogClient } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
 import { Prisma } from '@prisma/client';
+import { generateCode } from '../utils/codeGenerator';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -60,29 +61,11 @@ export class JournalEntryAutoService {
   // --------------------------------------------------------------------------
 
   /**
-   * Generate a unique journal entry code
+   * Generate a unique journal entry code using unified code generator
    * Format: JE-YYYY-XXXX (e.g., JE-2026-0001)
    */
   private async generateJournalEntryCode(): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `JE-${year}-`;
-    
-    const lastJE = await prisma.journal_entry.findFirst({
-      where: { code: { startsWith: prefix } },
-      orderBy: { code: 'desc' },
-      select: { code: true },
-    });
-
-    let nextNumber = 1;
-    if (lastJE?.code) {
-      const parts = lastJE.code.split('-');
-      const lastNumber = parseInt(parts[2], 10);
-      if (!isNaN(lastNumber)) {
-        nextNumber = lastNumber + 1;
-      }
-    }
-
-    return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+    return generateCode('journal_entry');
   }
 
   /**
