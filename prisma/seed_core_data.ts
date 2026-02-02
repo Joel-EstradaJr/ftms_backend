@@ -542,6 +542,7 @@ async function seedSystemConfiguration() {
   const config = await prisma.system_configuration.create({
     data: {
       config_code: 'DEFAULT',
+      company_name: 'Company Name', // Dynamic company name for reports
       minimum_wage: 600.00,
       duration_to_receivable_hours: 72,  // 3 days
       receivable_due_date_days: 30,
@@ -555,6 +556,7 @@ async function seedSystemConfiguration() {
   });
 
   console.log(`  ✅ Created System Configuration: ${config.config_code} (ID: ${config.id})`);
+  console.log(`      - Company Name: ${config.company_name}`);
   console.log(`      - Minimum Wage: ₱${config.minimum_wage}`);
   console.log(`      - Duration to Receivable: ${config.duration_to_receivable_hours} hours`);
   console.log(`      - Receivable Due Date: ${config.receivable_due_date_days} days`);

@@ -158,6 +158,9 @@ model system_configuration {
   id                         Int      @id @default(autoincrement())
   config_code                String   @unique
   
+  // Company Information
+  company_name               String?  @default("Company Name")  // Dynamic company name for reports
+  
   // Required Fields (with defaults)
   minimum_wage               Decimal  @db.Decimal(12, 2) @default(600.00)
   duration_to_receivable_hours Int    @default(72)      // 3 days
