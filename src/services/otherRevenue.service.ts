@@ -719,7 +719,11 @@ async function generateRevenueJournalEntry(revenueId: number, userId: string) {
 export async function approveOtherRevenue(id: number, userId: string) {
     const record = await prisma.revenue.findUnique({
         where: { id },
-        include: { journal_entry: true }
+        include: { 
+            journal_entry: true,
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!record) throw new Error('Revenue record not found');
@@ -746,13 +750,20 @@ export async function approveOtherRevenue(id: number, userId: string) {
         return updated;
     });
 
-    // Audit log for approval
+    // Audit log for approval - include full record for proper summary
     await AuditLogClient.logApprove(
         AuditEntityTypes.OTHER_REVENUE,
         { id: record.id, code: record.code },
         { id: userId },
-        { status: (record as any).status },
-        { status: 'APPROVED', remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID' }
+        { 
+            ...record,
+            status: (record as any).status 
+        },
+        { 
+            ...record,
+            status: 'APPROVED', 
+            remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID' 
+        }
     );
 
     // Generate JE after status update - non-blocking so approval succeeds even if JE fails
@@ -775,7 +786,11 @@ export async function approveOtherRevenue(id: number, userId: string) {
  */
 export async function rejectOtherRevenue(id: number, remarks: string | undefined, userId: string) {
     const record = await prisma.revenue.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!record) throw new Error('Revenue record not found');
@@ -792,14 +807,23 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
         } as any
     });
 
-    // Audit log for rejection
+    // Audit log for rejection - include full record for proper summary
     await AuditLogClient.logReject(
         AuditEntityTypes.OTHER_REVENUE,
         { id: record.id, code: record.code },
         { id: userId },
         remarks,
-        { status: (record as any).status, remittance_status: (record as any).remittance_status },
-        { status: 'REJECTED', remittance_status: 'CANCELLED', approval_remarks: remarks }
+        { 
+            ...record,
+            status: (record as any).status, 
+            remittance_status: (record as any).remittance_status 
+        },
+        { 
+            ...record,
+            status: 'REJECTED', 
+            remittance_status: 'CANCELLED', 
+            approval_remarks: remarks 
+        }
     );
 
     logger.info(`[OTHER_REVENUE] Rejected revenue ${record.code} by ${userId}${remarks ? `. Reason: ${remarks}` : ''}`);
@@ -1257,12 +1281,22 @@ export async function recordPayment(input: RecordPaymentInput) {
 /**
  * Soft delete an other revenue record
  * Only allowed for PENDING status records
+ * Uses ARCHIVE action type for audit logging (soft delete)
  */
-export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
+export async function softDeleteOtherRevenue(
+    id: number, 
+    deletedBy: string,
+    deletionReason?: string,
+    req?: Request
+) {
     // Check if record exists and is deletable
     const existing = await prisma.revenue.findFirst({
         where: { id, is_deleted: false },
-        include: { receivable: true }
+        include: { 
+            receivable: true,
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!existing) {
@@ -1323,6 +1357,28 @@ export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
 
         return { id, code: existing.code };
     });
+
+    // Log audit for soft delete (ARCHIVE action type)
+    try {
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.OTHER_REVENUE,
+            { id: existing.id, code: existing.code },
+            { id: deletedBy, name: deletedBy },
+            {
+                code: existing.code,
+                revenue_type: (existing as any).revenue_type?.name || 'Unknown',
+                department: (existing as any).department?.name || 'Unknown',
+                amount: existing.amount?.toString() || '0',
+                description: existing.description || '',
+                reason: deletionReason || 'No reason provided'
+            },
+            req
+        );
+        logger.info(`[OTHER_REVENUE] Audit log created for soft delete of ${existing.code}`);
+    } catch (auditError) {
+        logger.error(`[OTHER_REVENUE] Failed to create audit log for soft delete:`, auditError);
+        // Don't throw - audit failure shouldn't block the operation
+    }
 
     return result;
 }

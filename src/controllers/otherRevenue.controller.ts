@@ -415,7 +415,8 @@ export const deleteHandler = async (req: Request, res: Response): Promise<void> 
         }
 
         const deletedBy = req.body.deleted_by || 'system';
-        const result = await softDeleteOtherRevenue(id, deletedBy);
+        const deletionReason = req.body.reason || req.body.deletion_reason;
+        const result = await softDeleteOtherRevenue(id, deletedBy, deletionReason, req);
 
         res.status(200).json({
             status: 'success',

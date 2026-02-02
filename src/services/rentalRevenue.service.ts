@@ -9,7 +9,7 @@ import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors
 import { logger } from '../config/logger';
 import { Prisma, payment_method, receivable_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { generateCode } from '../utils/codeGenerator';
 import {
     RentalRevenueListFilters,
@@ -1047,12 +1047,11 @@ export class RentalRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.RENTAL_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: false },
-            { is_deleted: true, archived_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code, remittance_status: revenue.remittance_status },
             req
         );
 
@@ -1088,12 +1087,11 @@ export class RentalRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logUnarchive(
+            AuditEntityTypes.RENTAL_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: true },
-            { is_deleted: false, restored_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code },
             req
         );
 

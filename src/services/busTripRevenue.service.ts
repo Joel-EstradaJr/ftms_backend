@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { prisma } from '../config/database';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
 import { Prisma, receivable_frequency, receivable_status, payment_method } from '@prisma/client';
@@ -1914,12 +1914,11 @@ export class BusTripRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.BUS_TRIP_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: false },
-            { is_deleted: true, archived_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code, remittance_status: revenue.remittance_status },
             req
         );
 
@@ -1955,12 +1954,11 @@ export class BusTripRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logUnarchive(
+            AuditEntityTypes.BUS_TRIP_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: true },
-            { is_deleted: false, restored_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code },
             req
         );
 
