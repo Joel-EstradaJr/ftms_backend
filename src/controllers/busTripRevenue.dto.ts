@@ -21,7 +21,7 @@ export interface RevenueListFilters {
     trip_revenue_min?: number;
     trip_revenue_max?: number;
     search?: string;
-    sort_by?: 'date_assigned' | 'date_recorded' | 'trip_revenue' | 'amount' | 'updated_at';
+    sort_by?: 'date_assigned' | 'date_recorded' | 'trip_revenue' | 'amount' | 'updated_at' | 'body_number' | 'assignment_type' | 'assignment_value' | 'date_expected';
     sort_order?: 'asc' | 'desc';
 }
 

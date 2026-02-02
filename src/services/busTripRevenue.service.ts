@@ -474,15 +474,34 @@ export class BusTripRevenueService {
         }
 
         // Sorting
-        const orderBy: Prisma.revenueOrderByWithRelationInput = {};
+        // Handle sorting for both direct revenue fields and related bus_trip fields
+        let orderBy: Prisma.revenueOrderByWithRelationInput | Prisma.revenueOrderByWithRelationInput[] = {};
+        
         if (filters.sort_by === 'date_recorded') {
-            orderBy.date_recorded = filters.sort_order || 'desc';
+            orderBy = { date_recorded: filters.sort_order || 'desc' };
         } else if (filters.sort_by === 'amount') {
-            orderBy.amount = filters.sort_order || 'desc';
+            orderBy = { amount: filters.sort_order || 'desc' };
         } else if (filters.sort_by === 'updated_at') {
-            orderBy.updated_at = filters.sort_order || 'desc';
+            orderBy = { updated_at: filters.sort_order || 'desc' };
+        } else if (filters.sort_by === 'trip_revenue') {
+            // Sort by related bus_trip.trip_revenue field
+            orderBy = { bus_trip: { trip_revenue: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'body_number') {
+            // Sort by related bus_trip.bus.body_number field
+            orderBy = { bus_trip: { bus: { body_number: filters.sort_order || 'desc' } } };
+        } else if (filters.sort_by === 'date_assigned') {
+            // Sort by related bus_trip.date_assigned field
+            orderBy = { bus_trip: { date_assigned: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'assignment_type') {
+            // Sort by related bus_trip.assignment_type field
+            orderBy = { bus_trip: { assignment_type: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'assignment_value') {
+            // Sort by related bus_trip.assignment_value field
+            orderBy = { bus_trip: { assignment_value: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'date_expected') {
+            orderBy = { date_expected: filters.sort_order || 'desc' };
         } else {
-            orderBy.updated_at = filters.sort_order || 'desc';
+            orderBy = { updated_at: filters.sort_order || 'desc' };
         }
 
         const skip = (page - 1) * limit;
