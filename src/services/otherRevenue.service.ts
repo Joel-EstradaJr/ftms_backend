@@ -790,6 +790,7 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
         where: { id },
         data: {
             status: 'REJECTED' as any,
+            remittance_status: 'CANCELLED' as any,
             approval_remarks: (remarks || null) as any,
             updated_by: userId,
             updated_at: new Date()
@@ -802,8 +803,8 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
         { id: record.id, code: record.code },
         { id: userId },
         remarks,
-        { status: (record as any).status },
-        { status: 'REJECTED', approval_remarks: remarks }
+        { status: (record as any).status, remittance_status: (record as any).remittance_status },
+        { status: 'REJECTED', remittance_status: 'CANCELLED', approval_remarks: remarks }
     );
 
     logger.info(`[OTHER_REVENUE] Rejected revenue ${record.code} by ${userId}${remarks ? `. Reason: ${remarks}` : ''}`);
