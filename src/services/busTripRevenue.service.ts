@@ -5,11 +5,12 @@
 // ============================================================================
 
 import { prisma } from '../config/database';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
 import { Prisma, receivable_frequency, receivable_status, payment_method } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+import { generateCode } from '../utils/codeGenerator';
 import {
     RevenueListFilters,
     CreateRevenueDTO,
@@ -57,58 +58,24 @@ export class BusTripRevenueService {
     }
 
     // --------------------------------------------------------------------------
-    // CODE GENERATION
+    // CODE GENERATION (Using Unified Code Generator)
     // --------------------------------------------------------------------------
 
     /**
-     * Generate unique revenue code in format REV-YYYY-XXXX
+     * Generate unique revenue code using unified code generator
+     * Format: REV-YYYY-XXXX
      */
     private async generateRevenueCode(): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `REV-${year}-`;
-
-        const lastRevenue = await prisma.revenue.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNumber = 1;
-        if (lastRevenue?.code) {
-            const parts = lastRevenue.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1;
-            }
-        }
-
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        return generateCode('revenue');
     }
 
     /**
-   * Generate unique receivable code in format RCVL-YYYY-XXXX
-   * @param offset - Optional offset to generate sequential codes in same call (default 0)
-   */
+     * Generate unique receivable code using unified code generator
+     * Format: REC-YYYY-XXXX
+     * @param offset - Optional offset to generate sequential codes in same call (default 0)
+     */
     private async generateReceivableCode(offset: number = 0): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `RCVL-${year}-`;
-
-        const lastReceivable = await prisma.receivable.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNumber = 1 + offset;
-        if (lastReceivable?.code) {
-            const parts = lastReceivable.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1 + offset;
-            }
-        }
-
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        return generateCode('receivable', offset);
     }
 
     /**
@@ -1911,6 +1878,156 @@ export class BusTripRevenueService {
             failed,
             results,
         };
+    }
+
+    // --------------------------------------------------------------------------
+    // ARCHIVE / RESTORE / DELETE REVENUE
+    // --------------------------------------------------------------------------
+
+    /**
+     * Archive a revenue record (soft delete)
+     */
+    async archiveRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[BusTripRevenueService] Archiving revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            select: { id: true, code: true, is_deleted: true, remittance_status: true },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (revenue.is_deleted) {
+            throw new BadRequestError('Revenue record is already archived');
+        }
+
+        // Prevent archiving if there are unpaid receivables
+        if (revenue.remittance_status === 'PENDING' || revenue.remittance_status === 'PARTIALLY_PAID') {
+            throw new BadRequestError('Cannot archive revenue with pending or partial receivables');
+        }
+
+        const result = await prisma.revenue.update({
+            where: { id },
+            data: {
+                is_deleted: true,
+                archived_by: userId,
+                archived_at: new Date(),
+            },
+        });
+
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.BUS_TRIP_REVENUE,
+            { id, code: revenue.code },
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code, remittance_status: revenue.remittance_status },
+            req
+        );
+
+        logger.info(`[BusTripRevenueService] Archived revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been archived`, data: result };
+    }
+
+    /**
+     * Restore an archived revenue record
+     */
+    async restoreRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[BusTripRevenueService] Restoring revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            select: { id: true, code: true, is_deleted: true },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (!revenue.is_deleted) {
+            throw new BadRequestError('Revenue record is not archived');
+        }
+
+        const result = await prisma.revenue.update({
+            where: { id },
+            data: {
+                is_deleted: false,
+                archived_by: userId,
+                archived_at: new Date(),
+            },
+        });
+
+        await AuditLogClient.logUnarchive(
+            AuditEntityTypes.BUS_TRIP_REVENUE,
+            { id, code: revenue.code },
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code },
+            req
+        );
+
+        logger.info(`[BusTripRevenueService] Restored revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been restored`, data: result };
+    }
+
+    /**
+     * Permanently delete an archived revenue record
+     */
+    async hardDeleteRevenue(id: number, userId: string, userInfo?: any, req?: any) {
+        logger.info(`[BusTripRevenueService] Hard deleting revenue ID: ${id}`);
+
+        const revenue = await prisma.revenue.findUnique({
+            where: { id },
+            include: {
+                driver_receivable: { include: { installment_schedule: true } },
+                conductor_receivable: { include: { installment_schedule: true } },
+            },
+        });
+
+        if (!revenue) {
+            throw new NotFoundError(`Revenue record with ID ${id} not found`);
+        }
+
+        if (!revenue.is_deleted) {
+            throw new BadRequestError('Cannot permanently delete an active revenue record. Archive it first.');
+        }
+
+        await prisma.$transaction(async (tx) => {
+            // Delete installment schedules first
+            if (revenue.driver_receivable_id) {
+                await tx.revenue_installment_schedule.deleteMany({
+                    where: { receivable_id: revenue.driver_receivable_id },
+                });
+                await tx.receivable.delete({
+                    where: { id: revenue.driver_receivable_id },
+                });
+            }
+
+            if (revenue.conductor_receivable_id) {
+                await tx.revenue_installment_schedule.deleteMany({
+                    where: { receivable_id: revenue.conductor_receivable_id },
+                });
+                await tx.receivable.delete({
+                    where: { id: revenue.conductor_receivable_id },
+                });
+            }
+
+            // Delete the revenue record
+            await tx.revenue.delete({
+                where: { id },
+            });
+        });
+
+        await AuditLogClient.logDelete(
+            'Revenue',
+            { id, code: revenue.code },
+            revenue,
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            'Permanent deletion',
+            req
+        );
+
+        logger.info(`[BusTripRevenueService] Permanently deleted revenue: ${revenue.code}`);
+        return { success: true, message: `Revenue ${revenue.code} has been permanently deleted` };
     }
 }
 

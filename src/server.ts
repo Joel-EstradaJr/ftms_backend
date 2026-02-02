@@ -3,6 +3,7 @@ import { config } from './config/env';
 import { logger } from './config/logger';
 import { prisma } from './config/database';
 import { initPayrollScheduledJobs } from './jobs/payrollScheduledJobs';
+import { initArchiveCleanupJob } from './jobs/archiveCleanupJob';
 import { syncExternalData } from '../lib/sync';
 import { syncDepartments } from '../lib/sync/departmentSync';
 import { busTripRevenueService } from './services/busTripRevenue.service';
@@ -20,6 +21,7 @@ const startServer = async () => {
 
     // Initialize scheduled jobs
     initPayrollScheduledJobs();
+    initArchiveCleanupJob();
 
     // Sync external data on startup
     logger.info('🔄 Starting external data synchronization...');

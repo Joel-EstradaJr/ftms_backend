@@ -13,6 +13,9 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { Prisma, payment_method, receivable_frequency, receivable_status, installment_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { Request } from 'express';
+import { generateCode } from '../utils/codeGenerator';
 
 // --------------------------
 // COA MAPPINGS
@@ -126,15 +129,6 @@ export interface OtherRevenueUpdateInput {
 // --------------------------
 // HELPERS
 // --------------------------
-
-/**
- * Generates a unique revenue code
- */
-function generateRevenueCode(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substr(2, 5);
-    return `REV-OTH-${timestamp}-${random}`.toUpperCase();
-}
 
 /**
  * Combines department, description, and remarks into full description
@@ -517,7 +511,8 @@ export async function getOtherRevenueById(id: number) {
  * Create a new other revenue record
  */
 export async function createOtherRevenue(input: OtherRevenueCreateInput) {
-    const code = generateRevenueCode();
+    // Use unified code generator
+    const code = await generateCode('revenue');
     // Build description from description and remarks only (department now stored in department_id)
     const fullDescription = input.remarks
         ? `${input.description} (${input.remarks})`
@@ -554,9 +549,11 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
 
         // Create receivable if unearned revenue
         if (input.isUnearnedRevenue && input.scheduleFrequency && input.numberOfPayments) {
+            // Use unified code generator for receivable
+            const receivableCode = await generateCode('receivable');
             const receivable = await tx.receivable.create({
                 data: {
-                    code: `RCV-${code}`,
+                    code: receivableCode,
                     debtor_name: departmentName,
                     description: fullDescription,
                     total_amount: input.amount,
@@ -643,6 +640,14 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
 
         return revenue;
     });
+
+    // Audit log for creation (outside transaction to not block main operation)
+    await AuditLogClient.logCreate(
+        AuditEntityTypes.OTHER_REVENUE,
+        { id: result.id, code: result.code },
+        result,
+        { id: input.created_by || 'system' }
+    );
 
     return result;
 }
@@ -733,7 +738,11 @@ async function generateRevenueJournalEntry(revenueId: number, userId: string) {
 export async function approveOtherRevenue(id: number, userId: string) {
     const record = await prisma.revenue.findUnique({
         where: { id },
-        include: { journal_entry: true }
+        include: { 
+            journal_entry: true,
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!record) throw new Error('Revenue record not found');
@@ -760,6 +769,22 @@ export async function approveOtherRevenue(id: number, userId: string) {
         return updated;
     });
 
+    // Audit log for approval - include full record for proper summary
+    await AuditLogClient.logApprove(
+        AuditEntityTypes.OTHER_REVENUE,
+        { id: record.id, code: record.code },
+        { id: userId },
+        { 
+            ...record,
+            status: (record as any).status 
+        },
+        { 
+            ...record,
+            status: 'APPROVED', 
+            remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID' 
+        }
+    );
+
     // Generate JE after status update - non-blocking so approval succeeds even if JE fails
     let jeError: Error | null = null;
     try {
@@ -780,7 +805,11 @@ export async function approveOtherRevenue(id: number, userId: string) {
  */
 export async function rejectOtherRevenue(id: number, remarks: string | undefined, userId: string) {
     const record = await prisma.revenue.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!record) throw new Error('Revenue record not found');
@@ -790,11 +819,31 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
         where: { id },
         data: {
             status: 'REJECTED' as any,
+            remittance_status: 'CANCELLED' as any,
             approval_remarks: (remarks || null) as any,
             updated_by: userId,
             updated_at: new Date()
         } as any
     });
+
+    // Audit log for rejection - include full record for proper summary
+    await AuditLogClient.logReject(
+        AuditEntityTypes.OTHER_REVENUE,
+        { id: record.id, code: record.code },
+        { id: userId },
+        remarks,
+        { 
+            ...record,
+            status: (record as any).status, 
+            remittance_status: (record as any).remittance_status 
+        },
+        { 
+            ...record,
+            status: 'REJECTED', 
+            remittance_status: 'CANCELLED', 
+            approval_remarks: remarks 
+        }
+    );
 
     logger.info(`[OTHER_REVENUE] Rejected revenue ${record.code} by ${userId}${remarks ? `. Reason: ${remarks}` : ''}`);
     return result;
@@ -964,6 +1013,17 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
             }
         }
     });
+
+    // Audit log for update
+    if (finalResult) {
+        await AuditLogClient.logUpdate(
+            AuditEntityTypes.OTHER_REVENUE,
+            { id: finalResult.id, code: finalResult.code },
+            existing,
+            finalResult,
+            { id: input.updated_by || 'system' }
+        );
+    }
 
     return finalResult;
 }
@@ -1240,12 +1300,22 @@ export async function recordPayment(input: RecordPaymentInput) {
 /**
  * Soft delete an other revenue record
  * Only allowed for PENDING status records
+ * Uses ARCHIVE action type for audit logging (soft delete)
  */
-export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
+export async function softDeleteOtherRevenue(
+    id: number, 
+    deletedBy: string,
+    deletionReason?: string,
+    req?: Request
+) {
     // Check if record exists and is deletable
     const existing = await prisma.revenue.findFirst({
         where: { id, is_deleted: false },
-        include: { receivable: true }
+        include: { 
+            receivable: true,
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!existing) {
@@ -1306,6 +1376,28 @@ export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
 
         return { id, code: existing.code };
     });
+
+    // Log audit for soft delete (ARCHIVE action type)
+    try {
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.OTHER_REVENUE,
+            { id: existing.id, code: existing.code },
+            { id: deletedBy, name: deletedBy },
+            {
+                code: existing.code,
+                revenue_type: (existing as any).revenue_type?.name || 'Unknown',
+                department: (existing as any).department?.name || 'Unknown',
+                amount: existing.amount?.toString() || '0',
+                description: existing.description || '',
+                reason: deletionReason || 'No reason provided'
+            },
+            req
+        );
+        logger.info(`[OTHER_REVENUE] Audit log created for soft delete of ${existing.code}`);
+    } catch (auditError) {
+        logger.error(`[OTHER_REVENUE] Failed to create audit log for soft delete:`, auditError);
+        // Don't throw - audit failure shouldn't block the operation
+    }
 
     return result;
 }

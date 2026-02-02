@@ -265,4 +265,65 @@ export class AdminPayrollPeriodController {
       next(error);
     }
   };
+
+  // --------------------------------------------------------------------------
+  // ARCHIVE / RESTORE / HARD DELETE
+  // --------------------------------------------------------------------------
+
+  /**
+   * PATCH /api/v1/admin/payroll-periods/:id/archive
+   * Archive a payroll period (soft delete)
+   */
+  archivePayrollPeriod = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('Invalid payroll period ID');
+      }
+
+      const result = await this.service.archivePayrollPeriod(id, req.user!.sub, req.user, req);
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * PATCH /api/v1/admin/payroll-periods/:id/restore
+   * Restore an archived payroll period
+   */
+  restorePayrollPeriod = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('Invalid payroll period ID');
+      }
+
+      const result = await this.service.restorePayrollPeriod(id, req.user!.sub, req.user, req);
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * DELETE /api/v1/admin/payroll-periods/:id/permanent
+   * Permanently delete an archived payroll period
+   */
+  hardDeletePayrollPeriod = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('Invalid payroll period ID');
+      }
+
+      const result = await this.service.hardDeletePayrollPeriod(id, req.user!.sub, req.user, req);
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

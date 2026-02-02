@@ -384,6 +384,76 @@ export class BusTripRevenueController {
             next(error);
         }
     };
+
+    // --------------------------------------------------------------------------
+    // ARCHIVE / RESTORE / DELETE REVENUE
+    // --------------------------------------------------------------------------
+
+    /**
+     * PATCH /api/v1/admin/bus-trip-revenue/:id/archive
+     * Archive a revenue record (soft delete)
+     */
+    archiveRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
+        try {
+            const id = parseInt(req.params.id);
+            if (isNaN(id)) {
+                throw new ValidationError('Invalid revenue ID');
+            }
+
+            const userId = req.user?.sub || 'system';
+            const userInfo = req.user;
+
+            const result = await busTripRevenueService.archiveRevenue(id, userId, userInfo, req);
+
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * PATCH /api/v1/admin/bus-trip-revenue/:id/restore
+     * Restore an archived revenue record
+     */
+    restoreRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
+        try {
+            const id = parseInt(req.params.id);
+            if (isNaN(id)) {
+                throw new ValidationError('Invalid revenue ID');
+            }
+
+            const userId = req.user?.sub || 'system';
+            const userInfo = req.user;
+
+            const result = await busTripRevenueService.restoreRevenue(id, userId, userInfo, req);
+
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * DELETE /api/v1/admin/bus-trip-revenue/:id/permanent
+     * Permanently delete an archived revenue record
+     */
+    hardDeleteRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
+        try {
+            const id = parseInt(req.params.id);
+            if (isNaN(id)) {
+                throw new ValidationError('Invalid revenue ID');
+            }
+
+            const userId = req.user?.sub || 'system';
+            const userInfo = req.user;
+
+            const result = await busTripRevenueService.hardDeleteRevenue(id, userId, userInfo, req);
+
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    };
 }
 
 // Export singleton instance

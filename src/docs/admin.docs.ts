@@ -391,6 +391,153 @@
  *         $ref: '#/components/responses/Forbidden'
  *       500:
  *         $ref: '#/components/responses/ServerError'
+ *   patch:
+ *     summary: Update account type
+ *     description: Updates an existing account type
+ *     tags:
+ *       - Admin | Account Types
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Account type ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 example: '5'
+ *               name:
+ *                 type: string
+ *                 example: 'Equity'
+ *               description:
+ *                 type: string
+ *                 example: 'Equity account type'
+ *     responses:
+ *       200:
+ *         description: Account type updated successfully
+ *       400:
+ *         description: Validation error or code/name conflict
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *   delete:
+ *     summary: Hard delete account type
+ *     description: |
+ *       Permanently deletes an archived account type.
+ *       Only archived (is_deleted=true) account types can be deleted.
+ *     tags:
+ *       - Admin | Account Types
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Account type ID
+ *     responses:
+ *       200:
+ *         description: Account type deleted permanently
+ *       400:
+ *         description: Account type is not archived
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+
+/**
+ * @swagger
+ * /api/v1/admin/account-types/{id}/archive:
+ *   patch:
+ *     summary: Archive account type (soft delete)
+ *     description: |
+ *       Archives an account type by setting is_deleted=true.
+ *       Cannot archive if there are active chart of accounts using this type.
+ *     tags:
+ *       - Admin | Account Types
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Account type ID
+ *     responses:
+ *       200:
+ *         description: Account type archived successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                 message:
+ *                   type: string
+ *                   example: 'Account type archived successfully'
+ *       400:
+ *         description: Account type already archived or has active chart of accounts
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+
+/**
+ * @swagger
+ * /api/v1/admin/account-types/{id}/restore:
+ *   patch:
+ *     summary: Restore archived account type
+ *     description: Restores an archived account type by setting is_deleted=false.
+ *     tags:
+ *       - Admin | Account Types
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Account type ID
+ *     responses:
+ *       200:
+ *         description: Account type restored successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                 message:
+ *                   type: string
+ *                   example: 'Account type restored successfully'
+ *       400:
+ *         description: Account type is not archived
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
 
 /**
@@ -686,6 +833,96 @@
  *         $ref: '#/components/responses/Forbidden'
  *       500:
  *         $ref: '#/components/responses/ServerError'
+ */
+
+/**
+ * @swagger
+ * /api/v1/admin/payroll-periods/{id}/archive:
+ *   patch:
+ *     summary: Archive payroll period (soft delete)
+ *     description: |
+ *       Archives a payroll period by setting is_deleted=true.
+ *       Only RELEASED/APPROVED periods can be archived.
+ *       DRAFT or PARTIAL periods should be deleted instead.
+ *     tags:
+ *       - Admin | Payroll Periods
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Payroll period ID
+ *     responses:
+ *       200:
+ *         description: Payroll period archived successfully
+ *       400:
+ *         description: Cannot archive draft/partial period or already archived
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+
+/**
+ * @swagger
+ * /api/v1/admin/payroll-periods/{id}/restore:
+ *   patch:
+ *     summary: Restore archived payroll period
+ *     description: Restores an archived payroll period by setting is_deleted=false.
+ *     tags:
+ *       - Admin | Payroll Periods
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Payroll period ID
+ *     responses:
+ *       200:
+ *         description: Payroll period restored successfully
+ *       400:
+ *         description: Payroll period is not archived
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+
+/**
+ * @swagger
+ * /api/v1/admin/payroll-periods/{id}/permanent:
+ *   delete:
+ *     summary: Permanently delete archived payroll period
+ *     description: |
+ *       Permanently deletes an archived payroll period and all associated payrolls.
+ *       Only archived (is_deleted=true) periods can be permanently deleted.
+ *       This action is irreversible.
+ *     tags:
+ *       - Admin | Payroll Periods
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Payroll period ID
+ *     responses:
+ *       200:
+ *         description: Payroll period permanently deleted
+ *       400:
+ *         description: Payroll period is not archived
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
 
 // ============================================================================

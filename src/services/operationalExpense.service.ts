@@ -8,6 +8,7 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { Prisma, payment_method } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+import { generateCode } from '../utils/codeGenerator';
 
 // ============================================================================
 // CONSTANTS
@@ -56,27 +57,15 @@ export class OperationalExpenseService {
     }
 
     // --------------------------------------------------------------------------
-    // CODE GENERATION
+    // CODE GENERATION (Using Unified Code Generator)
     // --------------------------------------------------------------------------
 
     /**
-     * Generate unique expense code in format EXP-XXXXXX
+     * Generate unique expense code using unified code generator
+     * Format: EXP-YYYY-XXXX
      */
     private async generateExpenseCode(): Promise<string> {
-        const lastExpense = await prisma.expense.findFirst({
-            orderBy: { id: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNum = 1;
-        if (lastExpense?.code) {
-            const match = lastExpense.code.match(/EXP-(\d+)/);
-            if (match) {
-                nextNum = parseInt(match[1], 10) + 1;
-            }
-        }
-
-        return `EXP-${nextNum.toString().padStart(6, '0')}`;
+        return generateCode('expense');
     }
 
     /**

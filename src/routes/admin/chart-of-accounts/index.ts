@@ -42,4 +42,12 @@ router.get('/account-types/:id', accountTypeController.getAccountTypeById);
 // POST endpoints - create new Account Type
 router.post('/account-types', accountTypeController.createAccountType);
 
+// PATCH endpoints - update, archive, and restore Account Types
+router.patch('/account-types/:id', accountTypeController.updateAccountType);
+router.patch('/account-types/:id/archive', accountTypeController.archiveAccountType);
+router.patch('/account-types/:id/restore', accountTypeController.restoreAccountType);
+
+// DELETE endpoints - hard delete Account Type
+router.delete('/account-types/:id', accountTypeController.deleteAccountType);
+
 export default router;

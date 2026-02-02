@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { AuditLogClient } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
+import { generateCode } from '../utils/codeGenerator';
 
 export class PayableService {
   /**
@@ -9,9 +10,12 @@ export class PayableService {
    */
   async createPayable(data: any, userId: string, userInfo?: any, req?: any) {
     try {
+      // Use unified code generator if code not provided
+      const code = data.code || data.referenceCode || await generateCode('payable');
+      
       const payable = await prisma.payable.create({
         data: {
-          code: data.code || data.referenceCode,
+          code,
           creditor_name: data.creditor_name || data.entityName,
           description: data.description,
           total_amount: data.total_amount?.toString() || data.amountDue?.toString(),
@@ -192,16 +196,13 @@ export class PayableService {
       });
 
       await AuditLogClient.log({
-        moduleName: 'Account Payable',
-        action: 'PAYMENT_RECORDED',
-        recordId: id.toString(),
-        recordCode: payable.code,
-        performedBy: userId,
-        performedByName: userInfo?.username,
-        performedByRole: userInfo?.role,
-        newValues: { paymentAmount: payment, newBalance, status: newStatus },
-        ipAddress: req?.ip,
-        userAgent: req?.headers?.['user-agent'],
+        entity_type: 'payable',
+        entity_id: id.toString(),
+        action_type_code: 'UPDATE',
+        action_by: userId,
+        action_from: 'Account Payable',
+        new_data: { paymentAmount: payment, newBalance, status: newStatus, code: payable.code },
+        ip_address: req?.ip,
       });
 
       logger.info(`Payment recorded for payable: ${payable.code}`);

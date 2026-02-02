@@ -50,7 +50,7 @@ export async function listBudgetRequests(token: string, filters?: BudgetRequestF
         if (filters?.page) queryParams.append('page', filters.page.toString());
         if (filters?.limit) queryParams.append('limit', filters.limit.toString());
 
-        const url = `${BUDGET_API_URL}/finance/admin/budget-requests${queryParams.toString() ? `?${queryParams}` : ''}`;
+        const url = `${BUDGET_API_URL}/api/finance/admin/budget-requests${queryParams.toString() ? `?${queryParams}` : ''}`;
         logger.debug(`Fetching budget requests from: ${url}`);
 
         const response = await fetch(url, {
@@ -75,7 +75,7 @@ export async function listBudgetRequests(token: string, filters?: BudgetRequestF
  */
 export async function getBudgetRequestById(token: string, id: string) {
     try {
-        const url = `${BUDGET_API_URL}/finance/admin/budget-requests/${id}`;
+        const url = `${BUDGET_API_URL}/api/finance/admin/budget-requests/${id}`;
         logger.debug(`Fetching budget request: ${url}`);
 
         const response = await fetch(url, {
@@ -104,7 +104,7 @@ export async function approveBudgetRequest(
     data: { approved_amount?: number; remarks?: string }
 ) {
     try {
-        const url = `${BUDGET_API_URL}/finance/admin/approvals/${id}/approve`;
+        const url = `${BUDGET_API_URL}/api/finance/admin/approvals/${id}/approve`;
         logger.debug(`Approving budget request: ${url}`);
 
         const response = await fetch(url, {
@@ -134,7 +134,7 @@ export async function rejectBudgetRequest(
     data: { rejection_reason: string }
 ) {
     try {
-        const url = `${BUDGET_API_URL}/finance/admin/approvals/${id}/reject`;
+        const url = `${BUDGET_API_URL}/api/finance/admin/approvals/${id}/reject`;
         logger.debug(`Rejecting budget request: ${url}`);
 
         const response = await fetch(url, {

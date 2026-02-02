@@ -65,4 +65,17 @@ router.post('/:id/release', controller.releasePayrollPeriod);
 // Get payslip for specific employee payroll
 router.get('/:id/payrolls/:payrollId/payslip', controller.getPayslip);
 
+/**
+ * Archive / Restore / Hard Delete Operations
+ */
+
+// Archive payroll period (soft delete with archive semantics)
+router.patch('/:id/archive', controller.archivePayrollPeriod);
+
+// Restore archived payroll period
+router.patch('/:id/restore', controller.restorePayrollPeriod);
+
+// Permanently delete archived payroll period
+router.delete('/:id/permanent', controller.hardDeletePayrollPeriod);
+
 export default router;

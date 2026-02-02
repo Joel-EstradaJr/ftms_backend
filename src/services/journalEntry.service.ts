@@ -1,5 +1,5 @@
 import { prisma } from '../config/database';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
 
@@ -291,7 +291,98 @@ export class JournalEntryService {
   }
 
   /**
-   * Soft delete a journal entry
+   * Archive a journal entry (soft delete with archive semantics)
+   */
+  async archiveJournalEntry(id: number, userId: string, userInfo?: any, req?: any) {
+    try {
+      const entry = await prisma.journal_entry.findUnique({
+        where: { id },
+        select: { id: true, code: true, is_deleted: true, status: true },
+      });
+
+      if (!entry) {
+        throw new NotFoundError(`Journal entry ${id} not found`);
+      }
+
+      if (entry.is_deleted) {
+        throw new ValidationError('Journal entry is already archived');
+      }
+
+      // Prevent archiving posted entries
+      if (entry.status === 'POSTED') {
+        throw new ValidationError('Cannot archive a posted journal entry');
+      }
+
+      const updatedEntry = await prisma.journal_entry.update({
+        where: { id },
+        data: {
+          is_deleted: true,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+
+      await AuditLogClient.logArchive(
+        AuditEntityTypes.JOURNAL_ENTRY,
+        { id, code: entry.code },
+        { id: userId, name: userInfo?.username, role: userInfo?.role },
+        { code: entry.code, status: entry.status },
+        req
+      );
+
+      logger.info(`Journal entry archived: ${entry.code}`);
+      return updatedEntry;
+    } catch (error) {
+      logger.error('Error archiving journal entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restore an archived journal entry
+   */
+  async restoreJournalEntry(id: number, userId: string, userInfo?: any, req?: any) {
+    try {
+      const entry = await prisma.journal_entry.findUnique({
+        where: { id },
+        select: { id: true, code: true, is_deleted: true },
+      });
+
+      if (!entry) {
+        throw new NotFoundError(`Journal entry ${id} not found`);
+      }
+
+      if (!entry.is_deleted) {
+        throw new ValidationError('Journal entry is not archived');
+      }
+
+      const updatedEntry = await prisma.journal_entry.update({
+        where: { id },
+        data: {
+          is_deleted: false,
+          archived_by: userId,
+          archived_at: new Date(),
+        },
+      });
+
+      await AuditLogClient.logUnarchive(
+        AuditEntityTypes.JOURNAL_ENTRY,
+        { id, code: entry.code },
+        { id: userId, name: userInfo?.username, role: userInfo?.role },
+        { code: entry.code },
+        req
+      );
+
+      logger.info(`Journal entry restored: ${entry.code}`);
+      return updatedEntry;
+    } catch (error) {
+      logger.error('Error restoring journal entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Soft delete a journal entry (legacy method - now calls archive)
    */
   async deleteJournalEntry(id: number, userId: string, reason: string, userInfo?: any, req?: any) {
     try {
@@ -318,6 +409,50 @@ export class JournalEntryService {
       logger.info(`Journal entry deleted: ${entry.code}`);
     } catch (error) {
       logger.error('Error deleting journal entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Hard delete a journal entry (permanent deletion - only for archived entries)
+   */
+  async hardDeleteJournalEntry(id: number, userId: string, userInfo?: any, req?: any) {
+    try {
+      const entry = await prisma.journal_entry.findUnique({
+        where: { id },
+        select: { id: true, code: true, is_deleted: true },
+      });
+
+      if (!entry) {
+        throw new NotFoundError(`Journal entry ${id} not found`);
+      }
+
+      if (!entry.is_deleted) {
+        throw new ValidationError('Cannot permanently delete an active journal entry. Archive it first.');
+      }
+
+      // Delete associated journal lines first
+      await prisma.journal_entry_line.deleteMany({
+        where: { journal_entry_id: id },
+      });
+
+      // Then delete the journal entry
+      await prisma.journal_entry.delete({
+        where: { id },
+      });
+
+      await AuditLogClient.logDelete(
+        'Journal Entry',
+        { id, code: entry.code },
+        entry,
+        { id: userId, name: userInfo?.username, role: userInfo?.role },
+        'Permanent deletion',
+        req
+      );
+
+      logger.info(`Journal entry permanently deleted: ${entry.code}`);
+    } catch (error) {
+      logger.error('Error permanently deleting journal entry:', error);
       throw error;
     }
   }

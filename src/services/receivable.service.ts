@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { AuditLogClient } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
+import { generateCode } from '../utils/codeGenerator';
 
 export class ReceivableService {
   /**
@@ -9,9 +10,12 @@ export class ReceivableService {
    */
   async createReceivable(data: any, userId: string, userInfo?: any, req?: any) {
     try {
+      // Use unified code generator if code not provided
+      const code = data.code || data.referenceCode || await generateCode('receivable');
+      
       const receivable = await prisma.receivable.create({
         data: {
-          code: data.code || data.referenceCode,
+          code,
           debtor_name: data.debtor_name || data.entityName,
           description: data.description,
           total_amount: data.total_amount?.toString() || data.amountDue?.toString(),
@@ -192,16 +196,13 @@ export class ReceivableService {
       });
 
       await AuditLogClient.log({
-        moduleName: 'Account Receivable',
-        action: 'PAYMENT_RECORDED',
-        recordId: id.toString(),
-        recordCode: receivable.code,
-        performedBy: userId,
-        performedByName: userInfo?.username,
-        performedByRole: userInfo?.role,
-        newValues: { paymentAmount: payment, newBalance, status: newStatus },
-        ipAddress: req?.ip,
-        userAgent: req?.headers?.['user-agent'],
+        entity_type: 'receivable',
+        entity_id: id.toString(),
+        action_type_code: 'UPDATE',
+        action_by: userId,
+        action_from: 'Account Receivable',
+        new_data: { paymentAmount: payment, newBalance, status: newStatus, code: receivable.code },
+        ip_address: req?.ip,
       });
 
       logger.info(`Payment recorded for receivable: ${receivable.code}`);
