@@ -8,7 +8,7 @@ import { prisma } from '../config/database';
 import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
-import { Prisma, receivable_frequency, receivable_status, payment_method } from '@prisma/client';
+import { Prisma, receivable_frequency, payment_status, payment_method, approval_status, journal_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
 import { generateCode } from '../utils/codeGenerator';
 import {
@@ -26,19 +26,29 @@ import {
     SystemConfigResponse,
     JournalEntryPayload
 } from '../controllers/busTripRevenue.dto';
+import {
+    REVENUE_TYPE_TO_REVENUE_COA,
+    REVENUE_TYPE_TO_RECEIVABLE_COA,
+    PAYMENT_METHOD_TO_ASSET_COA,
+    getReceivableCOACode
+} from '../lib/coaMapping';
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS (Using centralized COA mappings)
 // ============================================================================
 
+/**
+ * Account codes for journal entries
+ * Uses centralized COA mapping for consistency across all services
+ */
 const ACCOUNT_CODES = {
-    CASH: '1000',
-    BANK_TRANSFER: '1005',
-    E_WALLET: '1010',
-    DRIVER_RECEIVABLE: '1100',
-    CONDUCTOR_RECEIVABLE: '1105',
-    REVENUE_BOUNDARY: '3000',
-    REVENUE_PERCENTAGE: '3005',
+    CASH: PAYMENT_METHOD_TO_ASSET_COA['CASH'],                           // 1000
+    BANK_TRANSFER: PAYMENT_METHOD_TO_ASSET_COA['BANK_TRANSFER'],         // 1005
+    E_WALLET: PAYMENT_METHOD_TO_ASSET_COA['E_WALLET'],                   // 1010
+    DRIVER_RECEIVABLE: REVENUE_TYPE_TO_RECEIVABLE_COA['REVT-001'],       // 1100 - AR - Bus Trip Boundary
+    CONDUCTOR_RECEIVABLE: REVENUE_TYPE_TO_RECEIVABLE_COA['REVT-002'],    // 1105 - AR - Bus Trip Percentage
+    REVENUE_BOUNDARY: REVENUE_TYPE_TO_REVENUE_COA['REVT-001'],           // 3000 - Trip Revenue - Boundary
+    REVENUE_PERCENTAGE: REVENUE_TYPE_TO_REVENUE_COA['REVT-002'],         // 3005 - Trip Revenue - Percentage
 };
 
 const REVENUE_TYPE_CODES = {
@@ -170,14 +180,14 @@ export class BusTripRevenueService {
     }
 
     /**
-     * Determine remittance status
+     * Determine payment status for remittance
      */
-    private determineRemittanceStatus(
+    private determinePaymentStatus(
         tripRevenue: Prisma.Decimal | null,
         expectedRemittance: Prisma.Decimal
-    ): receivable_status {
+    ): payment_status {
         const revenue = tripRevenue ?? new Prisma.Decimal(0);
-        return revenue.greaterThanOrEqualTo(expectedRemittance) ? 'PAID' : 'PARTIALLY_PAID';
+        return revenue.greaterThanOrEqualTo(expectedRemittance) ? 'COMPLETED' : 'PARTIALLY_PAID';
     }
 
     /**
@@ -411,9 +421,9 @@ export class BusTripRevenueService {
             bus_trip_id: { not: null },
         };
 
-        // Status filter
+        // Payment status filter (replaces remittance_status)
         if (filters.status) {
-            where.remittance_status = filters.status;
+            where.payment_status = filters.status as payment_status;
         }
 
         // Date recorded filter
@@ -513,7 +523,7 @@ export class BusTripRevenueService {
                 date_assigned: trip?.date_assigned?.toISOString() ?? null,
                 trip_revenue: Number(trip?.trip_revenue ?? 0),
                 assignment_type: trip?.assignment_type ?? null,
-                remittance_status: rev.remittance_status,
+                payment_status: rev.payment_status,
                 date_recorded: rev.date_recorded?.toISOString() ?? null,
                 expected_remittance: Number(expectedRemittance),
                 shortage: Number(shortage),
@@ -612,7 +622,9 @@ export class BusTripRevenueService {
             code: revenue.code,
             assignment_id: revenue.bus_trip_assignment_id!,
             bus_trip_id: revenue.bus_trip_id!,
-            remittance_status: revenue.remittance_status,
+            payment_status: revenue.payment_status,
+            approval_status: revenue.approval_status,
+            accounting_status: revenue.accounting_status,
 
             bus_details: {
                 date_assigned: trip.date_assigned?.toISOString() ?? null,
@@ -659,7 +671,7 @@ export class BusTripRevenueService {
         };
 
         // Add shortage details if PARTIALLY_PAID
-        if (revenue.remittance_status === 'PARTIALLY_PAID' && shortage.greaterThan(0)) {
+        if (revenue.payment_status === 'PARTIALLY_PAID' && shortage.greaterThan(0)) {
             const driverShare = shortage.mul(new Prisma.Decimal(config.driver_share_percentage / 100));
             const conductorShare = shortage.mul(new Prisma.Decimal(config.conductor_share_percentage / 100));
 
@@ -781,7 +793,7 @@ export class BusTripRevenueService {
             busTrip.trip_fuel_expense
         );
         const shortage = this.calculateShortage(expectedRemittance, busTrip.trip_revenue);
-        const remittanceStatus = this.determineRemittanceStatus(busTrip.trip_revenue, expectedRemittance);
+        const paymentStatus = this.determinePaymentStatus(busTrip.trip_revenue, expectedRemittance);
         const hasShortage = shortage.greaterThan(0);
 
         // Get config and revenue type
@@ -904,6 +916,7 @@ export class BusTripRevenueService {
             }
 
             // Create revenue record
+            // Auto-generated from bus trip: approval_status = APPROVED, accounting_status = DRAFT
             const revenue = await tx.revenue.create({
                 data: {
                     code: revenueCode,
@@ -912,7 +925,9 @@ export class BusTripRevenueService {
                     date_recorded: dateRecorded,
                     date_expected: dateExpected,
                     description: data.description ?? null,
-                    remittance_status: remittanceStatus,
+                    approval_status: 'APPROVED', // Auto-generated revenue is auto-approved
+                    payment_status: paymentStatus as payment_status,
+                    accounting_status: 'DRAFT', // Journal entry posting is manual
                     driver_receivable_id: driverReceivableId,
                     conductor_receivable_id: conductorReceivableId,
                     payment_method: this.mapPaymentMethod(busTrip.payment_method),
@@ -1113,7 +1128,7 @@ export class BusTripRevenueService {
                     data: {
                         driver_receivable_id: null,
                         conductor_receivable_id: null,
-                        remittance_status: 'PAID',
+                        payment_status: 'COMPLETED',
                         updated_by: userId,
                     },
                 });
@@ -1335,9 +1350,9 @@ export class BusTripRevenueService {
                 updateRevenueData.conductor_receivable_id = newConductorReceivableId;
             }
 
-            // Handle remittance_status
-            if (data.remittance_status !== undefined) {
-                updateRevenueData.remittance_status = data.remittance_status;
+            // Handle payment_status (replaces remittance_status)
+            if (data.payment_status !== undefined) {
+                updateRevenueData.payment_status = data.payment_status as payment_status;
             } else if (data.amount !== undefined && existing.bus_trip && !data.delete_receivables) {
                 // Auto-calculate status based on amount if not explicitly provided
                 const expectedRemittance = this.calculateExpectedRemittance(
@@ -1347,7 +1362,7 @@ export class BusTripRevenueService {
                     existing.bus_trip.trip_fuel_expense
                 );
                 const newAmount = new Prisma.Decimal(data.amount);
-                updateRevenueData.remittance_status = newAmount.greaterThanOrEqualTo(expectedRemittance) ? 'PAID' : 'PARTIALLY_PAID';
+                updateRevenueData.payment_status = newAmount.greaterThanOrEqualTo(expectedRemittance) ? 'COMPLETED' : 'PARTIALLY_PAID';
             }
 
             const updated = await tx.revenue.update({
@@ -1612,8 +1627,8 @@ export class BusTripRevenueService {
             // Update receivable totals
             const newReceivablePaid = receivable.paid_amount.add(amountPaid);
             const newReceivableBalance = receivable.balance.sub(amountPaid);
-            const newReceivableStatus: receivable_status = newReceivableBalance.lessThanOrEqualTo(0)
-                ? 'PAID'
+            const newReceivableStatus: payment_status = newReceivableBalance.lessThanOrEqualTo(0)
+                ? 'COMPLETED'
                 : 'PARTIALLY_PAID';
 
             const updatedReceivable = await tx.receivable.update({
@@ -1621,7 +1636,7 @@ export class BusTripRevenueService {
                 data: {
                     paid_amount: newReceivablePaid,
                     balance: newReceivableBalance,
-                    status: newReceivableStatus,
+                    payment_status: newReceivableStatus,
                     last_payment_date: paymentDate,
                     last_payment_amount: amountPaid,
                     updated_by: userId,
@@ -1640,7 +1655,7 @@ export class BusTripRevenueService {
         // Create a single journal entry for the total payment
         const jePayload: CreateAutoJournalEntryInput = {
             module: 'Receivable Payment',
-            reference_id: `${revenue.code}-PAY-${result.paymentRecords[0]?.id}`,
+            reference_id: `Payment for ${revenue.code}`,
             description: result.updatedInstallments.length > 1
                 ? `Receivable payment - ${receivable.code} - Installments #${result.updatedInstallments.map(i => i.installment_number).join(', #')}`
                 : `Receivable payment - ${receivable.code} - Installment #${startingInstallment.installment_number}`,
@@ -1889,7 +1904,7 @@ export class BusTripRevenueService {
 
         const revenue = await prisma.revenue.findUnique({
             where: { id },
-            select: { id: true, code: true, is_deleted: true, remittance_status: true },
+            select: { id: true, code: true, is_deleted: true, payment_status: true },
         });
 
         if (!revenue) {
@@ -1901,7 +1916,7 @@ export class BusTripRevenueService {
         }
 
         // Prevent archiving if there are unpaid receivables
-        if (revenue.remittance_status === 'PENDING' || revenue.remittance_status === 'PARTIALLY_PAID') {
+        if (revenue.payment_status === 'PENDING' || revenue.payment_status === 'PARTIALLY_PAID') {
             throw new BadRequestError('Cannot archive revenue with pending or partial receivables');
         }
 
@@ -1918,7 +1933,7 @@ export class BusTripRevenueService {
             AuditEntityTypes.BUS_TRIP_REVENUE,
             { id, code: revenue.code },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
-            { code: revenue.code, remittance_status: revenue.remittance_status },
+            { code: revenue.code, payment_status: revenue.payment_status },
             req
         );
 

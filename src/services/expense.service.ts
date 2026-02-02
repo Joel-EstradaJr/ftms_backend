@@ -1,5 +1,5 @@
 import { prisma } from '../config/database';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { NotFoundError } from '../utils/errors';
 import { logger } from '../config/logger';
 
@@ -53,11 +53,14 @@ export class ExpenseService {
 
       const expense = await prisma.expense.create({
         data: createData,
+        include: {
+          expense_type: true,
+        },
       });
 
-      // Audit log
+      // Audit log - include full record for proper summary (same pattern as Revenue)
       await AuditLogClient.logCreate(
-        'Expense Management',
+        AuditEntityTypes.EXPENSE,
         { id: expense.id, code: expense.code },
         expense,
         {
@@ -141,6 +144,9 @@ export class ExpenseService {
     try {
       const expense = await prisma.expense.findUnique({
         where: { id },
+        include: {
+          expense_type: true,
+        },
       });
 
       if (!expense) {
@@ -188,11 +194,14 @@ export class ExpenseService {
       const newExpense = await prisma.expense.update({
         where: { id },
         data: updateData,
+        include: {
+          expense_type: true,
+        },
       });
 
-      // Audit log
+      // Audit log - include both old and new record for proper change tracking
       await AuditLogClient.logUpdate(
-        'Expense Management',
+        AuditEntityTypes.EXPENSE,
         { id, code: newExpense.code },
         oldExpense,
         newExpense,
@@ -217,7 +226,20 @@ export class ExpenseService {
    */
   async deleteExpense(id: number, userId: string, reason: string, userInfo?: any, req?: any) {
     try {
-      const expense = await this.getExpenseById(id);
+      const expense = await prisma.expense.findUnique({
+        where: { id },
+        include: {
+          expense_type: true,
+        },
+      });
+
+      if (!expense) {
+        throw new NotFoundError(`Expense with ID ${id} not found`);
+      }
+
+      if (expense.is_deleted) {
+        throw new NotFoundError(`Expense with ID ${id} has already been deleted`);
+      }
 
       await prisma.expense.update({
         where: { id },
@@ -228,17 +250,20 @@ export class ExpenseService {
         },
       });
 
-      // Audit log
-      await AuditLogClient.logDelete(
-        'Expense Management',
+      // Audit log - use logArchive for soft delete (same pattern as Revenue)
+      await AuditLogClient.logArchive(
+        AuditEntityTypes.EXPENSE,
         { id, code: expense.code },
-        expense,
         {
           id: userId,
           name: userInfo?.username || userId,
           role: userInfo?.role || 'admin',
         },
-        reason,
+        {
+          deletion_reason: reason,
+          expense_type: expense.expense_type?.name || 'Unknown',
+          amount: expense.amount?.toString(),
+        },
         req
       );
 
@@ -254,30 +279,47 @@ export class ExpenseService {
    */
   async approveExpense(id: number, userId: string, userInfo?: any, req?: any) {
     try {
-      const expense = await this.getExpenseById(id);
+      // Get full expense record with relations for proper audit summary
+      const expense = await prisma.expense.findUnique({
+        where: { id },
+        include: {
+          expense_type: true,
+        },
+      });
+
+      if (!expense) {
+        throw new NotFoundError(`Expense with ID ${id} not found`);
+      }
+
+      if (expense.is_deleted) {
+        throw new NotFoundError(`Expense with ID ${id} has been deleted`);
+      }
 
       const updatedExpense = await prisma.expense.update({
         where: { id },
         data: {
-          status: 'APPROVED',
+          approval_status: 'APPROVED',
           approved_by: userId,
           approved_at: new Date(),
           updated_by: userId,
           updated_at: new Date(),
         },
+        include: {
+          expense_type: true,
+        },
       });
 
-      // Audit log
-      await AuditLogClient.logApproval(
-        'Expense Management',
+      // Audit log - use logApprove with full record (same pattern as Revenue)
+      await AuditLogClient.logApprove(
+        AuditEntityTypes.EXPENSE,
         { id, code: expense.code },
-        'APPROVE',
         {
           id: userId,
           name: userInfo?.username || userId,
           role: userInfo?.role || 'admin',
         },
-        undefined,
+        { ...expense, approval_status: expense.approval_status },  // Previous data
+        { ...updatedExpense, approval_status: 'APPROVED' },  // New data
         req
       );
 
@@ -294,29 +336,49 @@ export class ExpenseService {
    */
   async rejectExpense(id: number, userId: string, reason: string, userInfo?: any, req?: any) {
     try {
-      const expense = await this.getExpenseById(id);
+      // Get full expense record with relations for proper audit summary
+      const expense = await prisma.expense.findUnique({
+        where: { id },
+        include: {
+          expense_type: true,
+        },
+      });
+
+      if (!expense) {
+        throw new NotFoundError(`Expense with ID ${id} not found`);
+      }
+
+      if (expense.is_deleted) {
+        throw new NotFoundError(`Expense with ID ${id} has been deleted`);
+      }
 
       const updatedExpense = await prisma.expense.update({
         where: { id },
         data: {
-          status: 'REJECTED',
-          description: reason,
+          approval_status: 'REJECTED',
+          rejection_remarks: reason,
+          rejected_by: userId,
+          rejected_at: new Date(),
           updated_by: userId,
           updated_at: new Date(),
         },
+        include: {
+          expense_type: true,
+        },
       });
 
-      // Audit log
-      await AuditLogClient.logApproval(
-        'Expense Management',
+      // Audit log - use logReject with full record and reason (same pattern as Revenue)
+      await AuditLogClient.logReject(
+        AuditEntityTypes.EXPENSE,
         { id, code: expense.code },
-        'REJECT',
         {
           id: userId,
           name: userInfo?.username || userId,
           role: userInfo?.role || 'admin',
         },
         reason,
+        { ...expense, approval_status: expense.approval_status },  // Previous data
+        { ...updatedExpense, approval_status: 'REJECTED', rejection_remarks: reason },  // New data
         req
       );
 

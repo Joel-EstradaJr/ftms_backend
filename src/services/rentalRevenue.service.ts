@@ -7,7 +7,7 @@
 import { prisma } from '../config/database';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
-import { Prisma, payment_method, receivable_status } from '@prisma/client';
+import { Prisma, payment_method, payment_status, approval_status, journal_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
 import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { generateCode } from '../utils/codeGenerator';
@@ -22,19 +22,28 @@ import {
     PaginatedRentalRevenueResponse,
     PaymentMethodEnum,
 } from '../controllers/rentalRevenue.dto';
+import {
+    REVENUE_TYPE_TO_REVENUE_COA,
+    REVENUE_TYPE_TO_RECEIVABLE_COA,
+    PAYMENT_METHOD_TO_ASSET_COA
+} from '../lib/coaMapping';
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS (Using centralized COA mappings)
 // ============================================================================
 
 const RENTAL_REVENUE_TYPE_CODE = 'REVT-003'; // Rental revenue type code
 
-// Account codes for journal entries (matching Bus Trip Revenue pattern)
+/**
+ * Account codes for journal entries
+ * Uses centralized COA mapping for consistency across all services
+ */
 const ACCOUNT_CODES = {
-    CASH: '1000',
-    BANK_TRANSFER: '1005',
-    E_WALLET: '1010',
-    RENTAL_REVENUE: '3010', // Rental revenue account
+    CASH: PAYMENT_METHOD_TO_ASSET_COA['CASH'],                           // 1000
+    BANK_TRANSFER: PAYMENT_METHOD_TO_ASSET_COA['BANK_TRANSFER'],         // 1005
+    E_WALLET: PAYMENT_METHOD_TO_ASSET_COA['E_WALLET'],                   // 1010
+    RENTAL_REVENUE: REVENUE_TYPE_TO_REVENUE_COA['REVT-003'],             // 3010 - Rental Service Revenue
+    RENTAL_RECEIVABLE: REVENUE_TYPE_TO_RECEIVABLE_COA['REVT-003'],       // 1110 - AR - Rental Revenue
 };
 
 // ============================================================================
@@ -126,9 +135,9 @@ export class RentalRevenueService {
             where.payment_method = filters.payment_method as payment_method;
         }
 
-        // Remittance status filter
-        if (filters.remittance_status) {
-            where.remittance_status = filters.remittance_status as receivable_status;
+        // Payment status filter (replaces remittance_status)
+        if (filters.payment_status) {
+            where.payment_status = filters.payment_status as payment_status;
         }
 
         // Amount filters
@@ -264,7 +273,7 @@ export class RentalRevenueService {
             date_recorded: this.formatDate(rev.date_recorded),
             description: rev.description,
             payment_method: rev.payment_method as PaymentMethodEnum | null,
-            remittance_status: rev.remittance_status,
+            payment_status: rev.payment_status,
 
             // Rental fields
             assignment_id: rev.rental_assignment_id || '',
@@ -341,7 +350,7 @@ export class RentalRevenueService {
             description: revenue.description,
             payment_method: revenue.payment_method as PaymentMethodEnum | null,
             payment_reference: revenue.payment_reference,
-            remittance_status: revenue.remittance_status,
+            payment_status: revenue.payment_status,
             journal_entry_id: revenue.journal_entry_id,
 
             // Rental fields
@@ -463,7 +472,7 @@ export class RentalRevenueService {
                 description: data.description || `Rental revenue for assignment ${data.assignment_id}`,
                 payment_method: (data.payment_method as payment_method) || 'CASH',
                 payment_reference: data.payment_reference,
-                remittance_status: 'PENDING',
+                payment_status: 'PENDING',
                 rental_assignment_id: data.assignment_id,
                 created_by: userId,
             },
@@ -573,8 +582,8 @@ export class RentalRevenueService {
         if (data.payment_reference !== undefined) {
             revenueUpdate.payment_reference = data.payment_reference;
         }
-        if (data.remittance_status !== undefined) {
-            revenueUpdate.remittance_status = data.remittance_status as receivable_status;
+        if (data.payment_status !== undefined) {
+            revenueUpdate.payment_status = data.payment_status as payment_status;
         }
 
         // Update revenue
@@ -644,7 +653,7 @@ export class RentalRevenueService {
         await prisma.revenue.update({
             where: { id },
             data: {
-                remittance_status: 'CANCELLED',
+                payment_status: 'CANCELLED',
                 updated_by: userId,
             },
         });
@@ -703,7 +712,7 @@ export class RentalRevenueService {
             where: { id },
             data: {
                 amount: currentAmount + balanceAmount,
-                remittance_status: 'PAID',
+                payment_status: 'COMPLETED',
                 updated_by: userId,
             },
         });
@@ -755,8 +764,8 @@ export class RentalRevenueService {
         await AuditLogClient.logUpdate(
             'Rental Revenue',
             { id: existing.id, code: existing.code },
-            { balance_amount: balanceAmount, remittance_status: 'PENDING' },
-            { balance_amount: 0, remittance_status: 'PAID', journal_entry_id: journalEntry.id },
+            { balance_amount: balanceAmount, payment_status: 'PENDING' },
+            { balance_amount: 0, payment_status: 'COMPLETED', journal_entry_id: journalEntry.id },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
             req
         );
@@ -797,7 +806,7 @@ export class RentalRevenueService {
                 _sum: { amount: true },
             }),
             prisma.revenue.groupBy({
-                by: ['remittance_status'],
+                by: ['payment_status'],
                 where,
                 _count: true,
             }),
@@ -1027,7 +1036,7 @@ export class RentalRevenueService {
 
         const revenue = await prisma.revenue.findUnique({
             where: { id },
-            select: { id: true, code: true, is_deleted: true, remittance_status: true },
+            select: { id: true, code: true, is_deleted: true, payment_status: true },
         });
 
         if (!revenue) {
@@ -1051,7 +1060,7 @@ export class RentalRevenueService {
             AuditEntityTypes.RENTAL_REVENUE,
             { id, code: revenue.code },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
-            { code: revenue.code, remittance_status: revenue.remittance_status },
+            { code: revenue.code, payment_status: revenue.payment_status },
             req
         );
 

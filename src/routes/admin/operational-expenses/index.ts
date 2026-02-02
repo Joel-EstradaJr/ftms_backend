@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../../../middleware/auth';
 import { prisma } from '../../../config/database';
 import { logger } from '../../../config/logger';
-import { expense_status, payment_method } from '@prisma/client';
+import { approval_status, payment_method } from '@prisma/client';
 import { operationalExpenseService } from '../../../services/operationalExpense.service';
 
 const router = Router();
@@ -19,7 +19,8 @@ router.use(authenticate);
  * Schema source of truth:
  * - expense model with relations to bus_trip_local (via bus_trip) and rental_local (via rental)
  * - Uses payment_method enum: CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT
- * - Uses expense_status enum: PENDING, APPROVED, REJECTED, COMPLETED
+ * - Uses approval_status enum: PENDING, APPROVED, REJECTED
+ * - Uses accounting_status enum: DRAFT, POSTED, ADJUSTED, REVERSED
  */
 
 // ===========================
@@ -283,10 +284,10 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       if (date_to) where.date_recorded.lte = new Date(date_to as string);
     }
 
-    // Status filter (schema-defined values only)
+    // Status filter (approval_status - schema-defined values only)
     if (status) {
       const statuses = (status as string).split(',');
-      where.status = { in: statuses };
+      where.approval_status = { in: statuses };
     }
 
     // Expense name/type filter
@@ -354,15 +355,15 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
     };
 
     const pendingCount = await prisma.expense.count({
-      where: { ...baseWhere, status: 'PENDING' },
+      where: { ...baseWhere, approval_status: 'PENDING' },
     });
 
     const approvedCount = await prisma.expense.count({
-      where: { ...baseWhere, status: 'APPROVED' },
+      where: { ...baseWhere, approval_status: 'APPROVED' },
     });
 
     const approvedAmount = await prisma.expense.aggregate({
-      where: { ...baseWhere, status: 'APPROVED' },
+      where: { ...baseWhere, approval_status: 'APPROVED' },
       _sum: { amount: true },
     });
 
@@ -386,7 +387,8 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
         body_number,
         amount: parseFloat(exp.amount?.toString() || '0'),
         is_reimbursable: exp.payment_method === 'REIMBURSEMENT',
-        status: exp.status,
+        approval_status: exp.approval_status,
+        accounting_status: exp.accounting_status,
         payment_method: exp.payment_method,
         description: exp.description,
 
@@ -505,7 +507,8 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         expense_type_code: expense.expense_type?.code,
         amount: parseFloat(expense.amount?.toString() || '0'),
         description: expense.description,
-        status: expense.status,
+        approval_status: expense.approval_status,
+        accounting_status: expense.accounting_status,
         payment_method: expense.payment_method,
 
         // Trip info
@@ -663,7 +666,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
         code: expense.code,
         expense_type_name: (expense as any).expense_type?.name,
         amount: parseFloat(expense.amount.toString()),
-        status: expense.status,
+        approval_status: expense.approval_status,
       },
     });
   } catch (error) {
@@ -693,7 +696,7 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
       });
     }
 
-    if (existing.status !== 'PENDING') {
+    if (existing.approval_status !== 'PENDING') {
       return res.status(400).json({
         success: false,
         message: 'Only PENDING expenses can be edited',
@@ -789,7 +792,7 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
       });
     }
 
-    if (existing.status !== 'PENDING') {
+    if (existing.approval_status !== 'PENDING') {
       return res.status(400).json({
         success: false,
         message: 'Only PENDING expenses can be approved',
@@ -895,7 +898,8 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
       const expense = await tx.expense.update({
         where: { id: parseInt(id) },
         data: {
-          status: 'APPROVED',
+          approval_status: 'APPROVED',
+          accounting_status: 'POSTED',
           approved_by: userId,
           approved_at: new Date(),
           approval_remarks: remarks || null,
@@ -912,7 +916,7 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
       data: {
         id: result.expense.id,
         code: result.expense.code,
-        status: result.expense.status,
+        approval_status: result.expense.approval_status,
         journal_entry_id: result.journalEntry.id,
         journal_entry_code: result.jeCode,
         journal_entry_status: journalStatus,
@@ -947,7 +951,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
       });
     }
 
-    if (existing.status !== 'PENDING') {
+    if (existing.approval_status !== 'PENDING') {
       return res.status(400).json({
         success: false,
         message: 'Only PENDING expenses can be rejected',
@@ -957,7 +961,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
     const expense = await prisma.expense.update({
       where: { id: parseInt(id) },
       data: {
-        status: 'REJECTED',
+        approval_status: 'REJECTED',
         rejected_by: userId,
         rejected_at: new Date(),
         rejection_remarks: reason || null,
@@ -971,7 +975,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
       data: {
         id: expense.id,
         code: expense.code,
-        status: expense.status,
+        approval_status: expense.approval_status,
       },
     });
   } catch (error) {

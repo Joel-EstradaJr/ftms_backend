@@ -93,25 +93,38 @@ function getDateRange(filter: DateFilter): { startDate: Date | null; endDate: Da
 export class DashboardService {
     /**
      * Get dashboard summary with revenue and expense totals by category
+     * CRITICAL: Only includes records with accounting_status IN (POSTED, ADJUSTED)
+     * This ensures dashboard reflects only financially recognized transactions
      */
     static async getDashboardSummary(filter: DateFilter): Promise<DashboardSummary> {
         const { startDate, endDate, label } = getDateRange(filter);
 
-        // Build date where clause
-        const dateWhere: any = { is_deleted: false };
+        // Build where clause for POSTED/ADJUSTED accounting entries only
+        // This is critical for accurate financial reporting - only posted entries count
+        const revenueWhere: any = { 
+            is_deleted: false,
+            accounting_status: { in: ['POSTED', 'ADJUSTED'] }
+        };
+        const expenseWhere: any = { 
+            is_deleted: false,
+            accounting_status: { in: ['POSTED', 'ADJUSTED'] }
+        };
+        
         if (startDate) {
-            dateWhere.date_recorded = { gte: startDate };
+            revenueWhere.date_recorded = { gte: startDate };
+            expenseWhere.date_recorded = { gte: startDate };
         }
         if (endDate) {
-            dateWhere.date_recorded = { ...dateWhere.date_recorded, lte: endDate };
+            revenueWhere.date_recorded = { ...revenueWhere.date_recorded, lte: endDate };
+            expenseWhere.date_recorded = { ...expenseWhere.date_recorded, lte: endDate };
         }
 
-        // Get revenue by type
+        // Get revenue by type - only POSTED/ADJUSTED
         const revenueGroups = await prisma.revenue.groupBy({
             by: ['revenue_type_id'],
             _sum: { amount: true },
             _count: true,
-            where: dateWhere,
+            where: revenueWhere,
         });
 
         // Get revenue type names
@@ -139,12 +152,12 @@ export class DashboardService {
             }
         }
 
-        // Get expense by type
+        // Get expense by type - only POSTED/ADJUSTED
         const expenseGroups = await prisma.expense.groupBy({
             by: ['expense_type_id'],
             _sum: { amount: true },
             _count: true,
-            where: dateWhere,
+            where: expenseWhere,
         });
 
         // Get expense type names
@@ -188,6 +201,7 @@ export class DashboardService {
 
     /**
      * Get monthly aggregates for predictive analytics
+     * CRITICAL: Only includes records with accounting_status IN (POSTED, ADJUSTED)
      */
     static async getForecastData(monthsBack: number = 12): Promise<ForecastData> {
         const startDate = new Date();
@@ -196,6 +210,7 @@ export class DashboardService {
         startDate.setHours(0, 0, 0, 0);
 
         // Get revenue aggregates by month using raw query for date_trunc
+        // Only include POSTED or ADJUSTED accounting entries
         const revenueRaw = await prisma.$queryRaw<Array<{
             month: Date;
             total_amount: bigint | number;
@@ -209,11 +224,13 @@ export class DashboardService {
       WHERE is_deleted = false
         AND date_recorded >= ${startDate}
         AND date_recorded IS NOT NULL
+        AND accounting_status IN ('POSTED', 'ADJUSTED')
       GROUP BY DATE_TRUNC('month', date_recorded)
       ORDER BY month
     `;
 
         // Get expense aggregates by month
+        // Only include POSTED or ADJUSTED accounting entries
         const expenseRaw = await prisma.$queryRaw<Array<{
             month: Date;
             total_amount: bigint | number;
@@ -227,6 +244,7 @@ export class DashboardService {
       WHERE is_deleted = false
         AND date_recorded >= ${startDate}
         AND date_recorded IS NOT NULL
+        AND accounting_status IN ('POSTED', 'ADJUSTED')
       GROUP BY DATE_TRUNC('month', date_recorded)
       ORDER BY month
     `;

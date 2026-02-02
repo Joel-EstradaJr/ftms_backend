@@ -11,60 +11,41 @@
 
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
-import { Prisma, payment_method, receivable_frequency, receivable_status, installment_status } from '@prisma/client';
+import { Prisma, payment_method, receivable_frequency, payment_status, installment_status, approval_status, journal_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
 import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { Request } from 'express';
 import { generateCode } from '../utils/codeGenerator';
+import {
+    REVENUE_TYPE_TO_REVENUE_COA,
+    REVENUE_TYPE_TO_RECEIVABLE_COA,
+    getAssetCOACode as getAssetAccountCodeFromMapping,
+    getRevenueCOACode,
+    getReceivableCOACode
+} from '../lib/coaMapping';
 
 // --------------------------
-// COA MAPPINGS
+// COA MAPPINGS (LEGACY - NOW USES CENTRALIZED coaMapping.ts)
 // --------------------------
 
 /**
+ * @deprecated Use REVENUE_TYPE_TO_REVENUE_COA from '../lib/coaMapping' instead
  * Revenue Type Code → Chart of Account Code mapping
  * Based on seed_core_data.ts COA definitions
  */
-const REVENUE_TYPE_TO_COA: Record<string, string> = {
-    'REVT-004': '3020', // Advertising Revenue
-    'REVT-005': '3025', // Insurance Commission Income
-    'REVT-006': '3030', // Terminal Fee Income
-    'REVT-007': '3035', // Parking Fee Income
-    'REVT-008': '3040', // Charter Add-on Revenue
-    'REVT-009': '3045', // Cargo Handling Fee Income
-    'REVT-010': '3050', // Penalty & Violation Income
-    'REVT-011': '3055', // Franchise & Partnership Income
-    'REVT-012': '3060', // Maintenance Service Income
-    'REVT-013': '3065', // Miscellaneous Income
-};
-
-/**
- * Payment method to asset account code mapping
- */
-const ACCOUNT_CODES = {
-    CASH: '1000',
-    BANK_TRANSFER: '1005',
-    E_WALLET: '1010',
-    ACCOUNTS_RECEIVABLE_OTHER: '1110', // Accounts Receivable - Other Employees
-};
+const REVENUE_TYPE_TO_COA: Record<string, string> = REVENUE_TYPE_TO_REVENUE_COA;
 
 /**
  * Get asset account code based on payment method
+ * Uses centralized mapping from coaMapping.ts
  */
 function getAssetAccountCode(paymentMethod: payment_method | string | null): string {
-    const method = paymentMethod?.toString().toUpperCase();
-    switch (method) {
-        case 'BANK_TRANSFER':
-            return ACCOUNT_CODES.BANK_TRANSFER;
-        case 'E_WALLET':
-            return ACCOUNT_CODES.E_WALLET;
-        default:
-            return ACCOUNT_CODES.CASH;
-    }
+    return getAssetAccountCodeFromMapping(paymentMethod?.toString() || null);
 }
 
 /**
  * Get revenue account code based on revenue type
+ * Uses centralized mapping from coaMapping.ts
  */
 async function getRevenueAccountCode(revenueTypeId: number): Promise<string> {
     const revenueType = await prisma.revenue_type.findUnique({
@@ -76,7 +57,24 @@ async function getRevenueAccountCode(revenueTypeId: number): Promise<string> {
         return '3065'; // Default to Miscellaneous Income
     }
 
-    return REVENUE_TYPE_TO_COA[revenueType.code] || '3065';
+    return getRevenueCOACode(revenueType.code);
+}
+
+/**
+ * Get receivable account code based on revenue type
+ * Each revenue type has its own dedicated AR account
+ */
+async function getReceivableAccountCode(revenueTypeId: number): Promise<string> {
+    const revenueType = await prisma.revenue_type.findUnique({
+        where: { id: revenueTypeId },
+        select: { code: true }
+    });
+
+    if (!revenueType) {
+        return '1160'; // Default to AR - Miscellaneous Income
+    }
+
+    return getReceivableCOACode(revenueType.code);
 }
 
 // Journal Entry Service instance
@@ -206,7 +204,7 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
 
         // Normalize status search (handle "Partially Paid" -> "PARTIALLY_PAID")
         const normalizedSearch = search.trim().toUpperCase().replace(/\s+/g, '_');
-        const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED', 'WRITTEN_OFF'];
+        const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'COMPLETED', 'CANCELLED', 'WRITTEN_OFF'];
 
         // Check if search matches or partially matches a valid status
         const matchedStatus = validStatuses.find(s =>
@@ -214,7 +212,7 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
         );
 
         if (matchedStatus) {
-            searchConditions.push({ remittance_status: matchedStatus as receivable_status });
+            searchConditions.push({ payment_status: matchedStatus as payment_status });
         }
 
         where.OR = searchConditions;
@@ -234,13 +232,13 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
 
     // Status filter - normalize input to match enum values
     if (status) {
-        // Handle both remittance_status and approval status
+        // Handle both payment_status and approval status
         const normalizedStatus = status.trim().toUpperCase().replace(/\s+/g, '_');
 
         if (['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'].includes(normalizedStatus)) {
             (where as any).status = normalizedStatus;
         } else {
-            where.remittance_status = normalizedStatus as receivable_status;
+            where.payment_status = normalizedStatus as payment_status;
         }
     }
 
@@ -337,7 +335,7 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
             amount: Number(r.amount),
             status: (r as any).status,
             approvalRemarks: (r as any).approval_remarks,
-            remittance_status: r.remittance_status,
+            payment_status: r.payment_status,
             payment_method: r.payment_method,
             payment_reference: r.payment_reference,
             isUnearnedRevenue: !!r.receivable,
@@ -411,7 +409,7 @@ async function calculateAnalytics(revenueTypeId?: number) {
             _count: true
         }),
         prisma.revenue.groupBy({
-            by: ['remittance_status'],
+            by: ['payment_status'],
             where,
             _sum: { amount: true },
             _count: true
@@ -475,7 +473,7 @@ export async function getOtherRevenueById(id: number) {
         amount: Number(record.amount),
         status: (record as any).status,
         approvalRemarks: (record as any).approval_remarks,
-        remittance_status: record.remittance_status,
+        payment_status: record.payment_status,
         payment_method: record.payment_method,
         payment_reference: record.payment_reference,
         isUnearnedRevenue: !!record.receivable,
@@ -600,9 +598,9 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
                 payment_method: input.payment_method as payment_method,
                 payment_reference: input.payment_reference,
                 receivable_id: receivableId,
-                // If remittance_status is explicitly provided (e.g., by Other Revenue controller), use it
+                // If payment_status is explicitly provided (e.g., by Other Revenue controller), use it
                 // Otherwise, fall back to original logic: PENDING for unearned, PAID for single payments
-                remittance_status: (input as any).remittance_status || (input.isUnearnedRevenue ? 'PENDING' : 'PAID'),
+                payment_status: (input as any).payment_status || (input.isUnearnedRevenue ? 'PENDING' : 'COMPLETED'),
                 status: 'PENDING' as any, // Initial status is always PENDING
                 created_by: input.created_by
             } as any,
@@ -647,12 +645,14 @@ async function generateRevenueJournalEntry(revenueId: number, userId: string) {
 
     try {
         const revenueAccountCode = await getRevenueAccountCode(revenue.revenue_type_id);
+        // Get type-specific receivable account (not generic AR)
+        const receivableAccountCode = await getReceivableAccountCode(revenue.revenue_type_id);
         const dateRecorded = (revenue.date_recorded || new Date()).toISOString().split('T')[0];
 
         let journalEntryInput: CreateAutoJournalEntryInput;
 
         if (revenue.receivable) {
-            // Unearned Revenue: DR Accounts Receivable, CR Revenue
+            // Unearned Revenue: DR Accounts Receivable (type-specific), CR Revenue
             journalEntryInput = {
                 module: 'OTHER_REVENUE',
                 reference_id: revenue.id.toString(),
@@ -660,10 +660,10 @@ async function generateRevenueJournalEntry(revenueId: number, userId: string) {
                 date: dateRecorded,
                 entries: [
                     {
-                        account_code: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE_OTHER,
+                        account_code: receivableAccountCode,
                         debit: Number(revenue.amount),
                         credit: 0,
-                        description: `Accounts Receivable - ${revenue.revenue_type.name}`
+                        description: `AR - ${revenue.revenue_type.name}`
                     },
                     {
                         account_code: revenueAccountCode,
@@ -740,7 +740,7 @@ export async function approveOtherRevenue(id: number, userId: string) {
                 status: 'APPROVED' as any,
                 // Non-unearned: auto-mark as PAID (single payment already received)
                 // Unearned: keep PENDING (still needs installment payments)
-                remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID',
+                payment_status: isUnearnedRevenue ? 'PENDING' : 'COMPLETED',
                 updated_by: userId,
                 updated_at: new Date()
             } as any,
@@ -762,7 +762,7 @@ export async function approveOtherRevenue(id: number, userId: string) {
         { 
             ...record,
             status: 'APPROVED', 
-            remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID' 
+            payment_status: isUnearnedRevenue ? 'PENDING' : 'COMPLETED' 
         }
     );
 
@@ -800,7 +800,7 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
         where: { id },
         data: {
             status: 'REJECTED' as any,
-            remittance_status: 'CANCELLED' as any,
+            payment_status: 'CANCELLED' as any,
             approval_remarks: (remarks || null) as any,
             updated_by: userId,
             updated_at: new Date()
@@ -816,12 +816,12 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
         { 
             ...record,
             status: (record as any).status, 
-            remittance_status: (record as any).remittance_status 
+            payment_status: (record as any).payment_status 
         },
         { 
             ...record,
             status: 'REJECTED', 
-            remittance_status: 'CANCELLED', 
+            payment_status: 'CANCELLED', 
             approval_remarks: remarks 
         }
     );
@@ -846,7 +846,7 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
     }
 
     // STRICT: Only allow editing for PENDING status
-    if (existing.remittance_status !== 'PENDING') {
+    if (existing.payment_status !== 'PENDING') {
         throw new Error('Only records with PENDING status can be edited');
     }
 
@@ -937,9 +937,9 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
                 const newBalance = Math.max(0, newAmountDue - paidAmount);
 
                 // Determine new status based on payments
-                let newStatus: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' = 'PENDING';
+                let newStatus: 'PENDING' | 'PARTIALLY_PAID' | 'COMPLETED' | 'OVERDUE' = 'PENDING';
                 if (paidAmount >= newAmountDue) {
-                    newStatus = 'PAID';
+                    newStatus = 'COMPLETED';
                 } else if (paidAmount > 0) {
                     newStatus = 'PARTIALLY_PAID';
                 } else {
@@ -1124,7 +1124,7 @@ export async function recordPayment(input: RecordPaymentInput) {
                 const newAmountPaid = Number(installment.amount_paid) + amountToApply;
                 const newBalance = Number(installment.amount_due) - newAmountPaid;
                 const newStatus: installment_status = newBalance <= 0
-                    ? 'PAID'
+                    ? 'COMPLETED'
                     : newAmountPaid > 0
                         ? 'PARTIALLY_PAID'
                         : 'PENDING';
@@ -1174,7 +1174,7 @@ export async function recordPayment(input: RecordPaymentInput) {
             const newAmountPaid = Number(installment.amount_paid) + amountToApply;
             const newBalance = Number(installment.amount_due) - newAmountPaid;
             const newStatus: installment_status = newBalance <= 0
-                ? 'PAID'
+                ? 'COMPLETED'
                 : newAmountPaid > 0
                     ? 'PARTIALLY_PAID'
                     : 'PENDING';
@@ -1196,12 +1196,12 @@ export async function recordPayment(input: RecordPaymentInput) {
             where: { receivable_id: revenue.receivable!.id }
         });
 
-        const allPaid = allInstallments.every(i => i.status === 'PAID');
-        const somePaid = allInstallments.some(i => i.status === 'PAID' || i.status === 'PARTIALLY_PAID');
+        const allPaid = allInstallments.every(i => i.status === 'COMPLETED');
+        const somePaid = allInstallments.some(i => i.status === 'COMPLETED' || i.status === 'PARTIALLY_PAID');
 
-        let receivableStatus: receivable_status = 'PENDING';
+        let receivableStatus: payment_status = 'PENDING';
         if (allPaid) {
-            receivableStatus = 'PAID';
+            receivableStatus = 'COMPLETED';
         } else if (somePaid) {
             receivableStatus = 'PARTIALLY_PAID';
         }
@@ -1219,7 +1219,7 @@ export async function recordPayment(input: RecordPaymentInput) {
         await tx.revenue.update({
             where: { id: input.revenueId },
             data: {
-                remittance_status: receivableStatus,
+                payment_status: receivableStatus,
                 updated_by: input.recordedBy,
                 updated_at: new Date()
             }
@@ -1237,12 +1237,14 @@ export async function recordPayment(input: RecordPaymentInput) {
     // Generate Journal Entry for payment
     try {
         const assetAccountCode = getAssetAccountCode(input.paymentMethod);
+        // Get type-specific receivable account (not generic AR)
+        const receivableAccountCode = await getReceivableAccountCode(revenue.revenue_type_id);
         const paymentDateStr = new Date(input.paymentDate).toISOString().split('T')[0];
 
         const journalEntryInput: CreateAutoJournalEntryInput = {
             module: 'OTHER_REVENUE_PAYMENT',
-            reference_id: `${input.revenueId}-payment-${Date.now()}`,
-            description: `Payment for ${revenue.revenue_type.name} #${input.revenueId}`,
+            reference_id: `Payment for ${revenue.code}`,
+            description: `Payment for ${revenue.revenue_type.name} - ${revenue.code}`,
             date: paymentDateStr,
             entries: [
                 {
@@ -1252,10 +1254,10 @@ export async function recordPayment(input: RecordPaymentInput) {
                     description: `Payment received - ${input.paymentMethod}`
                 },
                 {
-                    account_code: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE_OTHER,
+                    account_code: receivableAccountCode,
                     debit: 0,
                     credit: input.amountPaid,
-                    description: 'Reduce Accounts Receivable'
+                    description: `Reduce AR - ${revenue.revenue_type.name}`
                 }
             ]
         };
