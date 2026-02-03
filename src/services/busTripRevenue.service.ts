@@ -151,12 +151,12 @@ export class BusTripRevenueService {
             const numericMatch = token.match(/^(\d+)$/);
             if (numericMatch) {
                 const num = parseInt(numericMatch[1], 10);
-                
+
                 // If it's 1-31, it's a day
                 if (num >= 1 && num <= 31) {
                     result.dayNumber = num;
                 }
-                
+
                 // If it's a 4-digit number starting with 19 or 20, it's a year
                 if (num >= 1900 && num <= 2100) {
                     result.yearNumber = num;
@@ -605,23 +605,23 @@ export class BusTripRevenueService {
 
             // Add assignment type search if matched
             if (searchCriteria.assignmentTypes && searchCriteria.assignmentTypes.length > 0) {
-                orConditions.push({ 
-                    bus_trip: { assignment_type: { in: searchCriteria.assignmentTypes } } 
+                orConditions.push({
+                    bus_trip: { assignment_type: { in: searchCriteria.assignmentTypes } }
                 });
             }
 
             // Add numeric search for trip_revenue
             // Only search trip_revenue if the number is > 31 (to avoid matching day numbers)
             // OR if there's no date context (month/year)
-            if (searchCriteria.numericValue !== undefined && 
-                (searchCriteria.numericValue > 31 || 
-                 (!searchCriteria.monthNumber && !searchCriteria.yearNumber))) {
+            if (searchCriteria.numericValue !== undefined &&
+                (searchCriteria.numericValue > 31 ||
+                    (!searchCriteria.monthNumber && !searchCriteria.yearNumber))) {
                 const numVal = searchCriteria.numericValue;
                 // Use string-based contains matching for numeric search
                 // This allows "100" to match "1000", "1100", "1200" etc.
                 // Convert to string and search in the numeric range
                 const numStr = numVal.toString();
-                
+
                 // If the search is an exact whole number, match values that contain these digits
                 // For example: "100" should match 100, 1000, 1100, 1200, etc.
                 // "1300" should match 1300, 13000, etc.
@@ -650,19 +650,19 @@ export class BusTripRevenueService {
 
             // Add date-based search for month + day + year combinations
             const currentYear = new Date().getFullYear();
-            
+
             // If we have both month and day (e.g., "January 11")
             if (searchCriteria.monthNumber !== undefined && searchCriteria.dayNumber !== undefined) {
                 const month = searchCriteria.monthNumber;
                 const day = searchCriteria.dayNumber;
                 const year = searchCriteria.yearNumber || currentYear;
-                
+
                 // Validate the day exists in the month
                 const daysInMonth = new Date(year, month, 0).getDate();
                 if (day <= daysInMonth) {
                     const targetDate = new Date(year, month - 1, day);
                     const nextDate = new Date(year, month - 1, day + 1);
-                    
+
                     // If no year specified, check multiple years
                     if (!searchCriteria.yearNumber) {
                         for (let y = currentYear - 4; y <= currentYear + 1; y++) {
@@ -670,14 +670,14 @@ export class BusTripRevenueService {
                             if (day <= daysInMonthY) {
                                 const targetDateY = new Date(y, month - 1, day);
                                 const nextDateY = new Date(y, month - 1, day + 1);
-                                
+
                                 orConditions.push({
                                     date_recorded: {
                                         gte: targetDateY,
                                         lt: nextDateY
                                     }
                                 });
-                                
+
                                 orConditions.push({
                                     bus_trip: {
                                         date_assigned: {
@@ -696,7 +696,7 @@ export class BusTripRevenueService {
                                 lt: nextDate
                             }
                         });
-                        
+
                         orConditions.push({
                             bus_trip: {
                                 date_assigned: {
@@ -712,19 +712,19 @@ export class BusTripRevenueService {
             else if (searchCriteria.monthNumber !== undefined && !searchCriteria.dayNumber) {
                 const month = searchCriteria.monthNumber;
                 const year = searchCriteria.yearNumber;
-                
+
                 if (year) {
                     // Specific month and year
                     const startOfMonth = new Date(year, month - 1, 1);
                     const endOfMonth = new Date(year, month, 0, 23, 59, 59);
-                    
+
                     orConditions.push({
                         date_recorded: {
                             gte: startOfMonth,
                             lte: endOfMonth
                         }
                     });
-                    
+
                     orConditions.push({
                         bus_trip: {
                             date_assigned: {
@@ -738,14 +738,14 @@ export class BusTripRevenueService {
                     for (let y = currentYear - 4; y <= currentYear + 1; y++) {
                         const startOfMonth = new Date(y, month - 1, 1);
                         const endOfMonth = new Date(y, month, 0, 23, 59, 59);
-                        
+
                         orConditions.push({
                             date_recorded: {
                                 gte: startOfMonth,
                                 lte: endOfMonth
                             }
                         });
-                        
+
                         orConditions.push({
                             bus_trip: {
                                 date_assigned: {
@@ -762,14 +762,14 @@ export class BusTripRevenueService {
                 const year = searchCriteria.yearNumber;
                 const startOfYear = new Date(year, 0, 1);
                 const endOfYear = new Date(year, 11, 31, 23, 59, 59);
-                
+
                 orConditions.push({
                     date_recorded: {
                         gte: startOfYear,
                         lte: endOfYear
                     }
                 });
-                
+
                 orConditions.push({
                     bus_trip: {
                         date_assigned: {
@@ -780,26 +780,26 @@ export class BusTripRevenueService {
                 });
             }
             // Day only search (e.g., "15" for 15th of any month) - only if pure day number and <= 31
-            else if (searchCriteria.dayNumber !== undefined && 
-                     !searchCriteria.monthNumber && 
-                     !searchCriteria.yearNumber && 
-                     searchCriteria.numericValue !== undefined &&
-                     searchCriteria.numericValue <= 31) {
+            else if (searchCriteria.dayNumber !== undefined &&
+                !searchCriteria.monthNumber &&
+                !searchCriteria.yearNumber &&
+                searchCriteria.numericValue !== undefined &&
+                searchCriteria.numericValue <= 31) {
                 const day = searchCriteria.dayNumber;
-                
+
                 for (let month = 0; month < 12; month++) {
                     const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
                     if (day <= daysInMonth) {
                         const targetDate = new Date(currentYear, month, day);
                         const nextDate = new Date(currentYear, month, day + 1);
-                        
+
                         orConditions.push({
                             date_recorded: {
                                 gte: targetDate,
                                 lt: nextDate
                             }
                         });
-                        
+
                         orConditions.push({
                             bus_trip: {
                                 date_assigned: {
@@ -818,7 +818,7 @@ export class BusTripRevenueService {
         // Sorting
         // Handle sorting for both direct revenue fields and related bus_trip fields
         let orderBy: Prisma.revenueOrderByWithRelationInput | Prisma.revenueOrderByWithRelationInput[] = {};
-        
+
         if (filters.sort_by === 'date_recorded') {
             orderBy = { date_recorded: filters.sort_order || 'desc' };
         } else if (filters.sort_by === 'amount') {
@@ -2000,7 +2000,7 @@ export class BusTripRevenueService {
                 data: {
                     paid_amount: newReceivablePaid,
                     balance: newReceivableBalance,
-                    payment_status: newReceivableStatus,
+                    status: newReceivableStatus,
                     last_payment_date: paymentDate,
                     last_payment_amount: amountPaid,
                     updated_by: userId,
