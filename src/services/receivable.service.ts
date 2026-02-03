@@ -12,7 +12,7 @@ export class ReceivableService {
     try {
       // Use unified code generator if code not provided
       const code = data.code || data.referenceCode || await generateCode('receivable');
-      
+
       const receivable = await prisma.receivable.create({
         data: {
           code,
@@ -166,7 +166,7 @@ export class ReceivableService {
     try {
       const receivable = await this.getReceivableById(id);
 
-      if (receivable.payment_status === 'COMPLETED') {
+      if (receivable.status === 'COMPLETED') {
         throw new ValidationError('Receivable is already fully collected');
       }
 
@@ -183,16 +183,70 @@ export class ReceivableService {
 
       const newStatus = newBalance === 0 ? 'COMPLETED' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
 
-      const updated = await prisma.receivable.update({
-        where: { id },
-        data: {
-          paid_amount: newPaid.toString(),
-          balance: newBalance.toString(),
-          payment_status: newStatus,
-          last_payment_date: new Date(),
-          last_payment_amount: payment.toString(),
-          updated_by: userId,
-        },
+      const updated = await prisma.$transaction(async (tx) => {
+        // 1. Update Receivable
+        const updatedReceivable = await tx.receivable.update({
+          where: { id },
+          data: {
+            paid_amount: newPaid.toString(),
+            balance: newBalance.toString(),
+            status: newStatus,
+            last_payment_date: new Date(),
+            last_payment_amount: payment.toString(),
+            updated_by: userId,
+          },
+        });
+
+        // 2. Distribute payment to installments
+        const installments = await tx.revenue_installment_schedule.findMany({
+          where: { receivable_id: id, is_deleted: false },
+          orderBy: { installment_number: 'asc' }
+        });
+
+        if (installments.length > 0) {
+          let remainingToDistribute = newPaid;
+
+          for (const inst of installments) {
+            const instAmountDue = parseFloat(inst.amount_due.toString());
+
+            // Calculate amount paid for this installment (FIFO)
+            // capped at amount_due
+            const amountForThisInst = Math.min(instAmountDue, remainingToDistribute);
+
+            // Update remaining for next installments
+            remainingToDistribute = Math.max(0, remainingToDistribute - amountForThisInst);
+
+            const instBalance = instAmountDue - amountForThisInst;
+
+            // Determine status
+            // Note: Installment status uses 'PAID', Receivable uses 'COMPLETED'
+            let instStatus = 'PENDING';
+            if (instBalance <= 0.005) { // Allowance for floating point
+              instStatus = 'PAID';
+            } else if (amountForThisInst > 0) {
+              instStatus = 'PARTIALLY_PAID';
+            } else {
+              // Retrieve previous status if it was OVERDUE? 
+              // Or just check date? For now default to PENDING or keep existing if OVERDUE?
+              // If we are strictly redistributing, we might reset OVERDUE to PENDING if we don't check date.
+              // But usually this function is called on new payment.
+              // Let's use simple logic: if paid > 0 -> PARTIAL. If 0 -> PENDING (or leave as is?)
+              if (inst.status === 'OVERDUE') instStatus = 'OVERDUE';
+              else instStatus = 'PENDING';
+            }
+
+            await tx.revenue_installment_schedule.update({
+              where: { id: inst.id },
+              data: {
+                amount_paid: amountForThisInst,
+                balance: instBalance,
+                status: instStatus as any
+              }
+            });
+          }
+        }
+
+        return updatedReceivable;
       });
 
       await AuditLogClient.log({
