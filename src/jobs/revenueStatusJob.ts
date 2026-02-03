@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { generateCode } from '../utils/codeGenerator';
-import { receivable_status, receivable_frequency } from '@prisma/client';
+import { receivable_frequency } from '@prisma/client';
 
 /**
  * Process revenue status updates (Core Logic)
@@ -41,7 +41,7 @@ export async function processRevenueStatus(): Promise<string> {
         // Find revenues that are PENDING and past the grace period
         const pendingRevenues = await prisma.revenue.findMany({
             where: {
-                remittance_status: 'PENDING',
+                payment_status: 'PENDING',
                 is_deleted: false,
                 bus_trip: {
                     isNot: null
@@ -81,7 +81,7 @@ export async function processRevenueStatus(): Promise<string> {
                     await tx.revenue.update({
                         where: { id: revenue.id },
                         data: {
-                            remittance_status: 'OVERDUE'
+                            payment_status: 'OVERDUE'
                         }
                     });
 
@@ -238,7 +238,7 @@ export async function processRevenueStatus(): Promise<string> {
         // This is complex to do in one query, so we can fetch receivables with overdue installments
         const receivablesWithOverdueInstallments = await prisma.receivable.findMany({
             where: {
-                status: { notIn: ['PAID', 'OVERDUE'] },
+                status: { notIn: ['COMPLETED', 'OVERDUE'] },
                 installment_schedule: {
                     some: {
                         status: 'OVERDUE'
@@ -257,7 +257,7 @@ export async function processRevenueStatus(): Promise<string> {
         // Also check pure due date of receivable
         const overdueReceivables = await prisma.receivable.updateMany({
             where: {
-                status: { notIn: ['PAID', 'OVERDUE'] },
+                status: { notIn: ['COMPLETED', 'OVERDUE'] },
                 due_date: { lt: now },
                 is_deleted: false
             },
