@@ -170,14 +170,29 @@ export class BusTripRevenueService {
     }
 
     /**
-     * Determine remittance status
+     * Determine remittance status based on amount actually remitted vs expected
+     * @param amountRemitted - The actual amount remitted by the driver/conductor
+     * @param expectedRemittance - The expected remittance (company share + fuel)
+     * @returns PAID if full amount, PARTIALLY_PAID if some paid, PENDING if none paid
      */
     private determineRemittanceStatus(
-        tripRevenue: Prisma.Decimal | null,
+        amountRemitted: Prisma.Decimal | null,
         expectedRemittance: Prisma.Decimal
     ): receivable_status {
-        const revenue = tripRevenue ?? new Prisma.Decimal(0);
-        return revenue.greaterThanOrEqualTo(expectedRemittance) ? 'PAID' : 'PARTIALLY_PAID';
+        const amount = amountRemitted ?? new Prisma.Decimal(0);
+
+        // Full payment: amount remitted >= expected remittance
+        if (amount.greaterThanOrEqualTo(expectedRemittance)) {
+            return 'PAID';
+        }
+
+        // Partial payment: some amount remitted but not full
+        if (amount.greaterThan(0)) {
+            return 'PARTIALLY_PAID';
+        }
+
+        // No payment made yet - will become OVERDUE via cron job if past grace period
+        return 'PENDING';
     }
 
     /**
@@ -782,9 +797,19 @@ export class BusTripRevenueService {
             busTrip.assignment_value,
             busTrip.trip_fuel_expense
         );
-        const shortage = this.calculateShortage(expectedRemittance, busTrip.trip_revenue);
-        const remittanceStatus = this.determineRemittanceStatus(busTrip.trip_revenue, expectedRemittance);
+
+        // Calculate the actual remittance amount:
+        // - If trip_revenue >= expectedRemittance: full remittance is made (amount = expectedRemittance)
+        // - If trip_revenue < expectedRemittance: partial remittance (amount = trip_revenue, shortage exists)
+        const tripRevenue = busTrip.trip_revenue ?? new Prisma.Decimal(0);
+        const amountRemitted = tripRevenue.greaterThanOrEqualTo(expectedRemittance)
+            ? expectedRemittance  // Full payment - remit expected amount
+            : tripRevenue;        // Shortage - remit whatever was collected
+
+        const shortage = this.calculateShortage(expectedRemittance, amountRemitted);
+        const remittanceStatus = this.determineRemittanceStatus(amountRemitted, expectedRemittance);
         const hasShortage = shortage.greaterThan(0);
+
 
         // Get config and revenue type
         const config = await this.getSystemConfig();
@@ -910,7 +935,7 @@ export class BusTripRevenueService {
                 data: {
                     code: revenueCode,
                     revenue_type_id: revenueType.id,
-                    amount: busTrip.trip_revenue ?? new Prisma.Decimal(0),
+                    amount: amountRemitted,  // Use actual remittance, not trip_revenue
                     date_recorded: dateRecorded,
                     date_expected: dateExpected,
                     description: data.description ?? null,
@@ -942,10 +967,12 @@ export class BusTripRevenueService {
         });
 
         // Create journal entry (outside transaction to use the service)
-        const tripRevenue = Number(busTrip.trip_revenue ?? 0);
+        const tripRevenueNum = Number(busTrip.trip_revenue ?? 0);
+        const amountRemittedNum = Number(amountRemitted);
         const paymentMethodEnum = this.mapPaymentMethod(busTrip.payment_method);
         const assetAccountCode = this.getAssetAccountCode(paymentMethodEnum);
         const revenueAccountCode = this.getRevenueAccountCode(busTrip.assignment_type);
+
 
         let jePayload: CreateAutoJournalEntryInput;
 
@@ -956,14 +983,14 @@ export class BusTripRevenueService {
             jePayload = {
                 module: 'Trip Revenue',
                 reference_id: revenueCode,
-                description: `${busTrip.assignment_type} revenue - ₱${tripRevenue} received (Expected: ₱${Number(expectedRemittance)}, Shortage: ₱${Number(shortage)}) - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
+                description: `${busTrip.assignment_type} revenue - ₱${amountRemittedNum} remitted (Expected: ₱${Number(expectedRemittance)}, Shortage: ₱${Number(shortage)}) - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
                 date: dateRecorded.toISOString().split('T')[0],
                 entries: [
                     {
                         account_code: assetAccountCode,
-                        debit: tripRevenue,
+                        debit: amountRemittedNum,
                         credit: 0,
-                        description: 'Cash received from trip',
+                        description: 'Cash received from remittance',
                     },
                     {
                         account_code: ACCOUNT_CODES.DRIVER_RECEIVABLE,
@@ -989,24 +1016,25 @@ export class BusTripRevenueService {
             jePayload = {
                 module: 'Trip Revenue',
                 reference_id: revenueCode,
-                description: `${busTrip.assignment_type} revenue - ₱${tripRevenue} - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
+                description: `${busTrip.assignment_type} revenue - ₱${amountRemittedNum} - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
                 date: dateRecorded.toISOString().split('T')[0],
                 entries: [
                     {
                         account_code: assetAccountCode,
-                        debit: tripRevenue,
+                        debit: amountRemittedNum,
                         credit: 0,
-                        description: 'Cash received from trip',
+                        description: 'Cash received from remittance',
                     },
                     {
                         account_code: revenueAccountCode,
                         debit: 0,
-                        credit: tripRevenue,
+                        credit: amountRemittedNum,
                         description: 'Trip revenue recognized',
                     },
                 ],
             };
         }
+
 
         // Create journal entry
         const journalEntry = await this.journalEntryService.createAutoJournalEntry(
