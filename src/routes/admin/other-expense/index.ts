@@ -2,9 +2,10 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../../../middleware/auth';
 import { prisma } from '../../../config/database';
 import { logger } from '../../../config/logger';
-import { expense_status, payment_method, payable_status, installment_status, Prisma } from '@prisma/client';
+import { approval_status, payment_method, payment_status, installment_status, Prisma } from '@prisma/client';
 import { JournalEntryAutoService } from '../../../services/journalEntryAuto.service';
 import { supplierSyncService } from '../../../services/supplierSync.service';
+import { AuditLogClient, AuditEntityTypes } from '../../../integrations/audit/audit.client';
 
 const router = Router();
 
@@ -216,10 +217,10 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
             }
         }
 
-        // Status filter
+        // Status filter (approval_status)
         if (status) {
             const statuses = (status as string).split(',');
-            where.status = { in: statuses };
+            where.approval_status = { in: statuses };
         }
 
         // Amount range filter
@@ -233,8 +234,8 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
         const orderBy: any = {};
         const sortField = sort_by as string;
         const sortDir = (sort_order as string).toLowerCase() === 'asc' ? 'asc' : 'desc';
-        if (['date_recorded', 'code', 'vendor', 'amount', 'status', 'created_at', 'updated_at'].includes(sortField)) {
-            orderBy[sortField] = sortDir;
+        if (['date_recorded', 'code', 'vendor', 'amount', 'approval_status', 'created_at', 'updated_at'].includes(sortField)) {
+            orderBy[sortField === 'status' ? 'approval_status' : sortField] = sortDir;
         } else {
             orderBy.updated_at = 'desc';
         }
@@ -273,10 +274,10 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 
         // Get summary counts
         const pendingCount = await prisma.expense.count({
-            where: { ...where, status: 'PENDING' },
+            where: { ...where, approval_status: 'PENDING' },
         });
         const approvedCount = await prisma.expense.count({
-            where: { ...where, status: 'APPROVED' },
+            where: { ...where, approval_status: 'APPROVED' },
         });
         const totalAmount = await prisma.expense.aggregate({
             where,
@@ -303,13 +304,14 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
                 vendor_name: vendorName,
                 vendor_code: vendorCode,
                 invoice_number: exp.invoice_number,
-                status: exp.status,
+                approval_status: exp.approval_status,
+                accounting_status: exp.accounting_status,
                 payment_method: exp.payment_method,
                 payment_reference: exp.payment_reference,
 
                 // Payable info
                 payable_id: exp.payable_id,
-                paymentStatus: exp.payable?.status || (exp.status === 'APPROVED' ? 'PAID' : 'PENDING'),
+                paymentStatus: exp.payable?.payment_status || (exp.approval_status === 'APPROVED' ? 'COMPLETED' : 'PENDING'),
                 balance: exp.payable ? parseFloat(exp.payable.balance?.toString() || '0') : 0,
 
                 // Journal entry
@@ -433,7 +435,8 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
                 description: expense.description,
                 vendor: expense.vendor,
                 invoice_number: expense.invoice_number,
-                status: expense.status,
+                approval_status: expense.approval_status,
+                accounting_status: expense.accounting_status,
                 payment_method: expense.payment_method,
                 payment_reference: expense.payment_reference,
 
@@ -622,6 +625,21 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
             return expense;
         });
 
+        // Audit log - CREATE action (same pattern as Other Revenue)
+        await AuditLogClient.logCreate(
+            AuditEntityTypes.EXPENSE,
+            { id: result.id, code: result.code },
+            result,
+            {
+                id: userId,
+                name: req.user?.username || userId,
+                role: req.user?.role || 'admin',
+            },
+            req
+        );
+
+        logger.info(`[OTHER_EXPENSE] Created expense ${result.code} by ${userId}`);
+
         res.status(201).json({
             success: true,
             message: 'Administrative expense created successfully',
@@ -630,7 +648,8 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
                 code: result.code,
                 expense_type_name: result.expense_type?.name,
                 amount: parseFloat(result.amount.toString()),
-                status: result.status,
+                approval_status: result.approval_status,
+                accounting_status: result.accounting_status,
                 payable_id: result.payable_id,
             },
         });
@@ -670,7 +689,7 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             });
         }
 
-        if (existing.status !== 'PENDING') {
+        if (existing.approval_status !== 'PENDING') {
             return res.status(400).json({
                 success: false,
                 message: 'Only PENDING expenses can be edited',
@@ -831,6 +850,31 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             return expense;
         });
 
+        // Fetch updated expense with all relations for audit log
+        const updatedExpense = await prisma.expense.findUnique({
+            where: { id: result.id },
+            include: {
+                expense_type: true,
+                vendor: { include: { supplier_local: true } },
+            },
+        });
+
+        // Audit log - UPDATE action
+        await AuditLogClient.logUpdate(
+            AuditEntityTypes.EXPENSE,
+            { id: result.id, code: result.code },
+            { ...existing, status: existing.status },  // Previous data
+            { ...updatedExpense },  // New data
+            {
+                id: userId,
+                name: req.user?.username || userId,
+                role: req.user?.role || 'admin',
+            },
+            req
+        );
+
+        logger.info(`[OTHER_EXPENSE] Updated expense ${result.code} by ${userId}`);
+
         res.json({
             success: true,
             message: 'Expense updated successfully',
@@ -857,6 +901,10 @@ router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: N
 
         const existing = await prisma.expense.findFirst({
             where: { id: parseInt(id), is_deleted: false },
+            include: {
+                expense_type: true,
+                vendor: { include: { supplier_local: true } },
+            },
         });
 
         if (!existing) {
@@ -866,7 +914,7 @@ router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: N
             });
         }
 
-        if (existing.status !== 'PENDING') {
+        if (existing.approval_status !== 'PENDING') {
             return res.status(400).json({
                 success: false,
                 message: 'Only PENDING expenses can be deleted',
@@ -882,6 +930,26 @@ router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: N
                 deletion_remarks: reason || null,
             },
         });
+
+        // Audit log - ARCHIVE action for soft delete (same pattern as Other Revenue)
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.EXPENSE,
+            { id: existing.id, code: existing.code },
+            {
+                id: userId,
+                name: req.user?.username || userId,
+                role: req.user?.role || 'admin',
+            },
+            {
+                deletion_reason: reason || 'No reason provided',
+                expense_type: existing.expense_type?.name || 'Unknown',
+                amount: existing.amount?.toString(),
+                vendor: existing.vendor?.supplier_local?.supplier_name || existing.vendor?.name || 'N/A',
+            },
+            req
+        );
+
+        logger.info(`[OTHER_EXPENSE] Deleted expense ${existing.code} by ${userId}. Reason: ${reason || 'N/A'}`);
 
         res.json({
             success: true,
@@ -918,7 +986,7 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
             });
         }
 
-        if (existing.status !== 'PENDING') {
+        if (existing.approval_status !== 'PENDING') {
             return res.status(400).json({
                 success: false,
                 message: 'Only PENDING expenses can be approved',
@@ -1016,7 +1084,8 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
             const expense = await tx.expense.update({
                 where: { id: parseInt(id) },
                 data: {
-                    status: 'APPROVED',
+                    approval_status: 'APPROVED',
+                    accounting_status: 'POSTED',
                     approved_by: userId,
                     approved_at: new Date(),
                     approval_remarks: remarks || null,
@@ -1032,13 +1101,29 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
             return { expense, journalEntry };
         });
 
+        // Audit log - APPROVE action (same pattern as Other Revenue)
+        await AuditLogClient.logApprove(
+            AuditEntityTypes.EXPENSE,
+            { id: result.expense.id, code: result.expense.code },
+            {
+                id: userId,
+                name: req.user?.username || userId,
+                role: req.user?.role || 'admin',
+            },
+            { ...existing, approval_status: existing.approval_status },  // Previous data
+            { ...result.expense, approval_status: 'APPROVED' },  // New data
+            req
+        );
+
+        logger.info(`[OTHER_EXPENSE] Approved expense ${result.expense.code} by ${userId}`);
+
         res.json({
             success: true,
             message: 'Expense approved and journal entry created',
             data: {
                 id: result.expense.id,
                 code: result.expense.code,
-                status: result.expense.status,
+                approval_status: result.expense.approval_status,
                 journal_entry: {
                     id: result.journalEntry.id,
                     code: result.journalEntry.code,
@@ -1071,6 +1156,10 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
 
         const existing = await prisma.expense.findFirst({
             where: { id: parseInt(id), is_deleted: false },
+            include: {
+                expense_type: true,
+                vendor: { include: { supplier_local: true } },
+            },
         });
 
         if (!existing) {
@@ -1080,7 +1169,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
             });
         }
 
-        if (existing.status !== 'PENDING') {
+        if (existing.approval_status !== 'PENDING') {
             return res.status(400).json({
                 success: false,
                 message: 'Only PENDING expenses can be rejected',
@@ -1090,13 +1179,33 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
         const expense = await prisma.expense.update({
             where: { id: parseInt(id) },
             data: {
-                status: 'REJECTED',
+                approval_status: 'REJECTED',
                 rejected_by: userId,
                 rejected_at: new Date(),
                 rejection_remarks: reason,
                 updated_by: userId,
             },
+            include: {
+                expense_type: true,
+            },
         });
+
+        // Audit log - REJECT action (same pattern as Other Revenue)
+        await AuditLogClient.logReject(
+            AuditEntityTypes.EXPENSE,
+            { id: expense.id, code: expense.code },
+            {
+                id: userId,
+                name: req.user?.username || userId,
+                role: req.user?.role || 'admin',
+            },
+            reason,
+            { ...existing, approval_status: existing.approval_status },  // Previous data
+            { ...expense, approval_status: 'REJECTED', rejection_remarks: reason },  // New data
+            req
+        );
+
+        logger.info(`[OTHER_EXPENSE] Rejected expense ${expense.code} by ${userId}. Reason: ${reason}`);
 
         res.json({
             success: true,
@@ -1104,7 +1213,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
             data: {
                 id: expense.id,
                 code: expense.code,
-                status: expense.status,
+                approval_status: expense.approval_status,
             },
         });
     } catch (error) {
@@ -1288,9 +1397,9 @@ router.post('/payment', async (req: AuthRequest, res: Response, next: NextFuncti
             const allPaid = allInstallments.every(i => i.status === 'PAID');
             const somePaid = allInstallments.some(i => i.status === 'PAID' || i.status === 'PARTIALLY_PAID');
 
-            let payableStatusValue: payable_status = 'PENDING';
+            let payableStatusValue: payment_status = 'PENDING';
             if (allPaid) {
-                payableStatusValue = 'PAID';
+                payableStatusValue = 'COMPLETED';
             } else if (somePaid) {
                 payableStatusValue = 'PARTIALLY_PAID';
             }
@@ -1298,7 +1407,7 @@ router.post('/payment', async (req: AuthRequest, res: Response, next: NextFuncti
             await tx.payable.update({
                 where: { id: expense.payable!.id },
                 data: {
-                    status: payableStatusValue,
+                    payment_status: payableStatusValue,
                     paid_amount: totalPaid,
                     balance: Math.max(0, totalDue - totalPaid),
                     last_payment_date: new Date(paymentDate || new Date()),

@@ -166,7 +166,7 @@ export class ReceivableService {
     try {
       const receivable = await this.getReceivableById(id);
 
-      if (receivable.status === 'PAID') {
+      if (receivable.payment_status === 'COMPLETED') {
         throw new ValidationError('Receivable is already fully collected');
       }
 
@@ -181,14 +181,14 @@ export class ReceivableService {
         throw new ValidationError('Payment amount exceeds remaining balance');
       }
 
-      const newStatus = newBalance === 0 ? 'PAID' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
+      const newStatus = newBalance === 0 ? 'COMPLETED' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
 
       const updated = await prisma.receivable.update({
         where: { id },
         data: {
           paid_amount: newPaid.toString(),
           balance: newBalance.toString(),
-          status: newStatus,
+          payment_status: newStatus,
           last_payment_date: new Date(),
           last_payment_amount: payment.toString(),
           updated_by: userId,

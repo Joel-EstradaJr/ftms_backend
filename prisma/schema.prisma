@@ -37,43 +37,19 @@ enum entry_type {
   AUTO_GENERATED // All journal entries are system-generated
 }
 
-enum revenue_accounting_status {
-  DRAFT       // Revenue created, JE not posted, editable
-  POSTED      // Revenue recorded, JE posted, immutable
-  ADJUSTED    // Adjustment JE created, original revenue flagged adjusted
-  REVERSED    // Reversal JE created, original revenue cancelled
-}
-
-enum expense_status {
+enum approval_status {
   PENDING
   APPROVED
   REJECTED
-  COMPLETED
 }
 
-enum revenue_status {
-  PENDING
-  APPROVED
-  REJECTED
-  COMPLETED
-}
-
-enum receivable_status {
+enum payment_status {
   PENDING // Not yet paid at all	
   PARTIALLY_PAID // Some payments received, but balance still exists	
-  PAID // Fully settled, balance = 0	
+  COMPLETED // Fully settled, balance = 0	
   OVERDUE // Past due date; may accrue interest	
   CANCELLED // Invalidated before collection	
   WRITTEN_OFF // Cannot be collected; moved to bad debts	
-}
-
-enum payable_status {
-  PENDING // Not yet paid at all	
-  PARTIALLY_PAID // Some payments received, but balance still exists	
-  PAID // Fully settled, balance = 0	
-  OVERDUE // Past due date; may accrue interest	
-  CANCELLED // Invalidated before collection	
-  WRITTEN_OFF // Cannot be paid; moved to bad debts	
 }
 
 enum payment_method {
@@ -181,6 +157,9 @@ enum bus_trip_employee_role {
 model system_configuration {
   id                         Int      @id @default(autoincrement())
   config_code                String   @unique
+  
+  // Company Information
+  company_name               String?  @default("Company Name")  // Dynamic company name for reports
   
   // Required Fields (with defaults)
   minimum_wage               Decimal  @db.Decimal(12, 2) @default(600.00)
@@ -776,8 +755,6 @@ model revenue {
   description             String?
   // Department reference (optional - for Other Revenue)
   department_id           Int?
-  // Accounting workflow
-  remittance_status       receivable_status @default(PENDING)
   // Payment / Receivable (link only)
   receivable_id           Int?
   driver_receivable_id    Int?
@@ -792,8 +769,11 @@ model revenue {
   bus_trip_assignment_id  String?
   bus_trip_id             String?
   
-  // Approval Workflow
-  status                  revenue_status    @default(PENDING)
+  // STATUSES
+  approval_status         approval_status    @default(PENDING)
+  payment_status       payment_status @default(PENDING)
+  accounting_status       journal_status @default(DRAFT)
+
   approval_remarks        String?           @db.Text
   
   // Relations
@@ -825,7 +805,7 @@ model revenue {
   @@index([revenue_type_id])
   @@index([department_id])
   @@index([date_recorded])
-  @@index([remittance_status])
+  @@index([payment_status])
   @@index([payment_method])
   @@index([receivable_id])
   @@index([driver_receivable_id])
@@ -850,7 +830,7 @@ model receivable {
   due_date              DateTime?
   frequency             receivable_frequency @default(WEEKLY)
   number_of_payments    Int?              // Number of installments
-  status                receivable_status @default(PENDING)
+  status                payment_status @default(PENDING)
   paid_amount           Decimal           @default(0) @db.Decimal(12, 2)
   balance               Decimal           @default(0) @db.Decimal(12, 2)
   last_payment_date     DateTime?
@@ -933,6 +913,8 @@ model revenue_installment_payment {
   payment_reference String?
   journal_entry_id  Int?     @unique
 
+  accounting_status       journal_status @default(DRAFT)
+
   // Relations	
   installment   revenue_installment_schedule @relation(fields: [installment_id], references: [id], onDelete: Cascade)
   revenue       revenue                      @relation(fields: [revenue_id], references: [id])
@@ -998,7 +980,6 @@ model expense {
   description            String?
   vendor_id              Int?                 // FK to vendor table
   invoice_number         String?              // Invoice reference number
-  status                 expense_status       @default(PENDING)
   bus_trip_assignment_id String?
   bus_trip_id            String?
   rental_assignment_id   String?
@@ -1011,6 +992,10 @@ model expense {
   purchase_request_ref String? // Reference to PR for traceability	
   original_amount      Decimal? @db.Decimal(12, 2) // Track original before adjustments	
   adjusted_amount      Decimal? @db.Decimal(12, 2) // Total adjustments (refunds)	
+
+  approval_status        approval_status       @default(PENDING)
+  accounting_status       journal_status @default(DRAFT)
+  payment_status       payment_status @default(PENDING)
 
   // Relations	
   expense_type         expense_type                  @relation(fields: [expense_type_id], references: [id])
@@ -1048,7 +1033,7 @@ model expense {
   @@index([expense_type_id])
   @@index([date_recorded])
   @@index([date_expected])
-  @@index([status])
+  @@index([approval_status])
   @@index([bus_trip_assignment_id, bus_trip_id])
   @@index([payment_method])
   @@index([payable_id])
@@ -1071,7 +1056,7 @@ model payable {
   total_amount          Decimal        @db.Decimal(12, 2)
   due_date              DateTime?
   frequency             receivable_frequency @default(WEEKLY) // Payment schedule frequency
-  status                payable_status @default(PENDING)
+  status                payment_status @default(PENDING)
   paid_amount           Decimal        @default(0) @db.Decimal(12, 2)
   balance               Decimal        @default(0) @db.Decimal(12, 2)
   last_payment_date     DateTime?
@@ -1151,6 +1136,8 @@ model expense_installment_payment {
   payment_method          payment_method? @default(CASH)
   payment_reference String?
   journal_entry_id  Int?
+
+  accounting_status       journal_status @default(DRAFT)
 
   // Relations	
   installment   expense_installment_schedule @relation(fields: [installment_id], references: [id], onDelete: Cascade)

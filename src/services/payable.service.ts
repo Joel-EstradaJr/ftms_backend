@@ -166,7 +166,7 @@ export class PayableService {
     try {
       const payable = await this.getPayableById(id);
 
-      if (payable.status === 'PAID') {
+      if (payable.payment_status === 'COMPLETED') {
         throw new ValidationError('Payable is already fully paid');
       }
 
@@ -181,14 +181,14 @@ export class PayableService {
         throw new ValidationError('Payment amount exceeds remaining balance');
       }
 
-      const newStatus = newBalance === 0 ? 'PAID' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
+      const newStatus = newBalance === 0 ? 'COMPLETED' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
 
       const updated = await prisma.payable.update({
         where: { id },
         data: {
           paid_amount: newPaid.toString(),
           balance: newBalance.toString(),
-          status: newStatus,
+          payment_status: newStatus,
           last_payment_date: new Date(),
           last_payment_amount: payment.toString(),
           updated_by: userId,

@@ -170,25 +170,60 @@ const EXPENSE_TYPE_DATA = [
 ];
 
 /**
- * MINIMAL Chart of Accounts - ONLY ESSENTIAL ACCOUNTS
+ * COMPREHENSIVE Chart of Accounts
+ * 
+ * ACCOUNTING RULE (NON-NEGOTIABLE):
+ * - Each Revenue Type has its own dedicated Accounts Receivable COA (1100-1199)
+ * - Each Expense Type has its own dedicated Accounts Payable COA (2100-2199)
+ * - NO shared or generic AR/AP accounts for transactions
+ * 
+ * This ensures:
+ * - Clear audit trail for each revenue/expense category
+ * - Accurate financial reporting per category
+ * - Compliance with accounting best practices
  */
 const COA_DATA: Record<string, Array<{ name: string; description?: string; customSuffix?: string }>> = {
   Asset: [
-    // CASH & BANK ACCOUNTS
+    // CASH & BANK ACCOUNTS (1000-1099)
     { name: 'Cash on Hand', description: 'Physical cash held in the office', customSuffix: '000' },
     { name: 'Bank Account', description: 'Primary checking account', customSuffix: '005' },
     { name: 'E-Wallet', description: 'Digital wallet for online transactions', customSuffix: '010' },
 
-    // RECEIVABLES
-    { name: 'Accounts Receivable - Drivers', description: 'Amounts owed by drivers for shortages', customSuffix: '100' },
-    { name: 'Accounts Receivable - Conductors', description: 'Amounts owed by conductors for shortages', customSuffix: '105' },
-    { name: 'Accounts Receivable - Other Revenue', description: 'Other employee receivables', customSuffix: '110' },
+    // DEDICATED RECEIVABLES PER REVENUE TYPE (1100-1199)
+    // Each revenue type has its own AR account for installment/deferred payments
+    { name: 'AR - Bus Trip Boundary', description: 'Receivables from Bus Trip Revenue - Boundary (REVT-001)', customSuffix: '100' },
+    { name: 'AR - Bus Trip Percentage', description: 'Receivables from Bus Trip Revenue - Percentage (REVT-002)', customSuffix: '105' },
+    { name: 'AR - Rental Revenue', description: 'Receivables from Rental Revenue (REVT-003)', customSuffix: '110' },
+    { name: 'AR - Advertising Revenue', description: 'Receivables from Advertising Revenue (REVT-004)', customSuffix: '115' },
+    { name: 'AR - Insurance Commission', description: 'Receivables from Insurance Commission (REVT-005)', customSuffix: '120' },
+    { name: 'AR - Terminal Fee Income', description: 'Receivables from Terminal Fee Income (REVT-006)', customSuffix: '125' },
+    { name: 'AR - Parking Fee Income', description: 'Receivables from Parking Fee Income (REVT-007)', customSuffix: '130' },
+    { name: 'AR - Charter Add-on Revenue', description: 'Receivables from Charter Add-on Revenue (REVT-008)', customSuffix: '135' },
+    { name: 'AR - Cargo Handling Fee', description: 'Receivables from Cargo Handling Fee (REVT-009)', customSuffix: '140' },
+    { name: 'AR - Penalty Income', description: 'Receivables from Penalty Income (REVT-010)', customSuffix: '145' },
+    { name: 'AR - Franchise Income', description: 'Receivables from Franchise Income (REVT-011)', customSuffix: '150' },
+    { name: 'AR - Maintenance Service Income', description: 'Receivables from Maintenance Service Income (REVT-012)', customSuffix: '155' },
+    { name: 'AR - Miscellaneous Income', description: 'Receivables from Miscellaneous Income (REVT-013)', customSuffix: '160' },
   ],
 
   Liability: [
-    { name: 'Accounts Payable', description: 'Amounts owed to others', customSuffix: '000' },
-    { name: 'Accounts Payable - Suppliers', description: 'Amounts owed to suppliers', customSuffix: '005' },
-    { name: 'Accounts Payable - Employees', description: 'Salaries and wages payable', customSuffix: '010' },
+    // GENERAL PAYABLES (2000-2099) - Legacy/General Use
+    { name: 'Accounts Payable - General', description: 'General amounts owed to others', customSuffix: '000' },
+
+    // DEDICATED PAYABLES PER EXPENSE TYPE (2100-2199)
+    // Each expense type has its own AP account for unpaid/accrued expenses
+    { name: 'AP - Operational Expenses', description: 'Payables for Operational Expenses (EXPT-001)', customSuffix: '100' },
+    { name: 'AP - Personnel/Salaries', description: 'Payables for Personnel Expenses (EXPT-002)', customSuffix: '105' },
+    { name: 'AP - Bad Debt', description: 'Payables for Bad Debt adjustments (EXPT-003)', customSuffix: '110' },
+    { name: 'AP - Office Supplies', description: 'Payables for Office Supplies (EXPT-004)', customSuffix: '115' },
+    { name: 'AP - Utilities', description: 'Payables for Utilities Expense (EXPT-005)', customSuffix: '120' },
+    { name: 'AP - Rent', description: 'Payables for Rent Expense (EXPT-006)', customSuffix: '125' },
+    { name: 'AP - Internet Subscription', description: 'Payables for Internet Subscription (EXPT-007)', customSuffix: '130' },
+    { name: 'AP - Professional Fees', description: 'Payables for Professional Fees (EXPT-008)', customSuffix: '135' },
+    { name: 'AP - Insurance', description: 'Payables for Insurance Expense (EXPT-009)', customSuffix: '140' },
+    { name: 'AP - License & Permits', description: 'Payables for License & Permits (EXPT-010)', customSuffix: '145' },
+    { name: 'AP - Communication', description: 'Payables for Communication Expense (EXPT-011)', customSuffix: '150' },
+    { name: 'AP - Miscellaneous', description: 'Payables for Miscellaneous Expense (EXPT-012)', customSuffix: '155' },
   ],
 
   Revenue: [
@@ -507,6 +542,7 @@ async function seedSystemConfiguration() {
   const config = await prisma.system_configuration.create({
     data: {
       config_code: 'DEFAULT',
+      company_name: 'Company Name', // Dynamic company name for reports
       minimum_wage: 600.00,
       duration_to_receivable_hours: 72,  // 3 days
       receivable_due_date_days: 30,
@@ -520,6 +556,7 @@ async function seedSystemConfiguration() {
   });
 
   console.log(`  ✅ Created System Configuration: ${config.config_code} (ID: ${config.id})`);
+  console.log(`      - Company Name: ${config.company_name}`);
   console.log(`      - Minimum Wage: ₱${config.minimum_wage}`);
   console.log(`      - Duration to Receivable: ${config.duration_to_receivable_hours} hours`);
   console.log(`      - Receivable Due Date: ${config.receivable_due_date_days} days`);
