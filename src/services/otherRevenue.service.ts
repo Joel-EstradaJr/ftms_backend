@@ -122,6 +122,11 @@ export interface OtherRevenueUpdateInput {
     department_id?: number;  // Reference to department_local
     remarks?: string;
     updated_by: string;
+    // Fields for converting between normal revenue and receivable (installment-based)
+    isUnearnedRevenue?: boolean;
+    scheduleFrequency?: string;
+    scheduleStartDate?: string;
+    numberOfPayments?: number;
 }
 
 // --------------------------
@@ -863,12 +868,20 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
 /**
  * Update an existing other revenue record
  * Only allowed for PENDING approval status records (before approval)
+ * 
+ * Supports converting between:
+ * - Normal Revenue → Receivable (installment-based): Creates receivable + installment schedule
+ * - Receivable → Normal Revenue: HARD DELETES all installment schedules and receivable
  */
 export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateInput) {
     // Check if record exists and is editable
     const existing = await prisma.revenue.findFirst({
         where: { id, is_deleted: false },
-        include: { receivable: true }
+        include: { 
+            receivable: {
+                include: { installment_schedule: true }
+            }
+        }
     });
 
     if (!existing) {
@@ -894,122 +907,256 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
         }
     }
 
-    // Build update data
-    const updateData: Prisma.revenueUpdateInput = {
-        updated_by: input.updated_by,
-        updated_at: new Date()
-    };
+    // Determine if this is a conversion operation
+    const wasUnearnedRevenue = !!existing.receivable;
+    const isNowUnearnedRevenue = input.isUnearnedRevenue ?? wasUnearnedRevenue;
+    const isConversion = wasUnearnedRevenue !== isNowUnearnedRevenue;
 
-    if (input.revenue_type_id) {
-        // Validate revenue type
-        const revenueType = await prisma.revenue_type.findFirst({
-            where: { id: input.revenue_type_id, is_deleted: false }
+    logger.info(`[OTHER_REVENUE] Update conversion check - wasUnearnedRevenue: ${wasUnearnedRevenue}, isNowUnearnedRevenue: ${isNowUnearnedRevenue}, isConversion: ${isConversion}, input.isUnearnedRevenue: ${input.isUnearnedRevenue}`);
+
+    // Get department name for receivable creation if needed
+    let departmentName = 'General';
+    if (input.department_id || existing.department_id) {
+        const department = await prisma.department_local.findUnique({
+            where: { id: input.department_id || existing.department_id || 0 },
+            select: { department_name: true }
         });
-        if (!revenueType || revenueType.id < 4) {
-            throw new Error('Invalid revenue type');
-        }
-        updateData.revenue_type = { connect: { id: input.revenue_type_id } };
-    }
-
-    if (input.amount !== undefined) updateData.amount = input.amount;
-    if (input.date_recorded) updateData.date_recorded = new Date(input.date_recorded);
-    if (input.payment_method) updateData.payment_method = input.payment_method as payment_method;
-    if (input.payment_reference !== undefined) updateData.payment_reference = input.payment_reference;
-
-    // Update department_id if provided
-    if (input.department_id !== undefined) {
-        if (input.department_id === null) {
-            updateData.department = { disconnect: true };
-        } else {
-            updateData.department = { connect: { id: input.department_id } };
+        if (department) {
+            departmentName = department.department_name;
         }
     }
 
-    // Update description if provided (no longer includes department)
-    if (input.description !== undefined || input.remarks !== undefined) {
-        const currentDesc = existing.description || '';
-        // Extract current remarks if present
-        const remarksMatch = currentDesc.match(/\s*\(([^)]+)\)$/);
-        const currentRemarks = remarksMatch ? remarksMatch[1] : '';
-        const baseDesc = remarksMatch ? currentDesc.slice(0, -remarksMatch[0].length).trim() : currentDesc;
+    // Use transaction for atomicity when converting
+    const result = await prisma.$transaction(async (tx) => {
+        // Build update data
+        const updateData: Prisma.revenueUpdateInput = {
+            updated_by: input.updated_by,
+            updated_at: new Date()
+        };
 
-        const newDesc = input.description ?? baseDesc;
-        const newRemarks = input.remarks ?? currentRemarks;
-        updateData.description = newRemarks ? `${newDesc} (${newRemarks})` : newDesc;
-    }
+        if (input.revenue_type_id) {
+            // Validate revenue type
+            const revenueType = await tx.revenue_type.findFirst({
+                where: { id: input.revenue_type_id, is_deleted: false }
+            });
+            if (!revenueType || revenueType.id < 4) {
+                throw new Error('Invalid revenue type');
+            }
+            updateData.revenue_type = { connect: { id: input.revenue_type_id } };
+        }
 
-    const updated = await prisma.revenue.update({
-        where: { id },
-        data: updateData,
-        include: {
-            revenue_type: true,
-            department: true,  // Include department relation
-            receivable: {
-                include: { installment_schedule: true }
+        if (input.amount !== undefined) updateData.amount = input.amount;
+        if (input.date_recorded) updateData.date_recorded = new Date(input.date_recorded);
+        if (input.payment_method) updateData.payment_method = input.payment_method as payment_method;
+        if (input.payment_reference !== undefined) updateData.payment_reference = input.payment_reference;
+
+        // Update department_id if provided
+        if (input.department_id !== undefined) {
+            if (input.department_id === null) {
+                updateData.department = { disconnect: true };
+            } else {
+                updateData.department = { connect: { id: input.department_id } };
             }
         }
-    });
 
-    // If amount was updated and there's an associated receivable (unearned revenue),
-    // recalculate the receivable total and installment schedule
-    if (input.amount !== undefined && updated.receivable) {
-        const newAmount = input.amount;
-        const receivable = updated.receivable;
-        const installments = receivable.installment_schedule;
+        // Update description if provided
+        if (input.description !== undefined || input.remarks !== undefined) {
+            const currentDesc = existing.description || '';
+            const remarksMatch = currentDesc.match(/\s*\(([^)]+)\)$/);
+            const currentRemarks = remarksMatch ? remarksMatch[1] : '';
+            const baseDesc = remarksMatch ? currentDesc.slice(0, -remarksMatch[0].length).trim() : currentDesc;
 
-        if (installments && installments.length > 0) {
-            // Calculate new amount per installment
-            const numberOfPayments = installments.length;
-            const amountPerInstallment = newAmount / numberOfPayments;
+            const newDesc = input.description ?? baseDesc;
+            const newRemarks = input.remarks ?? currentRemarks;
+            updateData.description = newRemarks ? `${newDesc} (${newRemarks})` : newDesc;
+        }
 
-            // Update each installment, preserving paid amounts and recalculating balances
-            for (const installment of installments) {
-                const paidAmount = Number(installment.amount_paid);
-                const newAmountDue = amountPerInstallment;
-                const newBalance = Math.max(0, newAmountDue - paidAmount);
+        // Handle conversion: Receivable → Normal Revenue
+        if (isConversion && wasUnearnedRevenue && !isNowUnearnedRevenue) {
+            logger.info(`[OTHER_REVENUE] Converting revenue ${existing.code} from RECEIVABLE to NORMAL revenue`);
+            
+            // HARD DELETE all related records (in correct order due to foreign keys)
+            if (existing.receivable) {
+                const receivableId = existing.receivable.id;
+                const scheduleIds = existing.receivable.installment_schedule?.map(s => s.id) || [];
+                
+                // 1. First, delete all payments linked to the installment schedules
+                if (scheduleIds.length > 0) {
+                    await tx.revenue_installment_payment.deleteMany({
+                        where: { installment_id: { in: scheduleIds } }
+                    });
+                    logger.info(`[OTHER_REVENUE] Deleted payments for ${scheduleIds.length} installment schedules`);
+                }
+                
+                // 2. Delete all installment schedules
+                await tx.revenue_installment_schedule.deleteMany({
+                    where: { receivable_id: receivableId }
+                });
+                logger.info(`[OTHER_REVENUE] Deleted ${scheduleIds.length} installment schedules`);
+                
+                // 3. First disconnect the revenue from the receivable (set receivable_id to null)
+                await tx.revenue.update({
+                    where: { id },
+                    data: { receivable_id: null }
+                });
+                
+                // 4. Then delete the receivable
+                await tx.receivable.delete({
+                    where: { id: receivableId }
+                });
+                logger.info(`[OTHER_REVENUE] Deleted receivable ${receivableId}`);
+            }
+            
+            // Update payment_status to COMPLETED for normal revenue
+            updateData.payment_status = 'COMPLETED';
+        }
 
-                // Determine new status based on payments
-                let newStatus: installment_status = 'PENDING';
-                if (paidAmount >= newAmountDue) {
-                    newStatus = 'PAID';
-                } else if (paidAmount > 0) {
-                    newStatus = 'PARTIALLY_PAID';
-                } else {
-                    // Check if overdue
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    if (new Date(installment.due_date) < today) {
-                        newStatus = 'OVERDUE';
-                    }
+        // Handle conversion: Normal Revenue → Receivable
+        if (isConversion && !wasUnearnedRevenue && isNowUnearnedRevenue) {
+            logger.info(`[OTHER_REVENUE] Converting revenue ${existing.code} from NORMAL to RECEIVABLE (installment-based)`);
+            
+            // Validate required fields for receivable creation
+            if (!input.scheduleFrequency || !input.numberOfPayments || input.numberOfPayments < 1) {
+                throw new Error('Schedule frequency and number of payments are required for installment-based revenue');
+            }
+
+            const amount = input.amount ?? Number(existing.amount);
+            const startDate = input.scheduleStartDate ? new Date(input.scheduleStartDate) : new Date();
+            const fullDescription = updateData.description as string || existing.description || '';
+
+            // Create receivable
+            const receivableCode = await generateCode('receivable');
+            const receivable = await tx.receivable.create({
+                data: {
+                    code: receivableCode,
+                    debtor_name: departmentName,
+                    description: fullDescription,
+                    total_amount: amount,
+                    installment_start_date: startDate,
+                    frequency: input.scheduleFrequency as receivable_frequency,
+                    number_of_payments: input.numberOfPayments,
+                    status: 'PENDING',
+                    created_by: input.updated_by,
+                }
+            });
+
+            // Create installment schedule
+            const amountPerInstallment = amount / input.numberOfPayments;
+            for (let i = 0; i < input.numberOfPayments; i++) {
+                const scheduleDate = new Date(startDate);
+                switch (input.scheduleFrequency) {
+                    case 'DAILY':
+                        scheduleDate.setDate(startDate.getDate() + i);
+                        break;
+                    case 'WEEKLY':
+                        scheduleDate.setDate(startDate.getDate() + (i * 7));
+                        break;
+                    case 'BIWEEKLY':
+                        scheduleDate.setDate(startDate.getDate() + (i * 14));
+                        break;
+                    case 'MONTHLY':
+                        scheduleDate.setMonth(startDate.getMonth() + i);
+                        break;
+                    case 'QUARTERLY':
+                        scheduleDate.setMonth(startDate.getMonth() + (i * 3));
+                        break;
+                    case 'ANNUALLY':
+                        scheduleDate.setFullYear(startDate.getFullYear() + i);
+                        break;
+                    default:
+                        scheduleDate.setDate(startDate.getDate() + i);
                 }
 
-                await prisma.revenue_installment_schedule.update({
-                    where: { id: installment.id },
+                await tx.revenue_installment_schedule.create({
                     data: {
-                        amount_due: newAmountDue,
-                        balance: newBalance,
-                        status: newStatus,
-                        updated_by: input.updated_by,
-                        updated_at: new Date()
+                        receivable_id: receivable.id,
+                        installment_number: i + 1,
+                        due_date: scheduleDate,
+                        amount_due: amountPerInstallment,
+                        balance: amountPerInstallment,
+                        status: 'PENDING',
                     }
                 });
             }
 
-            // Update receivable total_amount
-            await prisma.receivable.update({
-                where: { id: receivable.id },
-                data: {
-                    total_amount: newAmount,
-                    updated_by: input.updated_by,
-                    updated_at: new Date()
-                }
-            });
+            logger.info(`[OTHER_REVENUE] Created receivable ${receivableCode} with ${input.numberOfPayments} installments`);
 
-            logger.info(`[OTHER_REVENUE] Recalculated receivable and ${numberOfPayments} installments for revenue ${updated.code}`);
+            // Connect receivable to revenue and update payment_status
+            updateData.receivable = { connect: { id: receivable.id } };
+            updateData.payment_status = 'PENDING'; // Receivable starts as pending
         }
-    }
 
-    logger.info(`[OTHER_REVENUE] Updated revenue ${updated.code}`);
+        // Update the revenue record
+        const updated = await tx.revenue.update({
+            where: { id },
+            data: updateData,
+            include: {
+                revenue_type: true,
+                department: true,
+                receivable: {
+                    include: { installment_schedule: true }
+                }
+            }
+        });
+
+        // If amount was updated and there's an associated receivable (and not converting away from receivable),
+        // recalculate the receivable total and installment schedule
+        if (input.amount !== undefined && updated.receivable && !isConversion) {
+            const newAmount = input.amount;
+            const receivable = updated.receivable;
+            const installments = receivable.installment_schedule;
+
+            if (installments && installments.length > 0) {
+                const numberOfPayments = installments.length;
+                const amountPerInstallment = newAmount / numberOfPayments;
+
+                for (const installment of installments) {
+                    const paidAmount = Number(installment.amount_paid);
+                    const newAmountDue = amountPerInstallment;
+                    const newBalance = Math.max(0, newAmountDue - paidAmount);
+
+                    let newStatus: installment_status = 'PENDING';
+                    if (paidAmount >= newAmountDue) {
+                        newStatus = 'PAID';
+                    } else if (paidAmount > 0) {
+                        newStatus = 'PARTIALLY_PAID';
+                    } else {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        if (new Date(installment.due_date) < today) {
+                            newStatus = 'OVERDUE';
+                        }
+                    }
+
+                    await tx.revenue_installment_schedule.update({
+                        where: { id: installment.id },
+                        data: {
+                            amount_due: newAmountDue,
+                            balance: newBalance,
+                            status: newStatus,
+                            updated_by: input.updated_by,
+                            updated_at: new Date()
+                        }
+                    });
+                }
+
+                await tx.receivable.update({
+                    where: { id: receivable.id },
+                    data: {
+                        total_amount: newAmount,
+                        updated_by: input.updated_by,
+                        updated_at: new Date()
+                    }
+                });
+
+                logger.info(`[OTHER_REVENUE] Recalculated receivable and ${numberOfPayments} installments for revenue ${updated.code}`);
+            }
+        }
+
+        return updated;
+    });
+
+    logger.info(`[OTHER_REVENUE] Updated revenue ${result.code}${isConversion ? ` (converted to ${isNowUnearnedRevenue ? 'RECEIVABLE' : 'NORMAL'})` : ''}`);
 
     // Re-fetch with updated receivable data
     const finalResult = await prisma.revenue.findUnique({
