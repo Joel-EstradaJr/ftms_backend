@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../../../middleware/auth';
 import { prisma } from '../../../config/database';
 import { logger } from '../../../config/logger';
-import { approval_status, payment_method } from '@prisma/client';
+import { approval_status, payment_method, payment_status, installment_status, receivable_frequency, Prisma } from '@prisma/client';
 import { operationalExpenseService } from '../../../services/operationalExpense.service';
 
 const router = Router();
@@ -498,7 +498,20 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             bus: true,
           },
         },
-        payable: true,
+        payable: {
+          include: {
+            installment_schedule: {
+              where: { is_deleted: false },
+              orderBy: { installment_number: 'asc' },
+              include: {
+                payments: {
+                  where: { is_deleted: false },
+                  orderBy: { payment_date: 'desc' },
+                },
+              },
+            },
+          },
+        },
         journal_entry: true,
       },
     });
@@ -511,6 +524,27 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
     }
 
     const isBusTrip = !!expense.bus_trip_assignment_id;
+
+    // Transform installment schedule for frontend
+    const scheduleItems = expense.payable?.installment_schedule?.map(inst => ({
+      id: inst.id,
+      payable_id: inst.payable_id,
+      installment_number: inst.installment_number,
+      due_date: inst.due_date.toISOString().split('T')[0],
+      amount_due: parseFloat(inst.amount_due.toString()),
+      amount_paid: parseFloat(inst.amount_paid.toString()),
+      balance: parseFloat(inst.balance.toString()),
+      status: inst.status,
+      isPastDue: new Date(inst.due_date) < new Date() && inst.status !== 'PAID',
+      isEditable: inst.status === 'PENDING',
+      payments: inst.payments.map(p => ({
+        id: p.id,
+        amount_paid: parseFloat(p.amount_paid.toString()),
+        payment_date: p.payment_date.toISOString(),
+        payment_method: p.payment_method,
+        payment_reference: p.payment_reference,
+      })),
+    })) || [];
 
     res.json({
       success: true,
@@ -525,6 +559,7 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         description: expense.description,
         approval_status: expense.approval_status,
         accounting_status: expense.accounting_status,
+        payment_status: expense.payment_status,
         payment_method: expense.payment_method,
 
         // Trip info
@@ -540,12 +575,29 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         body_number: isBusTrip ? expense.bus_trip?.bus?.body_number : expense.rental?.bus?.body_number,
         bus_type: isBusTrip ? expense.bus_trip?.bus?.type : expense.rental?.bus?.type,
 
-        // Reimbursement
+        // Reimbursement / Payable
         is_reimbursable: expense.payment_method === 'REIMBURSEMENT',
         payable_id: expense.payable_id,
         employee_reference: expense.payable?.employee_reference,
         creditor_name: expense.payable?.creditor_name,
         payable_description: expense.payable?.description,
+
+        // Payable details (for reimbursements)
+        payable: expense.payable ? {
+          id: expense.payable.id,
+          code: expense.payable.code,
+          creditor_name: expense.payable.creditor_name,
+          employee_reference: expense.payable.employee_reference,
+          total_amount: parseFloat(expense.payable.total_amount.toString()),
+          paid_amount: parseFloat(expense.payable.paid_amount.toString()),
+          balance: parseFloat(expense.payable.balance.toString()),
+          status: expense.payable.status,
+          frequency: expense.payable.frequency,
+          due_date: expense.payable.due_date?.toISOString().split('T')[0],
+        } : null,
+
+        // Installment schedule (for reimbursements)
+        scheduleItems,
 
         // Journal entry
         journal_entry_id: expense.journal_entry_id,
@@ -605,23 +657,81 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
       ? 'REIMBURSEMENT'
       : (expense_information.payment_method as payment_method) || 'CASH';
 
-    // Create payable if reimbursement
+    // Create payable with installment schedule if reimbursement
     let payableId: number | null = null;
     if (is_reimbursable && reimbursable_details) {
-      const payable = await prisma.payable.create({
-        data: {
-          code: `PAY-${expenseCode}`,
-          creditor_name: reimbursable_details.employee_name,
-          employee_reference: reimbursable_details.employee_number,
-          description: `Reimbursement for ${expenseCode}`,
-          total_amount: expense_information.amount,
-          balance: expense_information.amount,
-          due_date: reimbursable_details.due_date ? new Date(reimbursable_details.due_date) : null,
-          status: 'PENDING',
-          created_by: userId,
-        },
+      // Get system config for defaults
+      const config = await prisma.system_configuration.findFirst({
+        where: { is_active: true, is_deleted: false },
       });
-      payableId = payable.id;
+
+      const frequency = (reimbursable_details.frequency as receivable_frequency) || config?.default_frequency || 'WEEKLY';
+      const numberOfPayments = reimbursable_details.number_of_payments || config?.default_number_of_payments || 3;
+      const startDate = reimbursable_details.start_date 
+        ? new Date(reimbursable_details.start_date) 
+        : new Date();
+      const dueDate = reimbursable_details.due_date 
+        ? new Date(reimbursable_details.due_date) 
+        : null;
+
+      // Create payable with installment schedule in transaction
+      const payableResult = await prisma.$transaction(async (tx) => {
+        const payable = await tx.payable.create({
+          data: {
+            code: `PAY-${expenseCode}`,
+            creditor_name: reimbursable_details.employee_name,
+            employee_reference: reimbursable_details.employee_number,
+            description: `Reimbursement for ${expenseCode}`,
+            total_amount: expense_information.amount,
+            balance: expense_information.amount,
+            due_date: dueDate,
+            frequency: frequency,
+            status: 'PENDING',
+            created_by: userId,
+          },
+        });
+
+        // Generate installment schedule
+        const amountPerInstallment = Number(expense_information.amount) / numberOfPayments;
+        for (let i = 0; i < numberOfPayments; i++) {
+          const installmentDueDate = new Date(startDate);
+          
+          switch (frequency) {
+            case 'DAILY':
+              installmentDueDate.setDate(installmentDueDate.getDate() + i);
+              break;
+            case 'WEEKLY':
+              installmentDueDate.setDate(installmentDueDate.getDate() + (i * 7));
+              break;
+            case 'BIWEEKLY':
+              installmentDueDate.setDate(installmentDueDate.getDate() + (i * 14));
+              break;
+            case 'MONTHLY':
+              installmentDueDate.setMonth(installmentDueDate.getMonth() + i);
+              break;
+            case 'ANNUALLY':
+              installmentDueDate.setFullYear(installmentDueDate.getFullYear() + i);
+              break;
+          }
+
+          await tx.expense_installment_schedule.create({
+            data: {
+              payable_id: payable.id,
+              installment_number: i + 1,
+              due_date: installmentDueDate,
+              amount_due: amountPerInstallment,
+              amount_paid: 0,
+              balance: amountPerInstallment,
+              status: 'PENDING',
+              created_by: userId,
+            },
+          });
+        }
+
+        return payable;
+      });
+
+      payableId = payableResult.id;
     }
 
     // Create expense
@@ -999,6 +1109,241 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
     });
   } catch (error) {
     logger.error('Error rejecting expense:', error);
+    next(error);
+  }
+});
+
+/**
+ * POST /:id/payment
+ * Record payment for a reimbursable expense installment
+ * Supports cascade payments across multiple installments
+ */
+router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const {
+      installment_id,
+      amount_paid,
+      payment_date,
+      payment_method: paymentMethodInput,
+      payment_reference,
+    } = req.body;
+    const userId = req.user?.sub || 'system';
+
+    logger.info(`[OperationalExpenses] Recording payment for expense ${id}, installment ${installment_id}, amount: ${amount_paid}`);
+
+    // Validate amount
+    if (!amount_paid || amount_paid <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment amount must be greater than 0',
+      });
+    }
+
+    // Get expense with payable and installments
+    const expense = await prisma.expense.findFirst({
+      where: {
+        id: parseInt(id),
+        is_deleted: false,
+      },
+      include: {
+        payable: {
+          include: {
+            installment_schedule: {
+              where: { is_deleted: false },
+              orderBy: { installment_number: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!expense) {
+      return res.status(404).json({
+        success: false,
+        message: 'Expense not found',
+      });
+    }
+
+    if (expense.payment_method !== 'REIMBURSEMENT') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment can only be recorded for reimbursable expenses',
+      });
+    }
+
+    if (expense.approval_status !== 'APPROVED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment can only be recorded for approved expenses',
+      });
+    }
+
+    if (!expense.payable) {
+      return res.status(400).json({
+        success: false,
+        message: 'No payable found for this expense',
+      });
+    }
+
+    const payable = expense.payable;
+    const allInstallments = payable.installment_schedule.filter(
+      inst => inst.status !== 'PAID' && inst.status !== 'CANCELLED' && inst.status !== 'WRITTEN_OFF'
+    );
+
+    // Find starting installment
+    const startingInstallment = payable.installment_schedule.find(inst => inst.id === installment_id);
+    if (!startingInstallment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Installment not found',
+      });
+    }
+
+    if (startingInstallment.status === 'PAID') {
+      return res.status(400).json({
+        success: false,
+        message: 'This installment has already been fully paid',
+      });
+    }
+
+    const amountPaid = new Prisma.Decimal(amount_paid);
+
+    // Validate against total payable balance
+    if (amountPaid.greaterThan(payable.balance)) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment amount (${amount_paid}) exceeds total payable balance (${payable.balance})`,
+      });
+    }
+
+    const paymentDateValue = payment_date ? new Date(payment_date) : new Date();
+
+    // Find starting installment index in unpaid installments
+    const startIndex = allInstallments.findIndex(inst => inst.id === installment_id);
+
+    // Execute cascade payment in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      let remainingAmount = amountPaid;
+      const updatedInstallments: Array<{
+        id: number;
+        installment_number: number;
+        amount_applied: number;
+        amount_due: number;
+        amount_paid: number;
+        balance: number;
+        status: string;
+      }> = [];
+      const paymentRecords: any[] = [];
+
+      // Start from the selected installment and cascade forward
+      for (let i = startIndex; i < allInstallments.length && remainingAmount.greaterThan(0); i++) {
+        const installment = allInstallments[i];
+        const installmentBalance = installment.balance;
+
+        // Calculate amount to apply to this installment
+        const amountToApply = remainingAmount.greaterThan(installmentBalance)
+          ? installmentBalance
+          : remainingAmount;
+
+        if (amountToApply.lessThanOrEqualTo(0)) continue;
+
+        // Create payment record
+        const payment = await tx.expense_installment_payment.create({
+          data: {
+            installment_id: installment.id,
+            expense_id: expense.id,
+            amount_paid: amountToApply,
+            payment_date: paymentDateValue,
+            payment_method: paymentMethodInput || 'CASH',
+            payment_reference: payment_reference || null,
+            created_by: userId,
+          },
+        });
+        paymentRecords.push(payment);
+
+        // Update installment
+        const newInstallmentPaid = installment.amount_paid.add(amountToApply);
+        const newInstallmentBalance = installment.balance.sub(amountToApply);
+        const newInstallmentStatus: installment_status = newInstallmentBalance.lessThanOrEqualTo(0) ? 'PAID' : 'PARTIALLY_PAID';
+
+        const updatedInstallment = await tx.expense_installment_schedule.update({
+          where: { id: installment.id },
+          data: {
+            amount_paid: newInstallmentPaid,
+            balance: newInstallmentBalance,
+            status: newInstallmentStatus,
+            updated_by: userId,
+          },
+        });
+
+        updatedInstallments.push({
+          id: updatedInstallment.id,
+          installment_number: updatedInstallment.installment_number,
+          amount_applied: Number(amountToApply),
+          amount_due: Number(updatedInstallment.amount_due),
+          amount_paid: Number(updatedInstallment.amount_paid),
+          balance: Number(updatedInstallment.balance),
+          status: updatedInstallment.status,
+        });
+
+        // Reduce remaining amount
+        remainingAmount = remainingAmount.sub(amountToApply);
+      }
+
+      // Update payable totals
+      const newPayablePaid = payable.paid_amount.add(amountPaid);
+      const newPayableBalance = payable.balance.sub(amountPaid);
+      const newPayableStatus: payment_status = newPayableBalance.lessThanOrEqualTo(0)
+        ? 'COMPLETED'
+        : 'PARTIALLY_PAID';
+
+      const updatedPayable = await tx.payable.update({
+        where: { id: payable.id },
+        data: {
+          paid_amount: newPayablePaid,
+          balance: newPayableBalance,
+          status: newPayableStatus,
+          last_payment_date: paymentDateValue,
+          last_payment_amount: amountPaid,
+          updated_by: userId,
+        },
+      });
+
+      // Update expense payment_status
+      await tx.expense.update({
+        where: { id: expense.id },
+        data: {
+          payment_status: newPayableStatus,
+          updated_by: userId,
+        },
+      });
+
+      return { paymentRecords, updatedInstallments, updatedPayable };
+    });
+
+    logger.info(`[OperationalExpenses] Recorded cascade payment for ${result.updatedInstallments.length} installment(s), total: ${amountPaid}`);
+
+    res.json({
+      success: true,
+      message: result.updatedInstallments.length > 1
+        ? `Payment of ${amount_paid} applied across ${result.updatedInstallments.length} installments`
+        : 'Payment recorded successfully',
+      data: {
+        installments_updated: result.updatedInstallments,
+        payable: {
+          id: result.updatedPayable.id,
+          code: result.updatedPayable.code,
+          total_amount: Number(result.updatedPayable.total_amount),
+          paid_amount: Number(result.updatedPayable.paid_amount),
+          balance: Number(result.updatedPayable.balance),
+          status: result.updatedPayable.status,
+        },
+        total_applied: Number(amountPaid),
+      },
+    });
+  } catch (error) {
+    logger.error('Error recording expense payment:', error);
     next(error);
   }
 });
