@@ -351,8 +351,9 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
             description: parsedDescriptions[i].description,
             remarks: parsedDescriptions[i].remarks,
             amount: Number(r.amount),
-            status: (r as any).status,
-            approvalRemarks: (r as any).approval_remarks,
+            approval_status: r.approval_status,  // Include approval_status from database
+            accounting_status: r.accounting_status,  // Include accounting_status from database
+            approvalRemarks: r.approval_remarks,
             payment_status: r.payment_status,
             payment_method: r.payment_method,
             payment_reference: r.payment_reference,
