@@ -321,6 +321,8 @@ export class RentalRevenueService {
             description: rev.description,
             payment_method: rev.payment_method as PaymentMethodEnum | null,
             payment_status: rev.payment_status,
+            approval_status: rev.approval_status,
+            accounting_status: rev.accounting_status,
 
             // Rental fields
             assignment_id: rev.rental_assignment_id || '',
@@ -676,7 +678,7 @@ export class RentalRevenueService {
         // Audit log
         await AuditLogClient.logCreate(
             'Rental Revenue',
-            { id: result.revenue.id, code: revenueCode, receivable_id: result.receivableId },
+            { id: result.revenue.id, code: revenueCode },
             result.revenue,
             { id: userId, name: userInfo?.username, role: userInfo?.role },
             req
