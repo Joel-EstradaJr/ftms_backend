@@ -619,10 +619,11 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
                 // If payment_status is explicitly provided (e.g., by Other Revenue controller), use it
                 // Otherwise, fall back to original logic: PENDING for unearned, PAID for single payments
                 payment_status: (input as any).payment_status || (input.isUnearnedRevenue ? 'PENDING' : 'COMPLETED'),
-                status: 'PENDING' as any, // Initial status is always PENDING
+                approval_status: 'PENDING', // Initial approval status is always PENDING
+                accounting_status: 'DRAFT', // Journal entry posting is manual
                 created_by: input.created_by,
                 updated_at: new Date()
-            } as any,
+            },
             include: {
                 revenue_type: true,
                 department: true,  // Include department relation
@@ -746,7 +747,7 @@ export async function approveOtherRevenue(id: number, userId: string) {
     });
 
     if (!record) throw new Error('Revenue record not found');
-    if ((record as any).status !== 'PENDING') throw new Error(`Cannot approve record with status ${(record as any).status}`);
+    if (record.approval_status !== 'PENDING') throw new Error(`Cannot approve record with status ${record.approval_status}`);
 
     // Determine if this is unearned revenue (has receivable/installments)
     const isUnearnedRevenue = record.receivable_id !== null;
@@ -756,13 +757,13 @@ export async function approveOtherRevenue(id: number, userId: string) {
         const updated = await tx.revenue.update({
             where: { id },
             data: {
-                status: 'APPROVED' as any,
+                approval_status: 'APPROVED',
                 // Non-unearned: auto-mark as PAID (single payment already received)
                 // Unearned: keep PENDING (still needs installment payments)
                 payment_status: isUnearnedRevenue ? 'PENDING' : 'COMPLETED',
                 updated_by: userId,
                 updated_at: new Date()
-            } as any,
+            },
             include: { revenue_type: true }
         });
 
@@ -776,11 +777,11 @@ export async function approveOtherRevenue(id: number, userId: string) {
         { id: userId },
         { 
             ...record,
-            status: (record as any).status 
+            approval_status: record.approval_status 
         },
         { 
             ...record,
-            status: 'APPROVED', 
+            approval_status: 'APPROVED', 
             payment_status: isUnearnedRevenue ? 'PENDING' : 'COMPLETED' 
         }
     );
@@ -813,17 +814,17 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
     });
 
     if (!record) throw new Error('Revenue record not found');
-    if ((record as any).status !== 'PENDING') throw new Error(`Cannot reject record with status ${(record as any).status}`);
+    if (record.approval_status !== 'PENDING') throw new Error(`Cannot reject record with status ${record.approval_status}`);
 
     const result = await prisma.revenue.update({
         where: { id },
         data: {
-            status: 'REJECTED' as any,
-            payment_status: 'CANCELLED' as any,
-            approval_remarks: (remarks || null) as any,
+            approval_status: 'REJECTED',
+            payment_status: 'CANCELLED',
+            approval_remarks: remarks || null,
             updated_by: userId,
             updated_at: new Date()
-        } as any
+        }
     });
 
     // Audit log for rejection - include full record for proper summary
@@ -834,12 +835,12 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
         remarks,
         { 
             ...record,
-            status: (record as any).status, 
-            payment_status: (record as any).payment_status 
+            approval_status: record.approval_status, 
+            payment_status: record.payment_status 
         },
         { 
             ...record,
-            status: 'REJECTED', 
+            approval_status: 'REJECTED', 
             payment_status: 'CANCELLED', 
             approval_remarks: remarks 
         }
@@ -1091,9 +1092,9 @@ export async function recordPayment(input: RecordPaymentInput) {
         throw new Error('Revenue record not found');
     }
 
-    // STRICT: Only allow payments for APPROVED or COMPLETED records
-    if ((revenue as any).status !== 'APPROVED' && (revenue as any).status !== 'COMPLETED') {
-        throw new Error(`Cannot record payment: revenue record is ${(revenue as any).status.toLowerCase()}. Please approve it first.`);
+    // STRICT: Only allow payments for APPROVED records
+    if (revenue.approval_status !== 'APPROVED') {
+        throw new Error(`Cannot record payment: revenue record is ${revenue.approval_status.toLowerCase()}. Please approve it first.`);
     }
 
     if (!revenue.receivable) {

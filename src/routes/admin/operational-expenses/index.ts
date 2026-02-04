@@ -616,7 +616,9 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
         amount: expense_information.amount,
         date_recorded: expense_information.date_recorded ? new Date(expense_information.date_recorded) : new Date(),
         description: remarks,
-        status: 'PENDING',
+        approval_status: 'PENDING',
+        accounting_status: 'DRAFT',
+        payment_status: 'PENDING',
         payment_method: paymentMethod,
 
         // Trip assignment
