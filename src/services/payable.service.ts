@@ -166,7 +166,7 @@ export class PayableService {
     try {
       const payable = await this.getPayableById(id);
 
-      if (payable.payment_status === 'COMPLETED') {
+      if (payable.status === 'COMPLETED') {
         throw new ValidationError('Payable is already fully paid');
       }
 
@@ -188,7 +188,7 @@ export class PayableService {
         data: {
           paid_amount: newPaid.toString(),
           balance: newBalance.toString(),
-          payment_status: newStatus,
+          status: newStatus,
           last_payment_date: new Date(),
           last_payment_amount: payment.toString(),
           updated_by: userId,

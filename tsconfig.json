@@ -31,8 +31,7 @@
   },
   "include": [
     "src/**/*",
-    "lib/**/*",
-    "scripts/**/*"
+    "lib/**/*"
   ],
   "exclude": [
     "node_modules",

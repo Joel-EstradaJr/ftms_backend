@@ -10,10 +10,10 @@ const enableQueryLogs = process.env.PRISMA_LOG_QUERIES === 'true';
 const prisma = new PrismaClient({
   log: [
     // Always listen for errors and warnings
-    { emit: 'event', level: 'error' },
-    { emit: 'event', level: 'warn' },
+    { emit: 'event' as const, level: 'error' as const },
+    { emit: 'event' as const, level: 'warn' as const },
     // Conditionally enable query events
-    ...(enableQueryLogs ? [{ emit: 'event', level: 'query' }] : []),
+    ...(enableQueryLogs ? [{ emit: 'event' as const, level: 'query' as const }] : []),
   ],
 });
 

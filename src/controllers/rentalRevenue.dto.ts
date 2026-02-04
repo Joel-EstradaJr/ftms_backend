@@ -231,7 +231,7 @@ export interface UpdateRentalRevenueDTO {
     down_payment_date?: string;
     
     // Status management
-    remittance_status?: RemittanceStatusType;
+    payment_status?: PaymentStatusType;
     
     // Balance payment (triggers full_payment_date update)
     pay_balance?: boolean;
