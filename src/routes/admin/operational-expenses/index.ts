@@ -378,6 +378,21 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
           ? exp.rental?.bus?.body_number
           : null;
 
+      // Determine payment_status based on business rules:
+      // - If REJECTED → CANCELLED
+      // - If REIMBURSEMENT payment method → PARTIALLY_PAID (payable exists)
+      // - Otherwise → COMPLETED
+      let payment_status = exp.payment_status;
+      if (exp.approval_status === 'REJECTED') {
+        payment_status = 'CANCELLED';
+      } else if (exp.payment_method === 'REIMBURSEMENT') {
+        payment_status = 'PARTIALLY_PAID';
+      } else if (exp.approval_status === 'APPROVED') {
+        payment_status = 'COMPLETED';
+      } else {
+        payment_status = 'PENDING';
+      }
+
       return {
         id: exp.id,
         code: exp.code,
@@ -387,6 +402,7 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
         body_number,
         amount: parseFloat(exp.amount?.toString() || '0'),
         is_reimbursable: exp.payment_method === 'REIMBURSEMENT',
+        payment_status,
         approval_status: exp.approval_status,
         accounting_status: exp.accounting_status,
         payment_method: exp.payment_method,
