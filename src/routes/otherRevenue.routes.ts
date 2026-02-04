@@ -465,8 +465,8 @@ router.get('/:id', otherRevenueController.getById);
  *                 example: "Sale of old computer equipment"
  *               payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
- *                 description: Payment method (matches schema payment_method enum)
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
+ *                 description: Payment method (matches schema payment_method enum). Note - REIMBURSEMENT is not available for revenue records.
  *                 example: "BANK_TRANSFER"
  *               payment_reference:
  *                 type: string

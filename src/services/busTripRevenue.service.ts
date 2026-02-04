@@ -215,6 +215,11 @@ export class BusTripRevenueService {
     /**
      * Map payment method string from bus_trip_local to valid enum
      * Handles case differences and alternative names
+     * 
+     * NOTE: REIMBURSEMENT is mapped to CASH for revenue records.
+     * Reimbursement payment method is only applicable to expense records,
+     * not revenue records. External data may contain "Reimbursement" but
+     * for revenue we treat it as CASH (Company_Cash).
      */
     private mapPaymentMethod(paymentMethodStr: string | null): payment_method {
         if (!paymentMethodStr) return 'CASH';
@@ -224,6 +229,9 @@ export class BusTripRevenueService {
         switch (normalized) {
             case 'CASH':
             case 'COMPANY_CASH':
+            case 'REIMBURSEMENT':
+                // REIMBURSEMENT is treated as CASH for revenue records
+                // (Reimbursement is only applicable to expense records)
                 return 'CASH';
             case 'BANK_TRANSFER':
             case 'BANK':
@@ -233,8 +241,6 @@ export class BusTripRevenueService {
             case 'GCASH':
             case 'PAYMAYA':
                 return 'E_WALLET';
-            case 'REIMBURSEMENT':
-                return 'REIMBURSEMENT';
             default:
                 // Log unknown payment method and default to CASH
                 logger.warn(`[BusTripRevenueService] Unknown payment method: ${paymentMethodStr}, defaulting to CASH`);

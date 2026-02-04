@@ -10,7 +10,10 @@ import { payment_method, payment_status, approval_status, journal_status } from 
 // ENUMS (for validation)
 // ============================================================================
 
-export const VALID_PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'E_WALLET', 'REIMBURSEMENT'] as const;
+// Note: REIMBURSEMENT is excluded from revenue payment methods.
+// Reimbursement is only applicable to expense records, not revenue records.
+// If external data contains "Reimbursement", it will be mapped to CASH.
+export const VALID_PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'E_WALLET'] as const;
 export type PaymentMethodEnum = typeof VALID_PAYMENT_METHODS[number];
 
 export const VALID_RENTAL_STATUSES = ['approved', 'completed', 'cancelled'] as const;
@@ -154,7 +157,7 @@ export interface RentalRevenueDetailResponse {
         role: string | null;
     }>;
     
-    // Receivable info (if exists)
+    // Receivable info (for balance tracking)
     receivable: {
         id: number;
         code: string;
@@ -164,7 +167,21 @@ export interface RentalRevenueDetailResponse {
         balance: number;
     } | null;
     
-    // Journal entry summary
+    // Installment payments (balance payments via receivable system)
+    installment_payments: Array<{
+        id: number;
+        amount_paid: number;
+        payment_date: string | null;
+        payment_method: PaymentMethodEnum | null;
+        payment_reference: string | null;
+        journal_entry: {
+            id: number;
+            code: string;
+            status: string;
+        } | null;
+    }>;
+    
+    // Journal entry summary (for downpayment)
     journal_entry: {
         id: number;
         code: string;
@@ -249,7 +266,6 @@ export interface RentalRevenueAnalytics {
         CASH: number;
         BANK_TRANSFER: number;
         E_WALLET: number;
-        REIMBURSEMENT: number;
     };
     
     recent_rentals: RentalRevenueListItem[];

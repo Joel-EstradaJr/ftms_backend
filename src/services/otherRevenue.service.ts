@@ -606,6 +606,10 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
         }
 
         // Create revenue record
+        // BUSINESS RULE: On creation:
+        // - approval_status = PENDING (needs approval)
+        // - accounting_status = NULL (no journal entry yet - will be created on approval)
+        // - payment_status = COMPLETED if no receivable, PENDING if receivable exists
         const revenue = await tx.revenue.create({
             data: {
                 code,
@@ -617,11 +621,9 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
                 payment_method: input.payment_method as payment_method,
                 payment_reference: input.payment_reference,
                 receivable_id: receivableId,
-                // If payment_status is explicitly provided (e.g., by Other Revenue controller), use it
-                // Otherwise, fall back to original logic: PENDING for unearned, PAID for single payments
-                payment_status: (input as any).payment_status || (input.isUnearnedRevenue ? 'PENDING' : 'COMPLETED'),
-                approval_status: 'PENDING', // Initial approval status is always PENDING
-                accounting_status: 'DRAFT', // Journal entry posting is manual
+                payment_status: input.isUnearnedRevenue ? 'PENDING' : 'COMPLETED',
+                approval_status: 'PENDING',
+                // NO accounting_status set - remains null until approval creates JE
                 created_by: input.created_by,
                 updated_at: new Date()
             },
@@ -753,14 +755,16 @@ export async function approveOtherRevenue(id: number, userId: string) {
     // Determine if this is unearned revenue (has receivable/installments)
     const isUnearnedRevenue = record.receivable_id !== null;
 
-    // Update status and payment status based on revenue type
+    // BUSINESS RULE: On approval:
+    // - approval_status = APPROVED
+    // - accounting_status = DRAFT (JE will be created with DRAFT status)
+    // - payment_status = COMPLETED if no receivable, PENDING if receivable exists
     const result = await prisma.$transaction(async (tx) => {
         const updated = await tx.revenue.update({
             where: { id },
             data: {
                 approval_status: 'APPROVED',
-                // Non-unearned: auto-mark as PAID (single payment already received)
-                // Unearned: keep PENDING (still needs installment payments)
+                accounting_status: 'DRAFT', // JE is created with DRAFT status
                 payment_status: isUnearnedRevenue ? 'PENDING' : 'COMPLETED',
                 updated_by: userId,
                 updated_at: new Date()
@@ -817,11 +821,16 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
     if (!record) throw new Error('Revenue record not found');
     if (record.approval_status !== 'PENDING') throw new Error(`Cannot reject record with status ${record.approval_status}`);
 
+    // BUSINESS RULE: On rejection:
+    // - approval_status = REJECTED
+    // - payment_status = CANCELLED
+    // - accounting_status remains DRAFT (no JE will be created, journal_entry_id stays null)
     const result = await prisma.revenue.update({
         where: { id },
         data: {
             approval_status: 'REJECTED',
             payment_status: 'CANCELLED',
+            // Note: accounting_status stays DRAFT, but journal_entry_id is null = no JE exists
             approval_remarks: remarks || null,
             updated_by: userId,
             updated_at: new Date()
@@ -958,9 +967,9 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
                 const newBalance = Math.max(0, newAmountDue - paidAmount);
 
                 // Determine new status based on payments
-                let newStatus: 'PENDING' | 'PARTIALLY_PAID' | 'COMPLETED' | 'OVERDUE' = 'PENDING';
+                let newStatus: installment_status = 'PENDING';
                 if (paidAmount >= newAmountDue) {
-                    newStatus = 'COMPLETED';
+                    newStatus = 'PAID';
                 } else if (paidAmount > 0) {
                     newStatus = 'PARTIALLY_PAID';
                 } else {
@@ -1102,7 +1111,58 @@ export async function recordPayment(input: RecordPaymentInput) {
         throw new Error('Revenue record does not have a receivable schedule');
     }
 
-    // Use transaction for atomicity
+    // =========================================================================
+    // STEP 1: Create Journal Entry FIRST (before transaction)
+    // BUSINESS RULE: Each payment creates its own JE with status = DRAFT
+    // The JE must be manually POSTED to become visible on dashboard
+    // =========================================================================
+    let journalEntryId: number | null = null;
+    
+    try {
+        const assetAccountCode = getAssetAccountCode(input.paymentMethod);
+        // Get type-specific receivable account (not generic AR)
+        const receivableAccountCode = await getReceivableAccountCode(revenue.revenue_type_id);
+        const paymentDateStr = new Date(input.paymentDate).toISOString().split('T')[0];
+
+        const journalEntryInput: CreateAutoJournalEntryInput = {
+            module: 'OTHER_REVENUE_PAYMENT',
+            reference_id: `Payment for ${revenue.code}`,
+            description: `Payment for ${revenue.revenue_type.name} - ${revenue.code}`,
+            date: paymentDateStr,
+            entries: [
+                {
+                    account_code: assetAccountCode,
+                    debit: input.amountPaid,
+                    credit: 0,
+                    description: `Payment received - ${input.paymentMethod}`
+                },
+                {
+                    account_code: receivableAccountCode,
+                    debit: 0,
+                    credit: input.amountPaid,
+                    description: `Reduce AR - ${revenue.revenue_type.name}`
+                }
+            ]
+        };
+
+        // Create JE with DRAFT status (NOT auto-posted)
+        // User must manually post the JE for it to appear on dashboard
+        const journalEntry = await journalEntryService.createAutoJournalEntry(
+            journalEntryInput,
+            input.recordedBy
+        );
+        journalEntryId = journalEntry.id;
+
+        logger.info(`[OTHER_REVENUE] Created payment journal entry ${journalEntry.code} with DRAFT status`);
+    } catch (jeError) {
+        logger.error(`[OTHER_REVENUE] Failed to create payment journal entry:`, jeError);
+        // Continue with payment recording even if JE creation fails
+        // This ensures the payment is still tracked
+    }
+
+    // =========================================================================
+    // STEP 2: Create payment records (with JE link) in transaction
+    // =========================================================================
     const result = await prisma.$transaction(async (tx) => {
         const payments: any[] = [];
         let remainingAmount = input.amountPaid;
@@ -1128,7 +1188,9 @@ export async function recordPayment(input: RecordPaymentInput) {
 
                 if (amountToApply <= 0) continue;
 
-                // Create payment record
+                // Create payment record with JE link
+                // BUSINESS RULE: Payment accounting_status = DRAFT
+                // It becomes POSTED only when the linked JE is posted
                 const payment = await tx.revenue_installment_payment.create({
                     data: {
                         installment_id: installmentId,
@@ -1136,6 +1198,8 @@ export async function recordPayment(input: RecordPaymentInput) {
                         amount_paid: amountToApply,
                         payment_date: new Date(input.paymentDate),
                         payment_method: input.paymentMethod as payment_method,
+                        journal_entry_id: journalEntryId,
+                        accounting_status: 'DRAFT', // Will be POSTED when JE is posted
                         created_by: input.recordedBy
                     }
                 });
@@ -1145,7 +1209,7 @@ export async function recordPayment(input: RecordPaymentInput) {
                 const newAmountPaid = Number(installment.amount_paid) + amountToApply;
                 const newBalance = Number(installment.amount_due) - newAmountPaid;
                 const newStatus: installment_status = newBalance <= 0
-                    ? 'COMPLETED'
+                    ? 'PAID'
                     : newAmountPaid > 0
                         ? 'PARTIALLY_PAID'
                         : 'PENDING';
@@ -1178,7 +1242,9 @@ export async function recordPayment(input: RecordPaymentInput) {
             const currentBalance = Number(installment.balance);
             const amountToApply = Math.min(input.amountPaid, currentBalance);
 
-            // Create payment record
+            // Create payment record with JE link
+            // BUSINESS RULE: Payment accounting_status = DRAFT
+            // It becomes POSTED only when the linked JE is posted
             const payment = await tx.revenue_installment_payment.create({
                 data: {
                     installment_id: installmentId,
@@ -1186,6 +1252,8 @@ export async function recordPayment(input: RecordPaymentInput) {
                     amount_paid: amountToApply,
                     payment_date: new Date(input.paymentDate),
                     payment_method: input.paymentMethod as payment_method,
+                    journal_entry_id: journalEntryId,
+                    accounting_status: 'DRAFT', // Will be POSTED when JE is posted
                     created_by: input.recordedBy
                 }
             });
@@ -1195,7 +1263,7 @@ export async function recordPayment(input: RecordPaymentInput) {
             const newAmountPaid = Number(installment.amount_paid) + amountToApply;
             const newBalance = Number(installment.amount_due) - newAmountPaid;
             const newStatus: installment_status = newBalance <= 0
-                ? 'COMPLETED'
+                ? 'PAID'
                 : newAmountPaid > 0
                     ? 'PARTIALLY_PAID'
                     : 'PENDING';
@@ -1217,8 +1285,8 @@ export async function recordPayment(input: RecordPaymentInput) {
             where: { receivable_id: revenue.receivable!.id }
         });
 
-        const allPaid = allInstallments.every(i => i.status === 'COMPLETED');
-        const somePaid = allInstallments.some(i => i.status === 'COMPLETED' || i.status === 'PARTIALLY_PAID');
+        const allPaid = allInstallments.every(i => i.status === 'PAID');
+        const somePaid = allInstallments.some(i => i.status === 'PAID' || i.status === 'PARTIALLY_PAID');
 
         let receivableStatus: payment_status = 'PENDING';
         if (allPaid) {
@@ -1254,45 +1322,6 @@ export async function recordPayment(input: RecordPaymentInput) {
             message: `Successfully recorded payment of ${input.amountPaid}`
         };
     });
-
-    // Generate Journal Entry for payment
-    try {
-        const assetAccountCode = getAssetAccountCode(input.paymentMethod);
-        // Get type-specific receivable account (not generic AR)
-        const receivableAccountCode = await getReceivableAccountCode(revenue.revenue_type_id);
-        const paymentDateStr = new Date(input.paymentDate).toISOString().split('T')[0];
-
-        const journalEntryInput: CreateAutoJournalEntryInput = {
-            module: 'OTHER_REVENUE_PAYMENT',
-            reference_id: `Payment for ${revenue.code}`,
-            description: `Payment for ${revenue.revenue_type.name} - ${revenue.code}`,
-            date: paymentDateStr,
-            entries: [
-                {
-                    account_code: assetAccountCode,
-                    debit: input.amountPaid,
-                    credit: 0,
-                    description: `Payment received - ${input.paymentMethod}`
-                },
-                {
-                    account_code: receivableAccountCode,
-                    debit: 0,
-                    credit: input.amountPaid,
-                    description: `Reduce AR - ${revenue.revenue_type.name}`
-                }
-            ]
-        };
-
-        const journalEntry = await journalEntryService.createAutoJournalEntry(
-            journalEntryInput,
-            input.recordedBy
-        );
-
-        logger.info(`[OTHER_REVENUE] Created payment journal entry ${journalEntry.code}`);
-    } catch (jeError) {
-        logger.error(`[OTHER_REVENUE] Failed to create payment journal entry:`, jeError);
-        // Don't fail the payment recording, just log the error
-    }
 
     return result;
 }
