@@ -354,6 +354,8 @@ export class RentalRevenueService {
             payment_method: revenue.payment_method as PaymentMethodEnum | null,
             payment_reference: revenue.payment_reference,
             payment_status: revenue.payment_status,
+            approval_status: revenue.approval_status,
+            accounting_status: revenue.accounting_status,
             journal_entry_id: revenue.journal_entry_id,
 
             // Rental fields
@@ -475,6 +477,8 @@ export class RentalRevenueService {
                 description: data.description || `Rental revenue for assignment ${data.assignment_id}`,
                 payment_method: (data.payment_method as payment_method) || 'CASH',
                 payment_reference: data.payment_reference,
+                approval_status: 'APPROVED', // Auto-approved for rental revenue
+                accounting_status: 'DRAFT',
                 payment_status: 'PENDING',
                 rental_assignment_id: data.assignment_id,
                 created_by: userId,

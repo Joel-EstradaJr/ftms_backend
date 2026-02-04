@@ -232,11 +232,11 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
 
     // Status filter - normalize input to match enum values
     if (status) {
-        // Handle both payment_status and approval status
+        // Handle both approval_status and payment_status
         const normalizedStatus = status.trim().toUpperCase().replace(/\s+/g, '_');
 
-        if (['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'].includes(normalizedStatus)) {
-            (where as any).status = normalizedStatus;
+        if (['PENDING', 'APPROVED', 'REJECTED'].includes(normalizedStatus)) {
+            where.approval_status = normalizedStatus as approval_status;
         } else {
             where.payment_status = normalizedStatus as payment_status;
         }
@@ -1326,7 +1326,7 @@ export async function softDeleteOtherRevenue(
     }
 
     // Only allow deletion for PENDING approval status
-    if ((existing as any).status !== 'PENDING') {
+    if (existing.approval_status !== 'PENDING') {
         throw new Error('Only records with PENDING approval status can be deleted');
     }
 

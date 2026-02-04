@@ -122,7 +122,9 @@ export interface RentalRevenueDetailResponse {
     description: string | null;
     payment_method: PaymentMethodEnum | null;
     payment_reference: string | null;
-    remittance_status: string;
+    payment_status: string;  // Updated from remittance_status
+    approval_status: string;  // New
+    accounting_status: string;  // New
     journal_entry_id: number | null;
     
     // Rental fields (from rental_local)

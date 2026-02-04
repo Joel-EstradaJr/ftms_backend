@@ -865,7 +865,7 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         await AuditLogClient.logUpdate(
             AuditEntityTypes.EXPENSE,
             { id: result.id, code: result.code },
-            { ...existing, status: existing.status },  // Previous data
+            { ...existing, approval_status: existing.approval_status },  // Previous data
             { ...updatedExpense },  // New data
             {
                 id: userId,
