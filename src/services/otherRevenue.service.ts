@@ -862,7 +862,7 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
 
 /**
  * Update an existing other revenue record
- * Only allowed for PENDING status records
+ * Only allowed for PENDING approval status records (before approval)
  */
 export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateInput) {
     // Check if record exists and is editable
@@ -875,9 +875,11 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
         throw new Error('Revenue record not found');
     }
 
-    // STRICT: Only allow editing for PENDING status
-    if (existing.payment_status !== 'PENDING') {
-        throw new Error('Only records with PENDING status can be edited');
+    // STRICT: Only allow editing for records with PENDING approval_status
+    // BUSINESS RULE: Once a record is APPROVED or REJECTED, it cannot be edited
+    // Note: payment_status can be COMPLETED for direct revenue (no receivable) even when approval_status is PENDING
+    if (existing.approval_status !== 'PENDING') {
+        throw new Error('Only records with PENDING approval status can be edited');
     }
 
     // Check if journal entry exists and is NOT in DRAFT status - block edit if so
