@@ -156,6 +156,17 @@ router.get('/operational-trips', async (req: Request, res: Response, next: NextF
             type: true,
           },
         },
+        employees: {
+          include: {
+            employee: {
+              select: {
+                employee_number: true,
+                first_name: true,
+                last_name: true,
+              }
+            }
+          }
+        }
       },
       orderBy: {
         date_assigned: 'desc',
@@ -165,18 +176,28 @@ router.get('/operational-trips', async (req: Request, res: Response, next: NextF
 
     res.json({
       success: true,
-      data: trips.map((t) => ({
-        assignment_id: t.assignment_id,
-        bus_trip_id: t.bus_trip_id,
-        bus_route: t.bus_route,
-        date_assigned: t.date_assigned?.toISOString(),
-        trip_fuel_expense: t.trip_fuel_expense ? parseFloat(t.trip_fuel_expense.toString()) : null,
-        payment_method: t.payment_method,
-        // Bus details from relation
-        body_number: t.bus?.body_number || null,
-        bus_plate_number: t.bus?.license_plate || null,
-        bus_type: t.bus?.type || null,
-      })),
+      data: trips.map((t) => {
+        const driver = t.employees.find((e: any) => e.role === 'DRIVER')?.employee;
+        const conductor = t.employees.find((e: any) => e.role === 'CONDUCTOR')?.employee;
+
+        return {
+          assignment_id: t.assignment_id,
+          bus_trip_id: t.bus_trip_id,
+          bus_route: t.bus_route,
+          date_assigned: t.date_assigned?.toISOString(),
+          trip_fuel_expense: t.trip_fuel_expense ? parseFloat(t.trip_fuel_expense.toString()) : null,
+          payment_method: t.payment_method,
+          // Bus details from relation
+          body_number: t.bus?.body_number || null,
+          bus_plate_number: t.bus?.license_plate || null,
+          bus_type: t.bus?.type || null,
+          // Crew details
+          driver_id: driver?.employee_number || null,
+          driver_name: driver ? `${driver.first_name || ''} ${driver.last_name || ''}`.trim() : null,
+          conductor_id: conductor?.employee_number || null,
+          conductor_name: conductor ? `${conductor.first_name || ''} ${conductor.last_name || ''}`.trim() : null,
+        };
+      }),
     });
   } catch (error) {
     logger.error('Error fetching operational trips:', error);
@@ -386,7 +407,7 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       if (exp.approval_status === 'REJECTED') {
         payment_status = 'CANCELLED';
       } else if (exp.payment_method === 'REIMBURSEMENT') {
-        payment_status = 'PARTIALLY_PAID';
+        payment_status = exp.payment_status || 'PENDING';
       } else if (exp.approval_status === 'APPROVED') {
         payment_status = 'COMPLETED';
       } else {
@@ -474,12 +495,52 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 });
 
 /**
+ * GET /chart-of-accounts
+ * Returns list of chart of accounts (expense accounts)
+ */
+router.get('/chart-of-accounts', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accounts = await prisma.chart_of_account.findMany({
+      where: {
+        is_deleted: false,
+        // Typically expenses are expense accounts, but schema might vary. 
+        // Assuming we fetch all active non-deleted accounts.
+      },
+      select: {
+        id: true,
+        account_code: true,
+        account_name: true,
+      },
+      orderBy: {
+        account_code: 'asc',
+      },
+    });
+
+    res.json({
+      success: true,
+      data: accounts,
+    });
+  } catch (error) {
+    logger.error('Error fetching chart of accounts:', error);
+    next(error);
+  }
+});
+
+/**
  * GET /:id
  * Get single expense by ID with full details
  */
 router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+
+    // Validate ID is numeric
+    if (isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid expense ID',
+      });
+    }
 
     const expense = await prisma.expense.findFirst({
       where: {
@@ -491,6 +552,17 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         bus_trip: {
           include: {
             bus: true,
+            employees: {
+              include: {
+                employee: {
+                  select: {
+                    employee_number: true,
+                    first_name: true,
+                    last_name: true,
+                  }
+                }
+              }
+            }
           },
         },
         rental: {
@@ -524,6 +596,10 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
     }
 
     const isBusTrip = !!expense.bus_trip_assignment_id;
+
+    // Extract crew details if bus trip
+    const driver = expense.bus_trip?.employees?.find((e: any) => e.role === 'DRIVER')?.employee;
+    const conductor = expense.bus_trip?.employees?.find((e: any) => e.role === 'CONDUCTOR')?.employee;
 
     // Transform installment schedule for frontend
     const scheduleItems = expense.payable?.installment_schedule?.map(inst => ({
@@ -574,6 +650,12 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
         plate_number: isBusTrip ? expense.bus_trip?.bus?.license_plate : expense.rental?.bus?.license_plate,
         body_number: isBusTrip ? expense.bus_trip?.bus?.body_number : expense.rental?.bus?.body_number,
         bus_type: isBusTrip ? expense.bus_trip?.bus?.type : expense.rental?.bus?.type,
+
+        // Crew details
+        driver_id: driver?.employee_number || null,
+        driver_name: driver ? `${driver.first_name || ''} ${driver.last_name || ''}`.trim() : null,
+        conductor_id: conductor?.employee_number || null,
+        conductor_name: conductor ? `${conductor.first_name || ''} ${conductor.last_name || ''}`.trim() : null,
 
         // Reimbursement / Payable
         is_reimbursable: expense.payment_method === 'REIMBURSEMENT',
@@ -667,11 +749,11 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 
       const frequency = (reimbursable_details.frequency as receivable_frequency) || config?.default_frequency || 'WEEKLY';
       const numberOfPayments = reimbursable_details.number_of_payments || config?.default_number_of_payments || 3;
-      const startDate = reimbursable_details.start_date 
-        ? new Date(reimbursable_details.start_date) 
+      const startDate = reimbursable_details.start_date
+        ? new Date(reimbursable_details.start_date)
         : new Date();
-      const dueDate = reimbursable_details.due_date 
-        ? new Date(reimbursable_details.due_date) 
+      const dueDate = reimbursable_details.due_date
+        ? new Date(reimbursable_details.due_date)
         : null;
 
       // Create payable with installment schedule in transaction
@@ -695,7 +777,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
         const amountPerInstallment = Number(expense_information.amount) / numberOfPayments;
         for (let i = 0; i < numberOfPayments; i++) {
           const installmentDueDate = new Date(startDate);
-          
+
           switch (frequency) {
             case 'DAILY':
               installmentDueDate.setDate(installmentDueDate.getDate() + i);
@@ -708,9 +790,6 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
               break;
             case 'MONTHLY':
               installmentDueDate.setMonth(installmentDueDate.getMonth() + i);
-              break;
-            case 'ANNUALLY':
-              installmentDueDate.setFullYear(installmentDueDate.getFullYear() + i);
               break;
           }
 
@@ -825,10 +904,14 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
       });
     }
 
-    if (existing.approval_status !== 'PENDING') {
+    const isPending = existing.approval_status === 'PENDING';
+    const isApprovedEditable = existing.approval_status === 'APPROVED' &&
+      ['PENDING', 'PARTIALLY_PAID'].includes(existing.payment_status);
+
+    if (!isPending && !isApprovedEditable) {
       return res.status(400).json({
         success: false,
-        message: 'Only PENDING expenses can be edited',
+        message: 'Expense cannot be edited. Only PENDING or unpaid/partially paid APPROVED expenses can be edited.',
       });
     }
 
@@ -1378,6 +1461,433 @@ router.post('/sync', async (req: AuthRequest, res: Response, next: NextFunction)
     });
   } catch (error) {
     logger.error('[OperationalExpenses] Sync error:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /:id/reimbursement
+ * Get reimbursement details for an expense including driver/conductor shares
+ */
+router.get('/:id/reimbursement', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+
+    // Get expense with payable and linked bus trip (including employees via junction table)
+    const expense = await prisma.expense.findFirst({
+      where: {
+        id: parseInt(id),
+        is_deleted: false,
+      },
+      include: {
+        expense_type: true,
+        payable: {
+          include: {
+            installment_schedule: {
+              where: { is_deleted: false },
+              orderBy: { installment_number: 'asc' },
+              include: {
+                payments: true,
+              },
+            },
+          },
+        },
+        bus_trip: {
+          include: {
+            bus: true,
+            employees: {
+              where: { is_deleted: false },
+              include: {
+                employee: true,
+              },
+            },
+          },
+        },
+      },
+    }) as any;
+
+    if (!expense) {
+      return res.status(404).json({
+        success: false,
+        message: 'Expense not found',
+      });
+    }
+
+    if (expense.payment_method !== 'REIMBURSEMENT') {
+      return res.status(400).json({
+        success: false,
+        message: 'This expense is not a reimbursable expense',
+      });
+    }
+
+    // Get driver and conductor from employees junction table by role
+    const driverJunction = expense.bus_trip?.employees?.find((e: any) => e.role === 'DRIVER');
+    const conductorJunction = expense.bus_trip?.employees?.find((e: any) => e.role === 'CONDUCTOR');
+    const driver = driverJunction?.employee;
+    const conductor = conductorJunction?.employee;
+
+    // Calculate 50:50 split
+    const totalAmount = Number(expense.amount);
+    const hasConductor = !!conductor;
+    const driverShare = hasConductor ? totalAmount / 2 : totalAmount;
+    const conductorShare = hasConductor ? totalAmount / 2 : 0;
+
+    // Get payable and installments
+    const payable = expense.payable;
+    const installments = payable?.installment_schedule || [];
+
+    // Calculate paid amounts by filtering payments (tagged by role)
+    let driverPaid = 0;
+    let conductorPaid = 0;
+
+    if (payable) {
+      payable.installment_schedule.forEach((inst: any) => {
+        inst.payments?.forEach((pay: any) => {
+          const amount = Number(pay.amount_paid);
+          const ref = pay.payment_reference || '';
+
+          if (ref.includes('{{DRIVER}}')) {
+            driverPaid += amount;
+          } else if (ref.includes('{{CONDUCTOR}}')) {
+            conductorPaid += amount;
+          } else {
+            // Untagged payments: split proportionally
+            if (hasConductor) {
+              driverPaid += amount / 2;
+              conductorPaid += amount / 2;
+            } else {
+              driverPaid += amount;
+            }
+          }
+        });
+      });
+    }
+
+    // Prepare response data
+    const mapInstallments = (shareAmount: number, personPaid: number) => {
+      // Calculate person's balance and status
+      const personBalance = shareAmount - personPaid;
+      // Determine status based on this person's payment
+      let personStatus = 'PENDING';
+      if (shareAmount > 0) {
+        if (personBalance <= 0) personStatus = 'COMPLETED';
+        else if (personPaid > 0) personStatus = 'PARTIALLY_PAID';
+      }
+
+      if (installments.length === 0) {
+        return [{
+          id: `synthetic-${id}`,
+          installment_number: 1,
+          due_date: new Date().toISOString(),
+          amount_due: shareAmount,
+          amount_paid: personPaid,
+          balance: personBalance > 0 ? personBalance : 0,
+          status: personStatus,
+        }];
+      }
+
+      // Map installments - logic to distribute personPaid across installments
+      // For simplicity, we apply personPaid to installments in order
+      let remainingPaid = personPaid;
+
+      return installments.map((inst: any) => {
+        const instTotalAmount = Number(inst.amount_due);
+        // Calculate this person's share of this installment
+        const instShare = instTotalAmount * (shareAmount / totalAmount);
+
+        // Calculate how much of person's paid amount applies to this installment
+        let paidForInst = 0;
+        if (remainingPaid > 0) {
+          paidForInst = Math.min(remainingPaid, instShare);
+          remainingPaid -= paidForInst;
+        }
+
+        const bal = instShare - paidForInst;
+
+        let instStatus = 'PENDING';
+        if (instShare > 0) {
+          if (bal <= 0) instStatus = 'COMPLETED';
+          else if (paidForInst > 0) instStatus = 'PARTIALLY_PAID';
+        }
+
+        return {
+          id: inst.id,
+          installment_number: inst.installment_number,
+          due_date: inst.due_date.toISOString(),
+          amount_due: instShare,
+          amount_paid: paidForInst,
+          balance: bal > 0 ? bal : 0,
+          status: instStatus,
+        };
+      });
+    };
+
+    // Determine status
+    const getEmployeeStatus = (paid: number, share: number) => {
+      if (paid >= share) return 'COMPLETED';
+      if (paid > 0) return 'PARTIALLY_REIMBURSED';
+      return 'PENDING_REIMBURSEMENT';
+    };
+
+    const responseData: any = {
+      expense_id: expense.id,
+      expense_code: expense.code,
+      total_amount: totalAmount,
+      payment_status: expense.payment_status || (payable?.status || 'PENDING_REIMBURSEMENT'),
+      date_recorded: expense.date_recorded.toISOString(),
+      body_number: expense.bus_trip?.bus?.body_number || null,
+      expense_type_name: expense.expense_type?.name || null,
+    };
+
+    // Add driver details
+    responseData.driver = driver ? {
+      employee_number: driver.employee_number,
+      employee_name: `${driver.first_name} ${driver.last_name}`.trim(),
+      share_amount: driverShare,
+      paid_amount: driverPaid,
+      balance: driverShare - driverPaid,
+      status: getEmployeeStatus(driverPaid, driverShare),
+      installments: mapInstallments(driverShare, driverPaid),
+    } : null;
+
+    // Add conductor details if exists
+    responseData.conductor = conductor ? {
+      employee_number: conductor.employee_number,
+      employee_name: `${conductor.first_name} ${conductor.last_name}`.trim(),
+      share_amount: conductorShare,
+      paid_amount: conductorPaid,
+      balance: conductorShare - conductorPaid,
+      status: getEmployeeStatus(conductorPaid, conductorShare),
+      installments: mapInstallments(conductorShare, conductorPaid),
+    } : null;
+
+    res.json({
+      success: true,
+      data: responseData,
+    });
+  } catch (error) {
+    logger.error('Error fetching reimbursement details:', error);
+    next(error);
+  }
+});
+
+/**
+ * POST /:id/reimbursement/payment
+ * Record a reimbursement payment for driver or conductor
+ */
+router.post('/:id/reimbursement/payment', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const {
+      employee_type,
+      installment_id,
+      amount_paid,
+      payment_date,
+      payment_method: paymentMethodInput,
+      payment_reference,
+    } = req.body;
+    const userId = req.user?.sub || 'system';
+
+    logger.info(`[OperationalExpenses] Recording reimbursement payment for expense ${id}, employee type: ${employee_type}, amount: ${amount_paid}`);
+
+    // Validate amount
+    if (!amount_paid || amount_paid <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment amount must be greater than 0',
+      });
+    }
+
+    // Get expense with payable
+    const expense = await prisma.expense.findFirst({
+      where: {
+        id: parseInt(id),
+        is_deleted: false,
+      },
+      include: {
+        payable: {
+          include: {
+            installment_schedule: {
+              where: { is_deleted: false },
+              orderBy: { installment_number: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!expense) {
+      return res.status(404).json({
+        success: false,
+        message: 'Expense not found',
+      });
+    }
+
+    if (expense.payment_method !== 'REIMBURSEMENT') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment can only be recorded for reimbursable expenses',
+      });
+    }
+
+    if (expense.approval_status !== 'APPROVED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment can only be recorded for approved expenses',
+      });
+    }
+
+    const payable = expense.payable;
+
+    // If no payable exists, create one
+    let payableId = payable?.id;
+    if (!payable) {
+      const newPayable = await prisma.payable.create({
+        data: {
+          code: `PAY-${expense.code}`,
+          creditor_name: 'Employee Reimbursement',
+          total_amount: expense.amount,
+          paid_amount: 0,
+          balance: expense.amount,
+          status: 'PENDING',
+          due_date: new Date(),
+          created_by: userId,
+        },
+      });
+      payableId = newPayable.id;
+
+      // Update expense with payable reference
+      await prisma.expense.update({
+        where: { id: expense.id },
+        data: { payable_id: newPayable.id },
+      });
+    }
+
+    const amountPaid = new Prisma.Decimal(amount_paid);
+    const paymentDateValue = payment_date ? new Date(payment_date) : new Date();
+
+    // Record the payment in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Get the current payable state
+      const currentPayable = await tx.payable.findUnique({
+        where: { id: payableId },
+        include: {
+          installment_schedule: {
+            where: { is_deleted: false },
+            orderBy: { installment_number: 'asc' },
+          },
+        },
+      });
+
+      if (!currentPayable) {
+        throw new Error('Payable not found');
+      }
+
+      // Check if there's an installment to apply payment to
+      let targetInstallment = currentPayable.installment_schedule.find(
+        inst => inst.status !== 'PAID' && inst.status !== 'CANCELLED' && inst.status !== 'WRITTEN_OFF'
+      );
+
+      // If no installment exists, create one
+      if (!targetInstallment) {
+        targetInstallment = await tx.expense_installment_schedule.create({
+          data: {
+            payable_id: currentPayable.id,
+            installment_number: 1,
+            amount_due: currentPayable.balance,
+            amount_paid: 0,
+            balance: currentPayable.balance,
+            due_date: new Date(),
+            status: 'PENDING',
+            created_by: userId,
+          },
+        });
+      }
+
+      // Create payment record
+      const payment = await tx.expense_installment_payment.create({
+        data: {
+          installment_id: targetInstallment.id,
+          expense_id: expense.id,
+          amount_paid: amountPaid,
+          payment_date: paymentDateValue,
+          payment_method: paymentMethodInput || 'CASH',
+          payment_reference: req.body.employee_role
+            ? `{{${req.body.employee_role}}} ${payment_reference || ''}`.trim()
+            : payment_reference || null,
+          created_by: userId,
+        },
+      });
+
+      // Update installment
+      const newInstallmentPaid = new Prisma.Decimal(targetInstallment.amount_paid).add(amountPaid);
+      const newInstallmentBalance = new Prisma.Decimal(targetInstallment.balance).sub(amountPaid);
+      const newInstallmentStatus: installment_status = newInstallmentBalance.lessThanOrEqualTo(0) ? 'PAID' : 'PARTIALLY_PAID';
+
+      await tx.expense_installment_schedule.update({
+        where: { id: targetInstallment.id },
+        data: {
+          amount_paid: newInstallmentPaid,
+          balance: newInstallmentBalance.lessThan(0) ? 0 : newInstallmentBalance,
+          status: newInstallmentStatus,
+          updated_by: userId,
+        },
+      });
+
+      // Update payable totals
+      const newPayablePaid = new Prisma.Decimal(currentPayable.paid_amount).add(amountPaid);
+      const newPayableBalance = new Prisma.Decimal(currentPayable.balance).sub(amountPaid);
+      const newPayableStatus: payment_status = newPayableBalance.lessThanOrEqualTo(0)
+        ? 'COMPLETED'
+        : 'PARTIALLY_PAID';
+
+      const updatedPayable = await tx.payable.update({
+        where: { id: currentPayable.id },
+        data: {
+          paid_amount: newPayablePaid,
+          balance: newPayableBalance.lessThan(0) ? 0 : newPayableBalance,
+          status: newPayableStatus,
+          last_payment_date: paymentDateValue,
+          last_payment_amount: amountPaid,
+          updated_by: userId,
+        },
+      });
+
+      // Update expense payment_status
+      const expensePaymentStatus = newPayableBalance.lessThanOrEqualTo(0)
+        ? 'COMPLETED'
+        : 'PARTIALLY_PAID';
+
+      await tx.expense.update({
+        where: { id: expense.id },
+        data: {
+          payment_status: expensePaymentStatus,
+          updated_by: userId,
+        },
+      });
+
+      return { payment, updatedPayable };
+    });
+
+    logger.info(`[OperationalExpenses] Recorded reimbursement payment for expense ${id}, amount: ${amountPaid}`);
+
+    res.json({
+      success: true,
+      message: 'Reimbursement payment recorded successfully',
+      data: {
+        payment_id: result.payment.id,
+        payable: {
+          id: result.updatedPayable.id,
+          code: result.updatedPayable.code,
+          total_amount: Number(result.updatedPayable.total_amount),
+          paid_amount: Number(result.updatedPayable.paid_amount),
+          balance: Number(result.updatedPayable.balance),
+          status: result.updatedPayable.status,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Error recording reimbursement payment:', error);
     next(error);
   }
 });
