@@ -433,6 +433,7 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
                 date_recorded: expense.date_recorded?.toISOString().split('T')[0],
                 amount: parseFloat(expense.amount?.toString() || '0'),
                 description: expense.description,
+                vendor_id: expense.vendor_id,  // Include vendor_id for edit form
                 vendor: expense.vendor,
                 invoice_number: expense.invoice_number,
                 approval_status: expense.approval_status,
@@ -553,6 +554,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
                         description: `Payment schedule for ${expenseCode}`,
                         total_amount: amount,
                         balance: amount,
+                        frequency: frequency as any, // Store the selected frequency
                         status: 'PENDING',
                         created_by: userId,
                     },
@@ -568,6 +570,9 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 
                     // Calculate due date based on frequency
                     switch (frequency) {
+                        case 'DAILY':
+                            dueDate.setDate(dueDate.getDate() + i);
+                            break;
                         case 'WEEKLY':
                             dueDate.setDate(dueDate.getDate() + (i * 7));
                             break;
@@ -577,7 +582,9 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
                         case 'MONTHLY':
                             dueDate.setMonth(dueDate.getMonth() + i);
                             break;
-                        case 'DAILY':
+                        case 'ANNUALLY':
+                            dueDate.setFullYear(dueDate.getFullYear() + i);
+                            break;
                         default:
                             dueDate.setDate(dueDate.getDate() + i);
                             break;
@@ -1409,7 +1416,7 @@ router.post('/payment', async (req: AuthRequest, res: Response, next: NextFuncti
             await tx.payable.update({
                 where: { id: expense.payable!.id },
                 data: {
-                    payment_status: payableStatusValue,
+                    status: payableStatusValue,
                     paid_amount: totalPaid,
                     balance: Math.max(0, totalDue - totalPaid),
                     last_payment_date: new Date(paymentDate || new Date()),

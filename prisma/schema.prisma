@@ -19,6 +19,7 @@ enum receivable_frequency {
   WEEKLY
   BIWEEKLY
   MONTHLY
+  ANNUALLY
 }
 
 enum normal_balance {
