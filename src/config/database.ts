@@ -1,16 +1,24 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger';
+import { config } from './env';
+
+// Build PrismaClient log options. Do NOT enable query events by default
+// to avoid noisy SQL prints in the terminal. Enable only when
+// PRISMA_LOG_QUERIES=true in the environment.
+const enableQueryLogs = process.env.PRISMA_LOG_QUERIES === 'true';
 
 const prisma = new PrismaClient({
   log: [
-    { emit: 'event', level: 'query' },
+    // Always listen for errors and warnings
     { emit: 'event', level: 'error' },
     { emit: 'event', level: 'warn' },
+    // Conditionally enable query events
+    ...(enableQueryLogs ? [{ emit: 'event', level: 'query' }] : []),
   ],
 });
 
-// Log database queries in development
-if (process.env.NODE_ENV === 'development') {
+// Log database queries only when explicitly enabled
+if (enableQueryLogs) {
   prisma.$on('query' as never, (e: any) => {
     logger.debug(`Query: ${e.query}`);
     logger.debug(`Duration: ${e.duration}ms`);
