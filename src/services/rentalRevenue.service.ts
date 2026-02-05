@@ -782,6 +782,22 @@ export class RentalRevenueService {
     // CANCEL RENTAL REVENUE
     // --------------------------------------------------------------------------
 
+    /**
+     * Cancel a rental revenue with proper accounting handling.
+     * 
+     * ACCOUNTING RULES:
+     * 1. If downpayment JE is POSTED → create reversal JE
+     * 2. If any balance payment JE is POSTED → create reversal JE
+     * 3. Cancel outstanding receivables (zero out balances)
+     * 4. Update all statuses appropriately
+     * 5. Log all cancellation actions to audit
+     * 
+     * @param id - Revenue ID to cancel
+     * @param data - Cancellation data with reason
+     * @param userId - User performing cancellation
+     * @param userInfo - User info for audit
+     * @param req - Request object for audit
+     */
     async cancelRentalRevenue(
         id: number,
         data: CancelRentalRevenueDTO,
@@ -789,37 +805,177 @@ export class RentalRevenueService {
         userInfo: any,
         req: any
     ): Promise<RentalRevenueDetailResponse> {
-        // Get existing revenue
+        logger.info(`[RentalRevenueService] Cancelling rental revenue ID: ${id}`);
+
+        // Get existing revenue with all related records
         const existing = await prisma.revenue.findFirst({
             where: { id, is_deleted: false, rental_assignment_id: { not: null } },
+            include: {
+                journal_entry: true,
+                receivable: {
+                    include: {
+                        installment_schedule: {
+                            include: {
+                                payments: {
+                                    include: {
+                                        journal_entry: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                installment_payments: {
+                    include: {
+                        journal_entry: true,
+                    },
+                },
+            },
         });
 
         if (!existing) {
             throw new NotFoundError('Rental revenue not found');
         }
 
-        // Update revenue status
-        await prisma.revenue.update({
-            where: { id },
-            data: {
-                payment_status: 'CANCELLED',
-                updated_by: userId,
-            },
-        });
+        // Track reversal JEs created for audit
+        const reversalJEs: { original_code: string; reversal_code: string; amount: number }[] = [];
+        const previousData = {
+            payment_status: existing.payment_status,
+            accounting_status: existing.accounting_status,
+            journal_entry_status: existing.journal_entry?.status || null,
+            receivable_status: existing.receivable?.status || null,
+            receivable_balance: Number(existing.receivable?.balance || 0),
+        };
 
-        // Update rental status
-        if (existing.rental_assignment_id) {
-            await prisma.rental_local.update({
-                where: { assignment_id: existing.rental_assignment_id },
-                data: {
-                    rental_status: 'cancelled',
-                    cancelled_at: new Date(),
-                    cancellation_reason: data.cancellation_reason,
-                },
-            });
+        // STEP 1: Handle downpayment reversal if JE is POSTED
+        if (existing.journal_entry && existing.journal_entry.status === 'POSTED') {
+            logger.info(`[RentalRevenueService] Creating reversal JE for downpayment: ${existing.journal_entry.code}`);
+            
+            try {
+                const reversalJE = await this.journalEntryService.createReversalJournalEntry(
+                    {
+                        reversal_of_id: existing.journal_entry.id,
+                        reason: `Rental cancellation: ${data.cancellation_reason || 'No reason provided'}`,
+                    },
+                    userId,
+                    userInfo,
+                    req
+                );
+
+                reversalJEs.push({
+                    original_code: existing.journal_entry.code,
+                    reversal_code: reversalJE.code,
+                    amount: Number(existing.amount),
+                });
+
+                logger.info(`[RentalRevenueService] Created reversal JE ${reversalJE.code} for downpayment`);
+            } catch (error) {
+                // Log but continue - reversal may fail if already reversed
+                logger.warn(`[RentalRevenueService] Could not reverse downpayment JE: ${error instanceof Error ? error.message : String(error)}`);
+            }
         }
 
-        logger.info(`Cancelled rental revenue ${existing.code}`);
+        // STEP 2: Handle balance payment reversals if any JEs are POSTED
+        const installmentPayments = existing.receivable?.installment_schedule
+            ?.flatMap((schedule) => schedule.payments || []) || [];
+
+        for (const payment of installmentPayments) {
+            if (payment.journal_entry && payment.journal_entry.status === 'POSTED') {
+                logger.info(`[RentalRevenueService] Creating reversal JE for balance payment: ${payment.journal_entry.code}`);
+                
+                try {
+                    const reversalJE = await this.journalEntryService.createReversalJournalEntry(
+                        {
+                            reversal_of_id: payment.journal_entry.id,
+                            reason: `Rental cancellation: ${data.cancellation_reason || 'No reason provided'}`,
+                        },
+                        userId,
+                        userInfo,
+                        req
+                    );
+
+                    reversalJEs.push({
+                        original_code: payment.journal_entry.code,
+                        reversal_code: reversalJE.code,
+                        amount: Number(payment.amount_paid),
+                    });
+
+                    logger.info(`[RentalRevenueService] Created reversal JE ${reversalJE.code} for balance payment`);
+                } catch (error) {
+                    logger.warn(`[RentalRevenueService] Could not reverse payment JE: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+        }
+
+        // STEP 3: Update all records in a transaction
+        await prisma.$transaction(async (tx) => {
+            // Update revenue status
+            await tx.revenue.update({
+                where: { id },
+                data: {
+                    payment_status: 'CANCELLED',
+                    accounting_status: reversalJEs.length > 0 ? 'REVERSED' : existing.accounting_status,
+                    updated_by: userId,
+                },
+            });
+
+            // Cancel receivable if exists
+            if (existing.receivable) {
+                await tx.receivable.update({
+                    where: { id: existing.receivable.id },
+                    data: {
+                        status: 'CANCELLED',
+                        balance: 0,
+                        updated_by: userId,
+                    },
+                });
+
+                // Cancel all installment schedules
+                for (const schedule of existing.receivable.installment_schedule || []) {
+                    await tx.revenue_installment_schedule.update({
+                        where: { id: schedule.id },
+                        data: {
+                            status: 'CANCELLED',
+                            balance: 0,
+                            updated_by: userId,
+                        },
+                    });
+                }
+            }
+
+            // Update rental status
+            if (existing.rental_assignment_id) {
+                await tx.rental_local.update({
+                    where: { assignment_id: existing.rental_assignment_id },
+                    data: {
+                        rental_status: 'cancelled',
+                        cancelled_at: new Date(),
+                        cancellation_reason: data.cancellation_reason,
+                    },
+                });
+            }
+        });
+
+        // STEP 4: Audit log for cancellation
+        const newData = {
+            payment_status: 'CANCELLED',
+            accounting_status: reversalJEs.length > 0 ? 'REVERSED' : existing.accounting_status,
+            receivable_status: existing.receivable ? 'CANCELLED' : null,
+            receivable_balance: 0,
+            reversals_created: reversalJEs,
+            cancellation_reason: data.cancellation_reason,
+        };
+
+        await AuditLogClient.logUpdate(
+            AuditEntityTypes.RENTAL_REVENUE,
+            { id: existing.id, code: existing.code },
+            previousData,
+            newData,
+            { id: userId, name: userInfo?.username, role: userInfo?.role },
+            req
+        );
+
+        logger.info(`[RentalRevenueService] Cancelled rental revenue ${existing.code} with ${reversalJEs.length} reversal JEs`);
 
         return this.getRentalRevenueById(id);
     }

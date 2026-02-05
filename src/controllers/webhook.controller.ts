@@ -12,12 +12,15 @@
  * 
  * AUTO-REVENUE GENERATION:
  * - New bus trips received via webhook will automatically generate Revenue records
- * - This ensures no manual intervention is required for bus trip revenue tracking
+ * - New rentals received via webhook will automatically generate Rental Revenue records
+ * - This ensures no manual intervention is required for revenue tracking
  */
 
 import { Request, Response } from 'express';
 import { PrismaClient, bus_trip_employee_role } from '@prisma/client';
 import { busTripRevenueService } from '../services/busTripRevenue.service';
+import { rentalRevenueService } from '../services/rentalRevenue.service';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { logger } from '../config/logger';
 
 const prisma = new PrismaClient();
@@ -1111,6 +1114,339 @@ export async function handleDepartmentWebhook(
     return res.status(500).json({
       success: false,
       message: 'Internal server error processing department webhook',
+      error: errorMsg,
+    });
+  }
+}
+
+// ============================================================================
+// RENTAL CREATE WEBHOOK (WITH AUTO-REVENUE GENERATION)
+// ============================================================================
+
+/**
+ * Rental employee info from Operations System
+ */
+interface RentalEmployeeInfo {
+  employee_id: string;
+  employee_firstName: string | null;
+  employee_middleName?: string | null;
+  employee_lastName: string | null;
+  employee_position_name?: string;
+  is_active?: boolean;
+}
+
+/**
+ * Rental details from Operations System
+ */
+interface RentalDetailsPayload {
+  rental_package: string;
+  rental_start_date: string | null;
+  rental_end_date: string | null;
+  total_rental_amount: number;
+  down_payment_amount: number | null;
+  balance_amount: number | null;
+  down_payment_date: string | null;
+  full_payment_date: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+}
+
+/**
+ * Full Rental CREATE webhook payload from Operations System
+ * Matches the external rental API format
+ */
+interface RentalCreateWebhookPayload {
+  assignment_id: string;
+  bus_id: number;
+  bus_plate_number?: string;
+  bus_type?: string;
+  body_number?: string;
+  rental_status: string;
+  rental_details: RentalDetailsPayload;
+  employees: RentalEmployeeInfo[];
+  is_active?: boolean;
+}
+
+/**
+ * Rental CREATE webhook response
+ */
+interface RentalCreateWebhookResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    rental: {
+      assignment_id: string;
+      is_active: boolean;
+      is_revenue_recorded: boolean;
+    };
+    revenue?: {
+      id: number;
+      code: string;
+      amount: number;
+      payment_status: string;
+      has_receivable: boolean;
+    };
+    journal_entry?: {
+      id: number;
+      code: string;
+      status: string;
+    };
+  };
+  error?: string;
+}
+
+/**
+ * Handle rental CREATE webhook from Operations System
+ * This endpoint creates a new rental record AND auto-generates revenue
+ * 
+ * Endpoint: POST /api/webhooks/rental/create
+ * 
+ * CRITICAL BUSINESS RULE:
+ * Every new rental MUST have a corresponding Revenue record.
+ * This webhook ensures that revenue is generated automatically upon rental creation.
+ */
+export async function handleRentalCreateWebhook(
+  req: Request<{}, {}, RentalCreateWebhookPayload>,
+  res: Response<RentalCreateWebhookResponse>
+) {
+  const payload = req.body;
+
+  // Validate required fields
+  if (!payload.assignment_id) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required field: assignment_id',
+    });
+  }
+
+  if (!payload.rental_details) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required field: rental_details',
+    });
+  }
+
+  if (payload.rental_details.total_rental_amount === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required field: rental_details.total_rental_amount',
+    });
+  }
+
+  try {
+    logger.info(`[WEBHOOK] Creating Rental: ${payload.assignment_id} with auto-revenue generation`);
+
+    // Check if rental already exists
+    const existing = await prisma.rental_local.findUnique({
+      where: { assignment_id: payload.assignment_id },
+    });
+
+    if (existing) {
+      // If already exists and revenue is recorded, just return success
+      if (existing.is_revenue_recorded) {
+        return res.status(200).json({
+          success: true,
+          message: `Rental ${payload.assignment_id} already exists with revenue recorded`,
+          data: {
+            rental: {
+              assignment_id: existing.assignment_id,
+              is_active: existing.is_active,
+              is_revenue_recorded: existing.is_revenue_recorded,
+            },
+          },
+        });
+      }
+      // Otherwise, skip to revenue generation below
+    }
+
+    // Convert bus_id to string for bus_local lookup
+    const busId = String(payload.bus_id);
+
+    // Create rental record in transaction
+    const rental = await prisma.$transaction(async (tx) => {
+      // Check if bus exists
+      const busExists = await tx.bus_local.findUnique({
+        where: { bus_id: busId },
+        select: { bus_id: true },
+      });
+
+      // Upsert rental
+      const rentalRecord = await tx.rental_local.upsert({
+        where: { assignment_id: payload.assignment_id },
+        update: {
+          bus_id: busExists ? busId : null,
+          rental_status: payload.rental_status,
+          rental_package: payload.rental_details.rental_package,
+          rental_start_date: parseDate(payload.rental_details.rental_start_date),
+          rental_end_date: parseDate(payload.rental_details.rental_end_date),
+          total_rental_amount: payload.rental_details.total_rental_amount,
+          down_payment_amount: payload.rental_details.down_payment_amount,
+          balance_amount: payload.rental_details.balance_amount,
+          down_payment_date: parseDate(payload.rental_details.down_payment_date),
+          full_payment_date: parseDate(payload.rental_details.full_payment_date),
+          cancelled_at: parseDate(payload.rental_details.cancelled_at),
+          cancellation_reason: payload.rental_details.cancellation_reason,
+          is_active: payload.is_active ?? true,
+          is_deleted: false,
+          last_synced_at: new Date(),
+        },
+        create: {
+          assignment_id: payload.assignment_id,
+          bus_id: busExists ? busId : null,
+          rental_status: payload.rental_status,
+          rental_package: payload.rental_details.rental_package,
+          rental_start_date: parseDate(payload.rental_details.rental_start_date),
+          rental_end_date: parseDate(payload.rental_details.rental_end_date),
+          total_rental_amount: payload.rental_details.total_rental_amount,
+          down_payment_amount: payload.rental_details.down_payment_amount,
+          balance_amount: payload.rental_details.balance_amount,
+          down_payment_date: parseDate(payload.rental_details.down_payment_date),
+          full_payment_date: parseDate(payload.rental_details.full_payment_date),
+          cancelled_at: parseDate(payload.rental_details.cancelled_at),
+          cancellation_reason: payload.rental_details.cancellation_reason,
+          is_revenue_recorded: false, // Will be set to true after revenue generation
+          is_expense_recorded: false,
+          is_active: payload.is_active ?? true,
+          is_deleted: false,
+          last_synced_at: new Date(),
+        },
+      });
+
+      // Upsert employee assignments
+      for (const emp of payload.employees || []) {
+        if (!emp.employee_id) continue;
+
+        // Check if employee exists in employee_local
+        const employeeExists = await tx.employee_local.findUnique({
+          where: { employee_number: emp.employee_id },
+          select: { employee_number: true },
+        });
+
+        if (employeeExists) {
+          await tx.rental_employee_local.upsert({
+            where: {
+              assignment_id_employee_number: {
+                assignment_id: payload.assignment_id,
+                employee_number: emp.employee_id,
+              },
+            },
+            update: {
+              is_active: emp.is_active ?? true,
+              is_deleted: false,
+              last_synced_at: new Date(),
+            },
+            create: {
+              assignment_id: payload.assignment_id,
+              employee_number: emp.employee_id,
+              is_active: emp.is_active ?? true,
+              is_deleted: false,
+              last_synced_at: new Date(),
+            },
+          });
+        } else {
+          logger.warn(`[WEBHOOK] Skipping rental employee ${emp.employee_id} - not found in employee_local`);
+        }
+      }
+
+      return rentalRecord;
+    });
+
+    // Audit log for rental creation
+    await AuditLogClient.logCreate(
+      'Rental Local',
+      { assignment_id: rental.assignment_id },
+      {
+        assignment_id: rental.assignment_id,
+        bus_id: rental.bus_id,
+        rental_status: rental.rental_status,
+        total_rental_amount: rental.total_rental_amount,
+        down_payment_amount: rental.down_payment_amount,
+        balance_amount: rental.balance_amount,
+      },
+      { id: 'webhook_system', name: 'Webhook System', role: 'SYSTEM' },
+      req
+    );
+
+    // AUTO-GENERATE REVENUE (critical business rule)
+    // Only generate if not already recorded
+    let revenueData = null;
+    let journalEntryData = null;
+
+    if (!rental.is_revenue_recorded) {
+      try {
+        logger.info(`[WEBHOOK] Auto-generating revenue for rental ${payload.assignment_id}`);
+        
+        // Use processUnsyncedRentals to handle the revenue creation properly
+        // This will create revenue, receivable (if balance exists), and journal entry
+        const revenue = await rentalRevenueService.createRentalRevenue(
+          {
+            assignment_id: payload.assignment_id,
+            payment_method: 'CASH', // Default payment method
+            down_payment_amount: Number(payload.rental_details.down_payment_amount || 0),
+          },
+          'webhook_system', // System user for webhook-generated records
+          { username: 'Webhook System', role: 'SYSTEM' },
+          req
+        );
+
+        revenueData = {
+          id: revenue.id,
+          code: revenue.code,
+          amount: Number(revenue.amount),
+          payment_status: revenue.payment_status,
+          has_receivable: !!revenue.receivable,
+        };
+
+        if (revenue.journal_entry) {
+          journalEntryData = {
+            id: revenue.journal_entry.id,
+            code: revenue.journal_entry.code,
+            status: revenue.journal_entry.status,
+          };
+        }
+
+        logger.info(`[WEBHOOK] Successfully created rental revenue ${revenue.code} for rental ${payload.assignment_id}`);
+      } catch (revenueError) {
+        // Log error but don't fail the webhook - the rental was created
+        logger.error(`[WEBHOOK] Failed to auto-generate revenue for rental ${payload.assignment_id}:`, revenueError);
+        // Revenue can be generated later via manual process or retry
+      }
+    }
+
+    // Build response
+    const responseData: RentalCreateWebhookResponse['data'] = {
+      rental: {
+        assignment_id: rental.assignment_id,
+        is_active: rental.is_active,
+        is_revenue_recorded: rental.is_revenue_recorded || !!revenueData,
+      },
+    };
+
+    if (revenueData) {
+      responseData.revenue = revenueData;
+    }
+
+    if (journalEntryData) {
+      responseData.journal_entry = journalEntryData;
+    }
+
+    const statusCode = existing ? 200 : 201;
+    const message = revenueData
+      ? `Rental ${existing ? 'updated' : 'created'} and revenue auto-generated successfully`
+      : `Rental ${existing ? 'updated' : 'created'} successfully (revenue generation pending)`;
+
+    return res.status(statusCode).json({
+      success: true,
+      message,
+      data: responseData,
+    });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`[WEBHOOK] Error handling rental create webhook:`, errorMsg);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error processing rental create webhook',
       error: errorMsg,
     });
   }
