@@ -33,6 +33,7 @@ import rentalRevenueRoutes from './routes/admin/rental-revenue';
 import otherRevenueRoutes from './routes/otherRevenue.routes';  // Other Revenue module
 import attachmentRoutes from './routes/admin/attachments';  // Attachment module
 import supplierRoutes from './routes/admin/suppliers';  // Supplier/Vendor module
+import reportRoutes from './routes/admin/reports';  // Financial Reports module
 // Removed: staffJournalEntryRoutes - replaced by universal /api/journal-entry routes
 
 // Integration routes (for microservices)
@@ -144,6 +145,7 @@ export const createApp = (): Application => {
   app.use('/api/v1/admin/operational-expenses', operationalExpenseRoutes);  // Operational Expense module
   app.use('/api/v1/admin/other-expense', otherExpenseRoutes);  // Administrative/Other Expense module
   app.use('/api/v1/admin/suppliers', supplierRoutes);  // Supplier/Vendor module
+  app.use('/api/v1/reports', reportRoutes);  // Financial Reports module
   app.use('/api/v1/admin', chartOfAccountsRoutes);
 
   // Staff routes (Limited access - read + create for some modules)

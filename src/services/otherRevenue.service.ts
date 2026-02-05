@@ -11,59 +11,41 @@
 
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
-import { Prisma, payment_method, receivable_frequency, receivable_status, installment_status } from '@prisma/client';
+import { Prisma, payment_method, receivable_frequency, payment_status, installment_status, approval_status, journal_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
 import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { Request } from 'express';
+import { generateCode } from '../utils/codeGenerator';
+import {
+    REVENUE_TYPE_TO_REVENUE_COA,
+    REVENUE_TYPE_TO_RECEIVABLE_COA,
+    getAssetCOACode as getAssetAccountCodeFromMapping,
+    getRevenueCOACode,
+    getReceivableCOACode
+} from '../lib/coaMapping';
 
 // --------------------------
-// COA MAPPINGS
+// COA MAPPINGS (LEGACY - NOW USES CENTRALIZED coaMapping.ts)
 // --------------------------
 
 /**
+ * @deprecated Use REVENUE_TYPE_TO_REVENUE_COA from '../lib/coaMapping' instead
  * Revenue Type Code → Chart of Account Code mapping
  * Based on seed_core_data.ts COA definitions
  */
-const REVENUE_TYPE_TO_COA: Record<string, string> = {
-    'REVT-004': '3020', // Advertising Revenue
-    'REVT-005': '3025', // Insurance Commission Income
-    'REVT-006': '3030', // Terminal Fee Income
-    'REVT-007': '3035', // Parking Fee Income
-    'REVT-008': '3040', // Charter Add-on Revenue
-    'REVT-009': '3045', // Cargo Handling Fee Income
-    'REVT-010': '3050', // Penalty & Violation Income
-    'REVT-011': '3055', // Franchise & Partnership Income
-    'REVT-012': '3060', // Maintenance Service Income
-    'REVT-013': '3065', // Miscellaneous Income
-};
-
-/**
- * Payment method to asset account code mapping
- */
-const ACCOUNT_CODES = {
-    CASH: '1000',
-    BANK_TRANSFER: '1005',
-    E_WALLET: '1010',
-    ACCOUNTS_RECEIVABLE_OTHER: '1110', // Accounts Receivable - Other Employees
-};
+const REVENUE_TYPE_TO_COA: Record<string, string> = REVENUE_TYPE_TO_REVENUE_COA;
 
 /**
  * Get asset account code based on payment method
+ * Uses centralized mapping from coaMapping.ts
  */
 function getAssetAccountCode(paymentMethod: payment_method | string | null): string {
-    const method = paymentMethod?.toString().toUpperCase();
-    switch (method) {
-        case 'BANK_TRANSFER':
-            return ACCOUNT_CODES.BANK_TRANSFER;
-        case 'E_WALLET':
-            return ACCOUNT_CODES.E_WALLET;
-        default:
-            return ACCOUNT_CODES.CASH;
-    }
+    return getAssetAccountCodeFromMapping(paymentMethod?.toString() || null);
 }
 
 /**
  * Get revenue account code based on revenue type
+ * Uses centralized mapping from coaMapping.ts
  */
 async function getRevenueAccountCode(revenueTypeId: number): Promise<string> {
     const revenueType = await prisma.revenue_type.findUnique({
@@ -75,7 +57,24 @@ async function getRevenueAccountCode(revenueTypeId: number): Promise<string> {
         return '3065'; // Default to Miscellaneous Income
     }
 
-    return REVENUE_TYPE_TO_COA[revenueType.code] || '3065';
+    return getRevenueCOACode(revenueType.code);
+}
+
+/**
+ * Get receivable account code based on revenue type
+ * Each revenue type has its own dedicated AR account
+ */
+async function getReceivableAccountCode(revenueTypeId: number): Promise<string> {
+    const revenueType = await prisma.revenue_type.findUnique({
+        where: { id: revenueTypeId },
+        select: { code: true }
+    });
+
+    if (!revenueType) {
+        return '1160'; // Default to AR - Miscellaneous Income
+    }
+
+    return getReceivableCOACode(revenueType.code);
 }
 
 // Journal Entry Service instance
@@ -93,7 +92,7 @@ export interface OtherRevenueListParams {
     endDate?: string;
     revenueTypeId?: number;
     status?: string;
-    sortBy?: 'date_recorded' | 'amount' | 'created_at';
+    sortBy?: 'date_recorded' | 'amount' | 'created_at' | 'updated_at';
     sortOrder?: 'asc' | 'desc';
 }
 
@@ -123,20 +122,16 @@ export interface OtherRevenueUpdateInput {
     department_id?: number;  // Reference to department_local
     remarks?: string;
     updated_by: string;
+    // Fields for converting between normal revenue and receivable (installment-based)
+    isUnearnedRevenue?: boolean;
+    scheduleFrequency?: string;
+    scheduleStartDate?: string;
+    numberOfPayments?: number;
 }
 
 // --------------------------
 // HELPERS
 // --------------------------
-
-/**
- * Generates a unique revenue code
- */
-function generateRevenueCode(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substr(2, 5);
-    return `REV-OTH-${timestamp}-${random}`.toUpperCase();
-}
 
 /**
  * Combines department, description, and remarks into full description
@@ -214,7 +209,7 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
 
         // Normalize status search (handle "Partially Paid" -> "PARTIALLY_PAID")
         const normalizedSearch = search.trim().toUpperCase().replace(/\s+/g, '_');
-        const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED', 'WRITTEN_OFF'];
+        const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'COMPLETED', 'CANCELLED', 'WRITTEN_OFF'];
 
         // Check if search matches or partially matches a valid status
         const matchedStatus = validStatuses.find(s =>
@@ -222,7 +217,7 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
         );
 
         if (matchedStatus) {
-            searchConditions.push({ remittance_status: matchedStatus as receivable_status });
+            searchConditions.push({ payment_status: matchedStatus as payment_status });
         }
 
         where.OR = searchConditions;
@@ -242,14 +237,32 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
 
     // Status filter - normalize input to match enum values
     if (status) {
-        // Handle both remittance_status and approval status
+        // Handle both approval_status and payment_status
         const normalizedStatus = status.trim().toUpperCase().replace(/\s+/g, '_');
 
-        if (['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'].includes(normalizedStatus)) {
-            (where as any).status = normalizedStatus;
+        if (['PENDING', 'APPROVED', 'REJECTED'].includes(normalizedStatus)) {
+            where.approval_status = normalizedStatus as approval_status;
         } else {
-            where.remittance_status = normalizedStatus as receivable_status;
+            where.payment_status = normalizedStatus as payment_status;
         }
+    }
+
+
+
+    // Build order by
+    let orderBy: any;
+    switch (sortBy) {
+        case 'updated_at':
+            orderBy = { updated_at: sortOrder };
+            break;
+        case 'date_recorded':
+            orderBy = { date_recorded: sortOrder };
+            break;
+        case 'amount':
+            orderBy = { amount: sortOrder };
+            break;
+        default:
+            orderBy = { updated_at: sortOrder };
     }
 
     // Execute query
@@ -258,7 +271,7 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
             where,
             skip,
             take: limit,
-            orderBy: { [sortBy]: sortOrder },
+            orderBy,
             include: {
                 revenue_type: {
                     select: { id: true, code: true, name: true }
@@ -343,9 +356,10 @@ export async function listOtherRevenue(params: OtherRevenueListParams) {
             description: parsedDescriptions[i].description,
             remarks: parsedDescriptions[i].remarks,
             amount: Number(r.amount),
-            status: (r as any).status,
-            approvalRemarks: (r as any).approval_remarks,
-            remittance_status: r.remittance_status,
+            approval_status: r.approval_status,  // Include approval_status from database
+            accounting_status: r.accounting_status,  // Include accounting_status from database
+            approvalRemarks: r.approval_remarks,
+            payment_status: r.payment_status,
             payment_method: r.payment_method,
             payment_reference: r.payment_reference,
             isUnearnedRevenue: !!r.receivable,
@@ -419,7 +433,7 @@ async function calculateAnalytics(revenueTypeId?: number) {
             _count: true
         }),
         prisma.revenue.groupBy({
-            by: ['remittance_status'],
+            by: ['payment_status'],
             where,
             _sum: { amount: true },
             _count: true
@@ -483,7 +497,7 @@ export async function getOtherRevenueById(id: number) {
         amount: Number(record.amount),
         status: (record as any).status,
         approvalRemarks: (record as any).approval_remarks,
-        remittance_status: record.remittance_status,
+        payment_status: record.payment_status,
         payment_method: record.payment_method,
         payment_reference: record.payment_reference,
         isUnearnedRevenue: !!record.receivable,
@@ -501,7 +515,8 @@ export async function getOtherRevenueById(id: number) {
  * Create a new other revenue record
  */
 export async function createOtherRevenue(input: OtherRevenueCreateInput) {
-    const code = generateRevenueCode();
+    // Use unified code generator
+    const code = await generateCode('revenue');
     // Build description from description and remarks only (department now stored in department_id)
     const fullDescription = input.remarks
         ? `${input.description} (${input.remarks})`
@@ -538,9 +553,11 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
 
         // Create receivable if unearned revenue
         if (input.isUnearnedRevenue && input.scheduleFrequency && input.numberOfPayments) {
+            // Use unified code generator for receivable
+            const receivableCode = await generateCode('receivable');
             const receivable = await tx.receivable.create({
                 data: {
-                    code: `RCV-${code}`,
+                    code: receivableCode,
                     debtor_name: departmentName,
                     description: fullDescription,
                     total_amount: input.amount,
@@ -594,6 +611,10 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
         }
 
         // Create revenue record
+        // BUSINESS RULE: On creation:
+        // - approval_status = PENDING (needs approval)
+        // - accounting_status = NULL (no journal entry yet - will be created on approval)
+        // - payment_status = COMPLETED if no receivable, PENDING if receivable exists
         const revenue = await tx.revenue.create({
             data: {
                 code,
@@ -605,12 +626,12 @@ export async function createOtherRevenue(input: OtherRevenueCreateInput) {
                 payment_method: input.payment_method as payment_method,
                 payment_reference: input.payment_reference,
                 receivable_id: receivableId,
-                // If remittance_status is explicitly provided (e.g., by Other Revenue controller), use it
-                // Otherwise, fall back to original logic: PENDING for unearned, PAID for single payments
-                remittance_status: (input as any).remittance_status || (input.isUnearnedRevenue ? 'PENDING' : 'PAID'),
-                status: 'PENDING' as any, // Initial status is always PENDING
-                created_by: input.created_by
-            } as any,
+                payment_status: input.isUnearnedRevenue ? 'PENDING' : 'COMPLETED',
+                approval_status: 'PENDING',
+                // NO accounting_status set - remains null until approval creates JE
+                created_by: input.created_by,
+                updated_at: new Date()
+            },
             include: {
                 revenue_type: true,
                 department: true,  // Include department relation
@@ -652,12 +673,14 @@ async function generateRevenueJournalEntry(revenueId: number, userId: string) {
 
     try {
         const revenueAccountCode = await getRevenueAccountCode(revenue.revenue_type_id);
+        // Get type-specific receivable account (not generic AR)
+        const receivableAccountCode = await getReceivableAccountCode(revenue.revenue_type_id);
         const dateRecorded = (revenue.date_recorded || new Date()).toISOString().split('T')[0];
 
         let journalEntryInput: CreateAutoJournalEntryInput;
 
         if (revenue.receivable) {
-            // Unearned Revenue: DR Accounts Receivable, CR Revenue
+            // Unearned Revenue: DR Accounts Receivable (type-specific), CR Revenue
             journalEntryInput = {
                 module: 'OTHER_REVENUE',
                 reference_id: revenue.id.toString(),
@@ -665,10 +688,10 @@ async function generateRevenueJournalEntry(revenueId: number, userId: string) {
                 date: dateRecorded,
                 entries: [
                     {
-                        account_code: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE_OTHER,
+                        account_code: receivableAccountCode,
                         debit: Number(revenue.amount),
                         credit: 0,
-                        description: `Accounts Receivable - ${revenue.revenue_type.name}`
+                        description: `AR - ${revenue.revenue_type.name}`
                     },
                     {
                         account_code: revenueAccountCode,
@@ -724,40 +747,53 @@ async function generateRevenueJournalEntry(revenueId: number, userId: string) {
 export async function approveOtherRevenue(id: number, userId: string) {
     const record = await prisma.revenue.findUnique({
         where: { id },
-        include: { journal_entry: true }
+        include: { 
+            journal_entry: true,
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!record) throw new Error('Revenue record not found');
-    if ((record as any).status !== 'PENDING') throw new Error(`Cannot approve record with status ${(record as any).status}`);
+    if (record.approval_status !== 'PENDING') throw new Error(`Cannot approve record with status ${record.approval_status}`);
 
     // Determine if this is unearned revenue (has receivable/installments)
     const isUnearnedRevenue = record.receivable_id !== null;
 
-    // Update status and payment status based on revenue type
+    // BUSINESS RULE: On approval:
+    // - approval_status = APPROVED
+    // - accounting_status = DRAFT (JE will be created with DRAFT status)
+    // - payment_status = COMPLETED if no receivable, PENDING if receivable exists
     const result = await prisma.$transaction(async (tx) => {
         const updated = await tx.revenue.update({
             where: { id },
             data: {
-                status: 'APPROVED' as any,
-                // Non-unearned: auto-mark as PAID (single payment already received)
-                // Unearned: keep PENDING (still needs installment payments)
-                remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID',
+                approval_status: 'APPROVED',
+                accounting_status: 'DRAFT', // JE is created with DRAFT status
+                payment_status: isUnearnedRevenue ? 'PENDING' : 'COMPLETED',
                 updated_by: userId,
                 updated_at: new Date()
-            } as any,
+            },
             include: { revenue_type: true }
         });
 
         return updated;
     });
 
-    // Audit log for approval
+    // Audit log for approval - include full record for proper summary
     await AuditLogClient.logApprove(
         AuditEntityTypes.OTHER_REVENUE,
         { id: record.id, code: record.code },
         { id: userId },
-        { status: (record as any).status },
-        { status: 'APPROVED', remittance_status: isUnearnedRevenue ? 'PENDING' : 'PAID' }
+        { 
+            ...record,
+            approval_status: record.approval_status 
+        },
+        { 
+            ...record,
+            approval_status: 'APPROVED', 
+            payment_status: isUnearnedRevenue ? 'PENDING' : 'COMPLETED' 
+        }
     );
 
     // Generate JE after status update - non-blocking so approval succeeds even if JE fails
@@ -780,30 +816,49 @@ export async function approveOtherRevenue(id: number, userId: string) {
  */
 export async function rejectOtherRevenue(id: number, remarks: string | undefined, userId: string) {
     const record = await prisma.revenue.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!record) throw new Error('Revenue record not found');
-    if ((record as any).status !== 'PENDING') throw new Error(`Cannot reject record with status ${(record as any).status}`);
+    if (record.approval_status !== 'PENDING') throw new Error(`Cannot reject record with status ${record.approval_status}`);
 
+    // BUSINESS RULE: On rejection:
+    // - approval_status = REJECTED
+    // - payment_status = CANCELLED
+    // - accounting_status remains DRAFT (no JE will be created, journal_entry_id stays null)
     const result = await prisma.revenue.update({
         where: { id },
         data: {
-            status: 'REJECTED' as any,
-            approval_remarks: (remarks || null) as any,
+            approval_status: 'REJECTED',
+            payment_status: 'CANCELLED',
+            // Note: accounting_status stays DRAFT, but journal_entry_id is null = no JE exists
+            approval_remarks: remarks || null,
             updated_by: userId,
             updated_at: new Date()
-        } as any
+        }
     });
 
-    // Audit log for rejection
+    // Audit log for rejection - include full record for proper summary
     await AuditLogClient.logReject(
         AuditEntityTypes.OTHER_REVENUE,
         { id: record.id, code: record.code },
         { id: userId },
         remarks,
-        { status: (record as any).status },
-        { status: 'REJECTED', approval_remarks: remarks }
+        { 
+            ...record,
+            approval_status: record.approval_status, 
+            payment_status: record.payment_status 
+        },
+        { 
+            ...record,
+            approval_status: 'REJECTED', 
+            payment_status: 'CANCELLED', 
+            approval_remarks: remarks 
+        }
     );
 
     logger.info(`[OTHER_REVENUE] Rejected revenue ${record.code} by ${userId}${remarks ? `. Reason: ${remarks}` : ''}`);
@@ -812,22 +867,32 @@ export async function rejectOtherRevenue(id: number, remarks: string | undefined
 
 /**
  * Update an existing other revenue record
- * Only allowed for PENDING status records
+ * Only allowed for PENDING approval status records (before approval)
+ * 
+ * Supports converting between:
+ * - Normal Revenue → Receivable (installment-based): Creates receivable + installment schedule
+ * - Receivable → Normal Revenue: HARD DELETES all installment schedules and receivable
  */
 export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateInput) {
     // Check if record exists and is editable
     const existing = await prisma.revenue.findFirst({
         where: { id, is_deleted: false },
-        include: { receivable: true }
+        include: { 
+            receivable: {
+                include: { installment_schedule: true }
+            }
+        }
     });
 
     if (!existing) {
         throw new Error('Revenue record not found');
     }
 
-    // STRICT: Only allow editing for PENDING status
-    if (existing.remittance_status !== 'PENDING') {
-        throw new Error('Only records with PENDING status can be edited');
+    // STRICT: Only allow editing for records with PENDING approval_status
+    // BUSINESS RULE: Once a record is APPROVED or REJECTED, it cannot be edited
+    // Note: payment_status can be COMPLETED for direct revenue (no receivable) even when approval_status is PENDING
+    if (existing.approval_status !== 'PENDING') {
+        throw new Error('Only records with PENDING approval status can be edited');
     }
 
     // Check if journal entry exists and is NOT in DRAFT status - block edit if so
@@ -842,122 +907,256 @@ export async function updateOtherRevenue(id: number, input: OtherRevenueUpdateIn
         }
     }
 
-    // Build update data
-    const updateData: Prisma.revenueUpdateInput = {
-        updated_by: input.updated_by,
-        updated_at: new Date()
-    };
+    // Determine if this is a conversion operation
+    const wasUnearnedRevenue = !!existing.receivable;
+    const isNowUnearnedRevenue = input.isUnearnedRevenue ?? wasUnearnedRevenue;
+    const isConversion = wasUnearnedRevenue !== isNowUnearnedRevenue;
 
-    if (input.revenue_type_id) {
-        // Validate revenue type
-        const revenueType = await prisma.revenue_type.findFirst({
-            where: { id: input.revenue_type_id, is_deleted: false }
+    logger.info(`[OTHER_REVENUE] Update conversion check - wasUnearnedRevenue: ${wasUnearnedRevenue}, isNowUnearnedRevenue: ${isNowUnearnedRevenue}, isConversion: ${isConversion}, input.isUnearnedRevenue: ${input.isUnearnedRevenue}`);
+
+    // Get department name for receivable creation if needed
+    let departmentName = 'General';
+    if (input.department_id || existing.department_id) {
+        const department = await prisma.department_local.findUnique({
+            where: { id: input.department_id || existing.department_id || 0 },
+            select: { department_name: true }
         });
-        if (!revenueType || revenueType.id < 4) {
-            throw new Error('Invalid revenue type');
-        }
-        updateData.revenue_type = { connect: { id: input.revenue_type_id } };
-    }
-
-    if (input.amount !== undefined) updateData.amount = input.amount;
-    if (input.date_recorded) updateData.date_recorded = new Date(input.date_recorded);
-    if (input.payment_method) updateData.payment_method = input.payment_method as payment_method;
-    if (input.payment_reference !== undefined) updateData.payment_reference = input.payment_reference;
-
-    // Update department_id if provided
-    if (input.department_id !== undefined) {
-        if (input.department_id === null) {
-            updateData.department = { disconnect: true };
-        } else {
-            updateData.department = { connect: { id: input.department_id } };
+        if (department) {
+            departmentName = department.department_name;
         }
     }
 
-    // Update description if provided (no longer includes department)
-    if (input.description !== undefined || input.remarks !== undefined) {
-        const currentDesc = existing.description || '';
-        // Extract current remarks if present
-        const remarksMatch = currentDesc.match(/\s*\(([^)]+)\)$/);
-        const currentRemarks = remarksMatch ? remarksMatch[1] : '';
-        const baseDesc = remarksMatch ? currentDesc.slice(0, -remarksMatch[0].length).trim() : currentDesc;
+    // Use transaction for atomicity when converting
+    const result = await prisma.$transaction(async (tx) => {
+        // Build update data
+        const updateData: Prisma.revenueUpdateInput = {
+            updated_by: input.updated_by,
+            updated_at: new Date()
+        };
 
-        const newDesc = input.description ?? baseDesc;
-        const newRemarks = input.remarks ?? currentRemarks;
-        updateData.description = newRemarks ? `${newDesc} (${newRemarks})` : newDesc;
-    }
+        if (input.revenue_type_id) {
+            // Validate revenue type
+            const revenueType = await tx.revenue_type.findFirst({
+                where: { id: input.revenue_type_id, is_deleted: false }
+            });
+            if (!revenueType || revenueType.id < 4) {
+                throw new Error('Invalid revenue type');
+            }
+            updateData.revenue_type = { connect: { id: input.revenue_type_id } };
+        }
 
-    const updated = await prisma.revenue.update({
-        where: { id },
-        data: updateData,
-        include: {
-            revenue_type: true,
-            department: true,  // Include department relation
-            receivable: {
-                include: { installment_schedule: true }
+        if (input.amount !== undefined) updateData.amount = input.amount;
+        if (input.date_recorded) updateData.date_recorded = new Date(input.date_recorded);
+        if (input.payment_method) updateData.payment_method = input.payment_method as payment_method;
+        if (input.payment_reference !== undefined) updateData.payment_reference = input.payment_reference;
+
+        // Update department_id if provided
+        if (input.department_id !== undefined) {
+            if (input.department_id === null) {
+                updateData.department = { disconnect: true };
+            } else {
+                updateData.department = { connect: { id: input.department_id } };
             }
         }
-    });
 
-    // If amount was updated and there's an associated receivable (unearned revenue),
-    // recalculate the receivable total and installment schedule
-    if (input.amount !== undefined && updated.receivable) {
-        const newAmount = input.amount;
-        const receivable = updated.receivable;
-        const installments = receivable.installment_schedule;
+        // Update description if provided
+        if (input.description !== undefined || input.remarks !== undefined) {
+            const currentDesc = existing.description || '';
+            const remarksMatch = currentDesc.match(/\s*\(([^)]+)\)$/);
+            const currentRemarks = remarksMatch ? remarksMatch[1] : '';
+            const baseDesc = remarksMatch ? currentDesc.slice(0, -remarksMatch[0].length).trim() : currentDesc;
 
-        if (installments && installments.length > 0) {
-            // Calculate new amount per installment
-            const numberOfPayments = installments.length;
-            const amountPerInstallment = newAmount / numberOfPayments;
+            const newDesc = input.description ?? baseDesc;
+            const newRemarks = input.remarks ?? currentRemarks;
+            updateData.description = newRemarks ? `${newDesc} (${newRemarks})` : newDesc;
+        }
 
-            // Update each installment, preserving paid amounts and recalculating balances
-            for (const installment of installments) {
-                const paidAmount = Number(installment.amount_paid);
-                const newAmountDue = amountPerInstallment;
-                const newBalance = Math.max(0, newAmountDue - paidAmount);
+        // Handle conversion: Receivable → Normal Revenue
+        if (isConversion && wasUnearnedRevenue && !isNowUnearnedRevenue) {
+            logger.info(`[OTHER_REVENUE] Converting revenue ${existing.code} from RECEIVABLE to NORMAL revenue`);
+            
+            // HARD DELETE all related records (in correct order due to foreign keys)
+            if (existing.receivable) {
+                const receivableId = existing.receivable.id;
+                const scheduleIds = existing.receivable.installment_schedule?.map(s => s.id) || [];
+                
+                // 1. First, delete all payments linked to the installment schedules
+                if (scheduleIds.length > 0) {
+                    await tx.revenue_installment_payment.deleteMany({
+                        where: { installment_id: { in: scheduleIds } }
+                    });
+                    logger.info(`[OTHER_REVENUE] Deleted payments for ${scheduleIds.length} installment schedules`);
+                }
+                
+                // 2. Delete all installment schedules
+                await tx.revenue_installment_schedule.deleteMany({
+                    where: { receivable_id: receivableId }
+                });
+                logger.info(`[OTHER_REVENUE] Deleted ${scheduleIds.length} installment schedules`);
+                
+                // 3. First disconnect the revenue from the receivable (set receivable_id to null)
+                await tx.revenue.update({
+                    where: { id },
+                    data: { receivable_id: null }
+                });
+                
+                // 4. Then delete the receivable
+                await tx.receivable.delete({
+                    where: { id: receivableId }
+                });
+                logger.info(`[OTHER_REVENUE] Deleted receivable ${receivableId}`);
+            }
+            
+            // Update payment_status to COMPLETED for normal revenue
+            updateData.payment_status = 'COMPLETED';
+        }
 
-                // Determine new status based on payments
-                let newStatus: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' = 'PENDING';
-                if (paidAmount >= newAmountDue) {
-                    newStatus = 'PAID';
-                } else if (paidAmount > 0) {
-                    newStatus = 'PARTIALLY_PAID';
-                } else {
-                    // Check if overdue
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    if (new Date(installment.due_date) < today) {
-                        newStatus = 'OVERDUE';
-                    }
+        // Handle conversion: Normal Revenue → Receivable
+        if (isConversion && !wasUnearnedRevenue && isNowUnearnedRevenue) {
+            logger.info(`[OTHER_REVENUE] Converting revenue ${existing.code} from NORMAL to RECEIVABLE (installment-based)`);
+            
+            // Validate required fields for receivable creation
+            if (!input.scheduleFrequency || !input.numberOfPayments || input.numberOfPayments < 1) {
+                throw new Error('Schedule frequency and number of payments are required for installment-based revenue');
+            }
+
+            const amount = input.amount ?? Number(existing.amount);
+            const startDate = input.scheduleStartDate ? new Date(input.scheduleStartDate) : new Date();
+            const fullDescription = updateData.description as string || existing.description || '';
+
+            // Create receivable
+            const receivableCode = await generateCode('receivable');
+            const receivable = await tx.receivable.create({
+                data: {
+                    code: receivableCode,
+                    debtor_name: departmentName,
+                    description: fullDescription,
+                    total_amount: amount,
+                    installment_start_date: startDate,
+                    frequency: input.scheduleFrequency as receivable_frequency,
+                    number_of_payments: input.numberOfPayments,
+                    status: 'PENDING',
+                    created_by: input.updated_by,
+                }
+            });
+
+            // Create installment schedule
+            const amountPerInstallment = amount / input.numberOfPayments;
+            for (let i = 0; i < input.numberOfPayments; i++) {
+                const scheduleDate = new Date(startDate);
+                switch (input.scheduleFrequency) {
+                    case 'DAILY':
+                        scheduleDate.setDate(startDate.getDate() + i);
+                        break;
+                    case 'WEEKLY':
+                        scheduleDate.setDate(startDate.getDate() + (i * 7));
+                        break;
+                    case 'BIWEEKLY':
+                        scheduleDate.setDate(startDate.getDate() + (i * 14));
+                        break;
+                    case 'MONTHLY':
+                        scheduleDate.setMonth(startDate.getMonth() + i);
+                        break;
+                    case 'QUARTERLY':
+                        scheduleDate.setMonth(startDate.getMonth() + (i * 3));
+                        break;
+                    case 'ANNUALLY':
+                        scheduleDate.setFullYear(startDate.getFullYear() + i);
+                        break;
+                    default:
+                        scheduleDate.setDate(startDate.getDate() + i);
                 }
 
-                await prisma.revenue_installment_schedule.update({
-                    where: { id: installment.id },
+                await tx.revenue_installment_schedule.create({
                     data: {
-                        amount_due: newAmountDue,
-                        balance: newBalance,
-                        status: newStatus,
-                        updated_by: input.updated_by,
-                        updated_at: new Date()
+                        receivable_id: receivable.id,
+                        installment_number: i + 1,
+                        due_date: scheduleDate,
+                        amount_due: amountPerInstallment,
+                        balance: amountPerInstallment,
+                        status: 'PENDING',
                     }
                 });
             }
 
-            // Update receivable total_amount
-            await prisma.receivable.update({
-                where: { id: receivable.id },
-                data: {
-                    total_amount: newAmount,
-                    updated_by: input.updated_by,
-                    updated_at: new Date()
-                }
-            });
+            logger.info(`[OTHER_REVENUE] Created receivable ${receivableCode} with ${input.numberOfPayments} installments`);
 
-            logger.info(`[OTHER_REVENUE] Recalculated receivable and ${numberOfPayments} installments for revenue ${updated.code}`);
+            // Connect receivable to revenue and update payment_status
+            updateData.receivable = { connect: { id: receivable.id } };
+            updateData.payment_status = 'PENDING'; // Receivable starts as pending
         }
-    }
 
-    logger.info(`[OTHER_REVENUE] Updated revenue ${updated.code}`);
+        // Update the revenue record
+        const updated = await tx.revenue.update({
+            where: { id },
+            data: updateData,
+            include: {
+                revenue_type: true,
+                department: true,
+                receivable: {
+                    include: { installment_schedule: true }
+                }
+            }
+        });
+
+        // If amount was updated and there's an associated receivable (and not converting away from receivable),
+        // recalculate the receivable total and installment schedule
+        if (input.amount !== undefined && updated.receivable && !isConversion) {
+            const newAmount = input.amount;
+            const receivable = updated.receivable;
+            const installments = receivable.installment_schedule;
+
+            if (installments && installments.length > 0) {
+                const numberOfPayments = installments.length;
+                const amountPerInstallment = newAmount / numberOfPayments;
+
+                for (const installment of installments) {
+                    const paidAmount = Number(installment.amount_paid);
+                    const newAmountDue = amountPerInstallment;
+                    const newBalance = Math.max(0, newAmountDue - paidAmount);
+
+                    let newStatus: installment_status = 'PENDING';
+                    if (paidAmount >= newAmountDue) {
+                        newStatus = 'PAID';
+                    } else if (paidAmount > 0) {
+                        newStatus = 'PARTIALLY_PAID';
+                    } else {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        if (new Date(installment.due_date) < today) {
+                            newStatus = 'OVERDUE';
+                        }
+                    }
+
+                    await tx.revenue_installment_schedule.update({
+                        where: { id: installment.id },
+                        data: {
+                            amount_due: newAmountDue,
+                            balance: newBalance,
+                            status: newStatus,
+                            updated_by: input.updated_by,
+                            updated_at: new Date()
+                        }
+                    });
+                }
+
+                await tx.receivable.update({
+                    where: { id: receivable.id },
+                    data: {
+                        total_amount: newAmount,
+                        updated_by: input.updated_by,
+                        updated_at: new Date()
+                    }
+                });
+
+                logger.info(`[OTHER_REVENUE] Recalculated receivable and ${numberOfPayments} installments for revenue ${updated.code}`);
+            }
+        }
+
+        return updated;
+    });
+
+    logger.info(`[OTHER_REVENUE] Updated revenue ${result.code}${isConversion ? ` (converted to ${isNowUnearnedRevenue ? 'RECEIVABLE' : 'NORMAL'})` : ''}`);
 
     // Re-fetch with updated receivable data
     const finalResult = await prisma.revenue.findUnique({
@@ -1052,16 +1251,67 @@ export async function recordPayment(input: RecordPaymentInput) {
         throw new Error('Revenue record not found');
     }
 
-    // STRICT: Only allow payments for APPROVED or COMPLETED records
-    if ((revenue as any).status !== 'APPROVED' && (revenue as any).status !== 'COMPLETED') {
-        throw new Error(`Cannot record payment: revenue record is ${(revenue as any).status.toLowerCase()}. Please approve it first.`);
+    // STRICT: Only allow payments for APPROVED records
+    if (revenue.approval_status !== 'APPROVED') {
+        throw new Error(`Cannot record payment: revenue record is ${revenue.approval_status.toLowerCase()}. Please approve it first.`);
     }
 
     if (!revenue.receivable) {
         throw new Error('Revenue record does not have a receivable schedule');
     }
 
-    // Use transaction for atomicity
+    // =========================================================================
+    // STEP 1: Create Journal Entry FIRST (before transaction)
+    // BUSINESS RULE: Each payment creates its own JE with status = DRAFT
+    // The JE must be manually POSTED to become visible on dashboard
+    // =========================================================================
+    let journalEntryId: number | null = null;
+    
+    try {
+        const assetAccountCode = getAssetAccountCode(input.paymentMethod);
+        // Get type-specific receivable account (not generic AR)
+        const receivableAccountCode = await getReceivableAccountCode(revenue.revenue_type_id);
+        const paymentDateStr = new Date(input.paymentDate).toISOString().split('T')[0];
+
+        const journalEntryInput: CreateAutoJournalEntryInput = {
+            module: 'OTHER_REVENUE_PAYMENT',
+            reference_id: `Payment for ${revenue.code}`,
+            description: `Payment for ${revenue.revenue_type.name} - ${revenue.code}`,
+            date: paymentDateStr,
+            entries: [
+                {
+                    account_code: assetAccountCode,
+                    debit: input.amountPaid,
+                    credit: 0,
+                    description: `Payment received - ${input.paymentMethod}`
+                },
+                {
+                    account_code: receivableAccountCode,
+                    debit: 0,
+                    credit: input.amountPaid,
+                    description: `Reduce AR - ${revenue.revenue_type.name}`
+                }
+            ]
+        };
+
+        // Create JE with DRAFT status (NOT auto-posted)
+        // User must manually post the JE for it to appear on dashboard
+        const journalEntry = await journalEntryService.createAutoJournalEntry(
+            journalEntryInput,
+            input.recordedBy
+        );
+        journalEntryId = journalEntry.id;
+
+        logger.info(`[OTHER_REVENUE] Created payment journal entry ${journalEntry.code} with DRAFT status`);
+    } catch (jeError) {
+        logger.error(`[OTHER_REVENUE] Failed to create payment journal entry:`, jeError);
+        // Continue with payment recording even if JE creation fails
+        // This ensures the payment is still tracked
+    }
+
+    // =========================================================================
+    // STEP 2: Create payment records (with JE link) in transaction
+    // =========================================================================
     const result = await prisma.$transaction(async (tx) => {
         const payments: any[] = [];
         let remainingAmount = input.amountPaid;
@@ -1087,7 +1337,9 @@ export async function recordPayment(input: RecordPaymentInput) {
 
                 if (amountToApply <= 0) continue;
 
-                // Create payment record
+                // Create payment record with JE link
+                // BUSINESS RULE: Payment accounting_status = DRAFT
+                // It becomes POSTED only when the linked JE is posted
                 const payment = await tx.revenue_installment_payment.create({
                     data: {
                         installment_id: installmentId,
@@ -1095,6 +1347,8 @@ export async function recordPayment(input: RecordPaymentInput) {
                         amount_paid: amountToApply,
                         payment_date: new Date(input.paymentDate),
                         payment_method: input.paymentMethod as payment_method,
+                        journal_entry_id: journalEntryId,
+                        accounting_status: 'DRAFT', // Will be POSTED when JE is posted
                         created_by: input.recordedBy
                     }
                 });
@@ -1137,7 +1391,9 @@ export async function recordPayment(input: RecordPaymentInput) {
             const currentBalance = Number(installment.balance);
             const amountToApply = Math.min(input.amountPaid, currentBalance);
 
-            // Create payment record
+            // Create payment record with JE link
+            // BUSINESS RULE: Payment accounting_status = DRAFT
+            // It becomes POSTED only when the linked JE is posted
             const payment = await tx.revenue_installment_payment.create({
                 data: {
                     installment_id: installmentId,
@@ -1145,6 +1401,8 @@ export async function recordPayment(input: RecordPaymentInput) {
                     amount_paid: amountToApply,
                     payment_date: new Date(input.paymentDate),
                     payment_method: input.paymentMethod as payment_method,
+                    journal_entry_id: journalEntryId,
+                    accounting_status: 'DRAFT', // Will be POSTED when JE is posted
                     created_by: input.recordedBy
                 }
             });
@@ -1179,9 +1437,9 @@ export async function recordPayment(input: RecordPaymentInput) {
         const allPaid = allInstallments.every(i => i.status === 'PAID');
         const somePaid = allInstallments.some(i => i.status === 'PAID' || i.status === 'PARTIALLY_PAID');
 
-        let receivableStatus: receivable_status = 'PENDING';
+        let receivableStatus: payment_status = 'PENDING';
         if (allPaid) {
-            receivableStatus = 'PAID';
+            receivableStatus = 'COMPLETED';
         } else if (somePaid) {
             receivableStatus = 'PARTIALLY_PAID';
         }
@@ -1199,7 +1457,7 @@ export async function recordPayment(input: RecordPaymentInput) {
         await tx.revenue.update({
             where: { id: input.revenueId },
             data: {
-                remittance_status: receivableStatus,
+                payment_status: receivableStatus,
                 updated_by: input.recordedBy,
                 updated_at: new Date()
             }
@@ -1214,43 +1472,6 @@ export async function recordPayment(input: RecordPaymentInput) {
         };
     });
 
-    // Generate Journal Entry for payment
-    try {
-        const assetAccountCode = getAssetAccountCode(input.paymentMethod);
-        const paymentDateStr = new Date(input.paymentDate).toISOString().split('T')[0];
-
-        const journalEntryInput: CreateAutoJournalEntryInput = {
-            module: 'OTHER_REVENUE_PAYMENT',
-            reference_id: `${input.revenueId}-payment-${Date.now()}`,
-            description: `Payment for ${revenue.revenue_type.name} #${input.revenueId}`,
-            date: paymentDateStr,
-            entries: [
-                {
-                    account_code: assetAccountCode,
-                    debit: input.amountPaid,
-                    credit: 0,
-                    description: `Payment received - ${input.paymentMethod}`
-                },
-                {
-                    account_code: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE_OTHER,
-                    debit: 0,
-                    credit: input.amountPaid,
-                    description: 'Reduce Accounts Receivable'
-                }
-            ]
-        };
-
-        const journalEntry = await journalEntryService.createAutoJournalEntry(
-            journalEntryInput,
-            input.recordedBy
-        );
-
-        logger.info(`[OTHER_REVENUE] Created payment journal entry ${journalEntry.code}`);
-    } catch (jeError) {
-        logger.error(`[OTHER_REVENUE] Failed to create payment journal entry:`, jeError);
-        // Don't fail the payment recording, just log the error
-    }
-
     return result;
 }
 
@@ -1261,12 +1482,22 @@ export async function recordPayment(input: RecordPaymentInput) {
 /**
  * Soft delete an other revenue record
  * Only allowed for PENDING status records
+ * Uses ARCHIVE action type for audit logging (soft delete)
  */
-export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
+export async function softDeleteOtherRevenue(
+    id: number, 
+    deletedBy: string,
+    deletionReason?: string,
+    req?: Request
+) {
     // Check if record exists and is deletable
     const existing = await prisma.revenue.findFirst({
         where: { id, is_deleted: false },
-        include: { receivable: true }
+        include: { 
+            receivable: true,
+            revenue_type: true,
+            department: true
+        }
     });
 
     if (!existing) {
@@ -1274,7 +1505,7 @@ export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
     }
 
     // Only allow deletion for PENDING approval status
-    if ((existing as any).status !== 'PENDING') {
+    if (existing.approval_status !== 'PENDING') {
         throw new Error('Only records with PENDING approval status can be deleted');
     }
 
@@ -1327,6 +1558,28 @@ export async function softDeleteOtherRevenue(id: number, deletedBy: string) {
 
         return { id, code: existing.code };
     });
+
+    // Log audit for soft delete (ARCHIVE action type)
+    try {
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.OTHER_REVENUE,
+            { id: existing.id, code: existing.code },
+            { id: deletedBy, name: deletedBy },
+            {
+                code: existing.code,
+                revenue_type: (existing as any).revenue_type?.name || 'Unknown',
+                department: (existing as any).department?.name || 'Unknown',
+                amount: existing.amount?.toString() || '0',
+                description: existing.description || '',
+                reason: deletionReason || 'No reason provided'
+            },
+            req
+        );
+        logger.info(`[OTHER_REVENUE] Audit log created for soft delete of ${existing.code}`);
+    } catch (auditError) {
+        logger.error(`[OTHER_REVENUE] Failed to create audit log for soft delete:`, auditError);
+        // Don't throw - audit failure shouldn't block the operation
+    }
 
     return result;
 }

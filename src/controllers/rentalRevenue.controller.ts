@@ -15,7 +15,7 @@ import {
     CancelRentalRevenueDTO,
     VALID_PAYMENT_METHODS,
     VALID_RENTAL_STATUSES,
-    VALID_REMITTANCE_STATUSES,
+    VALID_PAYMENT_STATUSES,
     PaymentMethodEnum,
 } from './rentalRevenue.dto';
 
@@ -51,7 +51,7 @@ export class RentalRevenueController {
                 
                 // Status filters
                 rental_status: req.query.rental_status as any,
-                remittance_status: req.query.remittance_status as any,
+                payment_status: req.query.payment_status as any,
                 
                 // Payment method filter
                 payment_method: req.query.payment_method as PaymentMethodEnum,
@@ -80,9 +80,9 @@ export class RentalRevenueController {
                 throw new ValidationError(`Invalid rental_status. Must be one of: ${VALID_RENTAL_STATUSES.join(', ')}`);
             }
 
-            // Validate remittance_status if provided
-            if (filters.remittance_status && !VALID_REMITTANCE_STATUSES.includes(filters.remittance_status)) {
-                throw new ValidationError(`Invalid remittance_status. Must be one of: ${VALID_REMITTANCE_STATUSES.join(', ')}`);
+            // Validate payment_status if provided
+            if (filters.payment_status && !VALID_PAYMENT_STATUSES.includes(filters.payment_status)) {
+                throw new ValidationError(`Invalid payment_status. Must be one of: ${VALID_PAYMENT_STATUSES.join(', ')}`);
             }
 
             const page = parseInt(req.query.page as string) || 1;
@@ -202,7 +202,7 @@ export class RentalRevenueController {
      * Supports updating:
      * - Revenue fields: date_recorded, description, payment_method, etc.
      * - Rental fields: down_payment_amount, down_payment_date
-     * - Status: remittance_status
+     * - Status: payment_status
      * - Balance payment: pay_balance flag
      */
     updateRentalRevenue = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -220,7 +220,7 @@ export class RentalRevenueController {
                 payment_reference,
                 down_payment_amount,
                 down_payment_date,
-                remittance_status,
+                payment_status,
                 pay_balance,
                 balance_payment_method,
                 balance_payment_reference,
@@ -252,11 +252,11 @@ export class RentalRevenueController {
             if (down_payment_date !== undefined) data.down_payment_date = down_payment_date;
 
             // Status management
-            if (remittance_status !== undefined) {
-                if (!VALID_REMITTANCE_STATUSES.includes(remittance_status)) {
-                    throw new ValidationError(`Invalid remittance_status. Must be one of: ${VALID_REMITTANCE_STATUSES.join(', ')}`);
+            if (payment_status !== undefined) {
+                if (!VALID_PAYMENT_STATUSES.includes(payment_status)) {
+                    throw new ValidationError(`Invalid payment_status. Must be one of: ${VALID_PAYMENT_STATUSES.join(', ')}`);
                 }
-                data.remittance_status = remittance_status;
+                data.payment_status = payment_status;
             }
 
             // Balance payment

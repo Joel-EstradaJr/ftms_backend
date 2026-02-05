@@ -8,18 +8,27 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { Prisma, payment_method } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+import { generateCode } from '../utils/codeGenerator';
+import {
+    EXPENSE_TYPE_TO_EXPENSE_COA,
+    EXPENSE_TYPE_TO_PAYABLE_COA,
+    PAYMENT_METHOD_TO_ASSET_COA
+} from '../lib/coaMapping';
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS (Using centralized COA mappings)
 // ============================================================================
 
+/**
+ * Account codes for journal entries
+ * Uses centralized COA mapping for consistency across all services
+ */
 const ACCOUNT_CODES = {
-    CASH: '1000',
-    BANK_TRANSFER: '1005',
-    E_WALLET: '1010',
-    ACCOUNTS_PAYABLE: '2000',
-    FUEL_EXPENSE: '4000', // Account code 4000 - Fuel Expense per user requirement // Seeded expense account
-    
+    CASH: PAYMENT_METHOD_TO_ASSET_COA['CASH'],                           // 1000
+    BANK_TRANSFER: PAYMENT_METHOD_TO_ASSET_COA['BANK_TRANSFER'],         // 1005
+    E_WALLET: PAYMENT_METHOD_TO_ASSET_COA['E_WALLET'],                   // 1010
+    ACCOUNTS_PAYABLE: EXPENSE_TYPE_TO_PAYABLE_COA['EXPT-001'],           // 2100 - AP - Operational Expenses
+    FUEL_EXPENSE: EXPENSE_TYPE_TO_EXPENSE_COA['EXPT-001'],               // 4000 - Fuel Expense (Operational)
 };
 
 const EXPENSE_TYPE_CODE = 'EXPT-001'; // Operational/Fuel expense type code
@@ -56,27 +65,15 @@ export class OperationalExpenseService {
     }
 
     // --------------------------------------------------------------------------
-    // CODE GENERATION
+    // CODE GENERATION (Using Unified Code Generator)
     // --------------------------------------------------------------------------
 
     /**
-     * Generate unique expense code in format EXP-XXXXXX
+     * Generate unique expense code using unified code generator
+     * Format: EXP-YYYY-XXXX
      */
     private async generateExpenseCode(): Promise<string> {
-        const lastExpense = await prisma.expense.findFirst({
-            orderBy: { id: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNum = 1;
-        if (lastExpense?.code) {
-            const match = lastExpense.code.match(/EXP-(\d+)/);
-            if (match) {
-                nextNum = parseInt(match[1], 10) + 1;
-            }
-        }
-
-        return `EXP-${nextNum.toString().padStart(6, '0')}`;
+        return generateCode('expense');
     }
 
     /**
@@ -343,10 +340,12 @@ export class OperationalExpenseService {
                     description: expenseData.description,
                     date_recorded: expenseData.date_recorded,
                     payment_method: expenseData.payment_method,
-                    status: 'PENDING',
+                    approval_status: 'APPROVED',
+                    accounting_status: 'DRAFT',
                     bus_trip_assignment_id: expenseData.bus_trip_assignment_id,
                     bus_trip_id: expenseData.bus_trip_id,
                     rental_assignment_id: expenseData.rental_assignment_id,
+                    updated_at: new Date(),
                     created_by: userId,
                 },
             });

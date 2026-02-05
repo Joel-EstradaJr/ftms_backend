@@ -17,7 +17,7 @@
  */
 
 import { prisma } from '../config/database';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { HRPayrollClient } from '../integrations/hr/payroll.client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
@@ -404,7 +404,7 @@ export class PayrollPeriodService {
       }
 
       // Use the new HR API sync function
-      const { fetchAndSyncPayrollFromHR } = await import('../../lib/hr/payrollSync');
+      const { fetchAndSyncPayrollFromHR } = await import('../../lib/hr/payrollSync.js');
 
       const result = await fetchAndSyncPayrollFromHR(
         data.period_start,
@@ -435,7 +435,7 @@ export class PayrollPeriodService {
         total_gross: updatedPeriod?.total_gross?.toString() || '0',
         total_deductions: updatedPeriod?.total_deductions?.toString() || '0',
         total_net: updatedPeriod?.total_net?.toString() || '0',
-        errors: result.errors.map(e => ({ employee_number: e.split(':')[0], error: e })),
+        errors: result.errors.map((e: string) => ({ employee_number: e.split(':')[0], error: e })),
       };
     } catch (error) {
       logger.error('Error processing payroll:', error);
@@ -712,12 +712,11 @@ export class PayrollPeriodService {
         },
       });
 
-      await AuditLogClient.logUpdate(
-        'Payroll Period',
+      await AuditLogClient.logArchive(
+        AuditEntityTypes.PAYROLL_PERIOD,
         { id, code: period.payroll_period_code },
-        { is_deleted: false },
-        { is_deleted: true, archived_by: userId },
         { id: userId, name: userInfo?.username, role: userInfo?.role },
+        { code: period.payroll_period_code, status: period.status },
         req
       );
 
@@ -756,12 +755,11 @@ export class PayrollPeriodService {
         },
       });
 
-      await AuditLogClient.logUpdate(
-        'Payroll Period',
+      await AuditLogClient.logUnarchive(
+        AuditEntityTypes.PAYROLL_PERIOD,
         { id, code: period.payroll_period_code },
-        { is_deleted: true },
-        { is_deleted: false, restored_by: userId },
         { id: userId, name: userInfo?.username, role: userInfo?.role },
+        { code: period.payroll_period_code },
         req
       );
 

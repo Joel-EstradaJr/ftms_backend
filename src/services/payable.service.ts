@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { AuditLogClient } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
+import { generateCode } from '../utils/codeGenerator';
 
 export class PayableService {
   /**
@@ -9,9 +10,12 @@ export class PayableService {
    */
   async createPayable(data: any, userId: string, userInfo?: any, req?: any) {
     try {
+      // Use unified code generator if code not provided
+      const code = data.code || data.referenceCode || await generateCode('payable');
+      
       const payable = await prisma.payable.create({
         data: {
-          code: data.code || data.referenceCode,
+          code,
           creditor_name: data.creditor_name || data.entityName,
           description: data.description,
           total_amount: data.total_amount?.toString() || data.amountDue?.toString(),
@@ -162,7 +166,7 @@ export class PayableService {
     try {
       const payable = await this.getPayableById(id);
 
-      if (payable.status === 'PAID') {
+      if (payable.status === 'COMPLETED') {
         throw new ValidationError('Payable is already fully paid');
       }
 
@@ -177,7 +181,7 @@ export class PayableService {
         throw new ValidationError('Payment amount exceeds remaining balance');
       }
 
-      const newStatus = newBalance === 0 ? 'PAID' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
+      const newStatus = newBalance === 0 ? 'COMPLETED' : newBalance < totalAmount ? 'PARTIALLY_PAID' : 'PENDING';
 
       const updated = await prisma.payable.update({
         where: { id },

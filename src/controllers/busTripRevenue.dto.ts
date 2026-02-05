@@ -3,7 +3,7 @@
 // DTOs and interfaces for the Bus Trip Revenue module
 // ============================================================================
 
-import { payment_method, receivable_frequency, receivable_status } from '@prisma/client';
+import { payment_method, receivable_frequency, payment_status, approval_status, journal_status } from '@prisma/client';
 
 // ============================================================================
 // LIST & FILTER INTERFACES
@@ -15,11 +15,13 @@ export interface RevenueListFilters {
     date_recorded_from?: string;
     date_recorded_to?: string;
     assignment_type?: 'BOUNDARY' | 'PERCENTAGE';
-    status?: receivable_status;
+    status?: payment_status;  // Updated to use payment_status enum
+    approval_status?: approval_status;  // New: filter by approval status
+    accounting_status?: journal_status;  // New: filter by accounting status
     trip_revenue_min?: number;
     trip_revenue_max?: number;
     search?: string;
-    sort_by?: 'date_assigned' | 'date_recorded' | 'trip_revenue' | 'amount';
+    sort_by?: 'date_assigned' | 'date_recorded' | 'trip_revenue' | 'amount' | 'updated_at' | 'body_number' | 'assignment_type' | 'assignment_value' | 'date_expected';
     sort_order?: 'asc' | 'desc';
 }
 
@@ -95,9 +97,11 @@ export interface UpdateRevenueDTO {
     description?: string;
     date_expected?: string;
     
-    // Status management
-    remittance_status?: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'WRITTEN_OFF';
-    delete_receivables?: boolean;  // Signal to delete existing receivables (revert to PAID)
+    // Status management (updated to new status model)
+    payment_status?: payment_status;  // PENDING, PARTIALLY_PAID, COMPLETED, OVERDUE, CANCELLED, WRITTEN_OFF
+    approval_status?: approval_status;  // PENDING, APPROVED, REJECTED
+    accounting_status?: journal_status;  // DRAFT, POSTED, ADJUSTED, REVERSED
+    delete_receivables?: boolean;  // Signal to delete existing receivables (revert to COMPLETED)
     
     // Receivable data (when creating/updating receivables due to shortage)
     driverReceivable?: UpdateReceivableDTO;
@@ -125,7 +129,9 @@ export interface RevenueListItem {
     date_assigned: string | null;
     trip_revenue: number;
     assignment_type: string | null;
-    remittance_status: string;
+    payment_status: string;  // Updated from remittance_status
+    approval_status: string;  // New: PENDING, APPROVED, REJECTED
+    accounting_status: string;  // New: DRAFT, POSTED, ADJUSTED, REVERSED
     date_recorded: string | null;
     expected_remittance: number;
     shortage: number;
@@ -138,7 +144,9 @@ export interface RevenueDetailResponse {
     code: string;
     assignment_id: string;
     bus_trip_id: string;
-    remittance_status: string;
+    payment_status: string;  // Updated from remittance_status
+    approval_status: string;  // New: PENDING, APPROVED, REJECTED
+    accounting_status: string;  // New: DRAFT, POSTED, ADJUSTED, REVERSED
 
     // Bus Details
     bus_details: {

@@ -173,13 +173,13 @@ export class BusTripRevenueController {
             if (description !== undefined) data.description = description;
             if (date_expected !== undefined) data.date_expected = date_expected;
             
-            // Status management
+            // Status management - payment_status replaces remittance_status
             if (remittance_status !== undefined) {
-                const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED', 'WRITTEN_OFF'];
+                const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'COMPLETED', 'OVERDUE', 'CANCELLED', 'WRITTEN_OFF'];
                 if (!validStatuses.includes(remittance_status)) {
-                    throw new ValidationError(`Invalid remittance_status. Must be one of: ${validStatuses.join(', ')}`);
+                    throw new ValidationError(`Invalid payment_status. Must be one of: ${validStatuses.join(', ')}`);
                 }
-                data.remittance_status = remittance_status;
+                data.payment_status = remittance_status; // Map old field name to new field
             }
             if (delete_receivables !== undefined) data.delete_receivables = delete_receivables;
             

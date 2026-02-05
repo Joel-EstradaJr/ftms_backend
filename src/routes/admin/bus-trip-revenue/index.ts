@@ -5,8 +5,34 @@
 
 import { Router } from 'express';
 import { busTripRevenueController } from '../../../controllers/busTripRevenue.controller';
+import { processRevenueStatus } from '../../../jobs/revenueStatusJob';
 
 const router = Router();
+
+// ============================================================================
+// MANUAL TRIGGER ENDPOINT (for testing)
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/v1/admin/bus-trip-revenue/trigger-status-check:
+ *   post:
+ *     tags:
+ *       - Bus Trip Revenue
+ *     summary: Manually trigger revenue status check
+ *     description: Manually run the revenue status check job to convert overdue revenues
+ *     responses:
+ *       200:
+ *         description: Status check completed
+ */
+router.post('/trigger-status-check', async (req, res) => {
+    try {
+        const result = await processRevenueStatus();
+        res.json({ success: true, message: 'Revenue status check completed successfully', logs: result });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // ============================================================================
 // CONFIGURATION ENDPOINTS (must be before /:id routes)

@@ -1,5 +1,5 @@
 import { prisma } from '../config/database';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../config/logger';
 
@@ -322,12 +322,11 @@ export class JournalEntryService {
         },
       });
 
-      await AuditLogClient.logUpdate(
-        'Journal Entry',
+      await AuditLogClient.logArchive(
+        AuditEntityTypes.JOURNAL_ENTRY,
         { id, code: entry.code },
-        { is_deleted: false },
-        { is_deleted: true, archived_by: userId },
         { id: userId, name: userInfo?.username, role: userInfo?.role },
+        { code: entry.code, status: entry.status },
         req
       );
 
@@ -366,12 +365,11 @@ export class JournalEntryService {
         },
       });
 
-      await AuditLogClient.logUpdate(
-        'Journal Entry',
+      await AuditLogClient.logUnarchive(
+        AuditEntityTypes.JOURNAL_ENTRY,
         { id, code: entry.code },
-        { is_deleted: true },
-        { is_deleted: false, archived_by: userId },
         { id: userId, name: userInfo?.username, role: userInfo?.role },
+        { code: entry.code },
         req
       );
 

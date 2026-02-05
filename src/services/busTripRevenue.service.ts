@@ -5,11 +5,12 @@
 // ============================================================================
 
 import { prisma } from '../config/database';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
-import { Prisma, receivable_frequency, receivable_status, payment_method } from '@prisma/client';
+import { Prisma, receivable_frequency, payment_status, payment_method, approval_status, journal_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
+import { generateCode } from '../utils/codeGenerator';
 import {
     RevenueListFilters,
     CreateRevenueDTO,
@@ -25,19 +26,29 @@ import {
     SystemConfigResponse,
     JournalEntryPayload
 } from '../controllers/busTripRevenue.dto';
+import {
+    REVENUE_TYPE_TO_REVENUE_COA,
+    REVENUE_TYPE_TO_RECEIVABLE_COA,
+    PAYMENT_METHOD_TO_ASSET_COA,
+    getReceivableCOACode
+} from '../lib/coaMapping';
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS (Using centralized COA mappings)
 // ============================================================================
 
+/**
+ * Account codes for journal entries
+ * Uses centralized COA mapping for consistency across all services
+ */
 const ACCOUNT_CODES = {
-    CASH: '1000',
-    BANK_TRANSFER: '1005',
-    E_WALLET: '1010',
-    DRIVER_RECEIVABLE: '1100',
-    CONDUCTOR_RECEIVABLE: '1105',
-    REVENUE_BOUNDARY: '3000',
-    REVENUE_PERCENTAGE: '3005',
+    CASH: PAYMENT_METHOD_TO_ASSET_COA['CASH'],                           // 1000
+    BANK_TRANSFER: PAYMENT_METHOD_TO_ASSET_COA['BANK_TRANSFER'],         // 1005
+    E_WALLET: PAYMENT_METHOD_TO_ASSET_COA['E_WALLET'],                   // 1010
+    DRIVER_RECEIVABLE: REVENUE_TYPE_TO_RECEIVABLE_COA['REVT-001'],       // 1100 - AR - Bus Trip Boundary
+    CONDUCTOR_RECEIVABLE: REVENUE_TYPE_TO_RECEIVABLE_COA['REVT-002'],    // 1105 - AR - Bus Trip Percentage
+    REVENUE_BOUNDARY: REVENUE_TYPE_TO_REVENUE_COA['REVT-001'],           // 3000 - Trip Revenue - Boundary
+    REVENUE_PERCENTAGE: REVENUE_TYPE_TO_REVENUE_COA['REVT-002'],         // 3005 - Trip Revenue - Percentage
 };
 
 const REVENUE_TYPE_CODES = {
@@ -57,63 +68,158 @@ export class BusTripRevenueService {
     }
 
     // --------------------------------------------------------------------------
-    // CODE GENERATION
+    // SEARCH HELPER METHODS
     // --------------------------------------------------------------------------
 
     /**
-     * Generate unique revenue code in format REV-YYYY-XXXX
+     * Month name to number mapping for date search
      */
-    private async generateRevenueCode(): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `REV-${year}-`;
+    private static readonly MONTH_MAP: Record<string, number> = {
+        'january': 1, 'jan': 1,
+        'february': 2, 'feb': 2,
+        'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4,
+        'may': 5,
+        'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9, 'sept': 9,
+        'october': 10, 'oct': 10,
+        'november': 11, 'nov': 11,
+        'december': 12, 'dec': 12
+    };
 
-        const lastRevenue = await prisma.revenue.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
+    /**
+     * Payment status display name mapping for search
+     */
+    private static readonly STATUS_MAP: Record<string, payment_status[]> = {
+        'pending': ['PENDING'],
+        'partial': ['PARTIALLY_PAID'],
+        'partially': ['PARTIALLY_PAID'],
+        'partially_paid': ['PARTIALLY_PAID'],
+        'complete': ['COMPLETED'],
+        'completed': ['COMPLETED'],
+        'paid': ['COMPLETED', 'PARTIALLY_PAID'],
+        'overdue': ['OVERDUE'],
+        'cancel': ['CANCELLED'],
+        'cancelled': ['CANCELLED'],
+        'written': ['WRITTEN_OFF'],
+        'written_off': ['WRITTEN_OFF'],
+        'write_off': ['WRITTEN_OFF'],
+    };
 
-        let nextNumber = 1;
-        if (lastRevenue?.code) {
-            const parts = lastRevenue.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1;
+    /**
+     * Assignment type mapping for search
+     */
+    private static readonly ASSIGNMENT_TYPE_MAP: Record<string, string[]> = {
+        'bound': ['BOUNDARY'],
+        'boundary': ['BOUNDARY'],
+        'percent': ['PERCENTAGE'],
+        'percentage': ['PERCENTAGE'],
+    };
+
+    /**
+     * Parse search term and return structured search criteria
+     * Handles multi-token expressions like "January 11" or "Jan 15 2026"
+     */
+    private parseSearchTerm(search: string): {
+        monthNumber?: number;
+        dayNumber?: number;
+        yearNumber?: number;
+        numericValue?: number;
+        paymentStatuses?: payment_status[];
+        assignmentTypes?: string[];
+        textSearch: string;
+    } {
+        const searchLower = search.toLowerCase().trim();
+        const result: ReturnType<typeof this.parseSearchTerm> = { textSearch: search };
+
+        // Split search into tokens to handle expressions like "January 11" or "Jan 15 2026"
+        const tokens = searchLower.split(/\s+/).filter(t => t.length > 0);
+
+        // Process each token
+        for (const token of tokens) {
+            // Check for month name match
+            for (const [monthName, monthNum] of Object.entries(BusTripRevenueService.MONTH_MAP)) {
+                if (monthName === token || monthName.startsWith(token) || token.startsWith(monthName)) {
+                    result.monthNumber = monthNum;
+                    break;
+                }
+            }
+
+            // Check for numeric value in token (could be day or year)
+            const numericMatch = token.match(/^(\d+)$/);
+            if (numericMatch) {
+                const num = parseInt(numericMatch[1], 10);
+
+                // If it's 1-31, it's a day
+                if (num >= 1 && num <= 31) {
+                    result.dayNumber = num;
+                }
+
+                // If it's a 4-digit number starting with 19 or 20, it's a year
+                if (num >= 1900 && num <= 2100) {
+                    result.yearNumber = num;
+                }
             }
         }
 
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        // Check for payment status match (on full search term)
+        for (const [statusKey, statuses] of Object.entries(BusTripRevenueService.STATUS_MAP)) {
+            if (statusKey.startsWith(searchLower) || searchLower.startsWith(statusKey) || searchLower.includes(statusKey)) {
+                result.paymentStatuses = statuses;
+                break;
+            }
+        }
+
+        // Check for assignment type match (on full search term)
+        for (const [typeKey, types] of Object.entries(BusTripRevenueService.ASSIGNMENT_TYPE_MAP)) {
+            if (typeKey.startsWith(searchLower) || searchLower.startsWith(typeKey) || searchLower.includes(typeKey)) {
+                result.assignmentTypes = types;
+                break;
+            }
+        }
+
+        // Check for numeric value for trip revenue (on full search term, ignoring currency symbols)
+        // Only treat as trip revenue if it's a larger number (> 31) or has decimals
+        const fullNumericMatch = search.replace(/[₱,\s]/g, '').match(/^(\d+\.?\d*)$/);
+        if (fullNumericMatch) {
+            const num = parseFloat(fullNumericMatch[1]);
+            result.numericValue = num;
+        }
+
+        return result;
+    }
+
+    // --------------------------------------------------------------------------
+    // CODE GENERATION (Using Unified Code Generator)
+    // --------------------------------------------------------------------------
+
+    /**
+     * Generate unique revenue code using unified code generator
+     * Format: REV-YYYY-XXXX
+     */
+    private async generateRevenueCode(): Promise<string> {
+        return generateCode('revenue');
     }
 
     /**
-   * Generate unique receivable code in format RCVL-YYYY-XXXX
-   * @param offset - Optional offset to generate sequential codes in same call (default 0)
-   */
+     * Generate unique receivable code using unified code generator
+     * Format: REC-YYYY-XXXX
+     * @param offset - Optional offset to generate sequential codes in same call (default 0)
+     */
     private async generateReceivableCode(offset: number = 0): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `RCVL-${year}-`;
-
-        const lastReceivable = await prisma.receivable.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNumber = 1 + offset;
-        if (lastReceivable?.code) {
-            const parts = lastReceivable.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1 + offset;
-            }
-        }
-
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        return generateCode('receivable', offset);
     }
 
     /**
      * Map payment method string from bus_trip_local to valid enum
      * Handles case differences and alternative names
+     * 
+     * NOTE: REIMBURSEMENT is mapped to CASH for revenue records.
+     * Reimbursement payment method is only applicable to expense records,
+     * not revenue records. External data may contain "Reimbursement" but
+     * for revenue we treat it as CASH (Company_Cash).
      */
     private mapPaymentMethod(paymentMethodStr: string | null): payment_method {
         if (!paymentMethodStr) return 'CASH';
@@ -123,6 +229,9 @@ export class BusTripRevenueService {
         switch (normalized) {
             case 'CASH':
             case 'COMPANY_CASH':
+            case 'REIMBURSEMENT':
+                // REIMBURSEMENT is treated as CASH for revenue records
+                // (Reimbursement is only applicable to expense records)
                 return 'CASH';
             case 'BANK_TRANSFER':
             case 'BANK':
@@ -132,8 +241,6 @@ export class BusTripRevenueService {
             case 'GCASH':
             case 'PAYMAYA':
                 return 'E_WALLET';
-            case 'REIMBURSEMENT':
-                return 'REIMBURSEMENT';
             default:
                 // Log unknown payment method and default to CASH
                 logger.warn(`[BusTripRevenueService] Unknown payment method: ${paymentMethodStr}, defaulting to CASH`);
@@ -203,14 +310,14 @@ export class BusTripRevenueService {
     }
 
     /**
-     * Determine remittance status
+     * Determine payment status for remittance
      */
-    private determineRemittanceStatus(
+    private determinePaymentStatus(
         tripRevenue: Prisma.Decimal | null,
         expectedRemittance: Prisma.Decimal
-    ): receivable_status {
+    ): payment_status {
         const revenue = tripRevenue ?? new Prisma.Decimal(0);
-        return revenue.greaterThanOrEqualTo(expectedRemittance) ? 'PAID' : 'PARTIALLY_PAID';
+        return revenue.greaterThanOrEqualTo(expectedRemittance) ? 'COMPLETED' : 'PARTIALLY_PAID';
     }
 
     /**
@@ -444,9 +551,9 @@ export class BusTripRevenueService {
             bus_trip_id: { not: null },
         };
 
-        // Status filter
+        // Payment status filter (replaces remittance_status)
         if (filters.status) {
-            where.remittance_status = filters.status;
+            where.payment_status = filters.status as payment_status;
         }
 
         // Date recorded filter
@@ -488,22 +595,261 @@ export class BusTripRevenueService {
             where.bus_trip = busTripFilters;
         }
 
-        // Search across multiple fields
+        // Enhanced search across multiple fields with intelligent matching
         if (filters.search) {
-            where.OR = [
+            const searchCriteria = this.parseSearchTerm(filters.search);
+            const orConditions: Prisma.revenueWhereInput[] = [
+                // Text-based searches
                 { code: { contains: filters.search, mode: 'insensitive' } },
                 { bus_trip: { bus: { body_number: { contains: filters.search, mode: 'insensitive' } } } },
             ];
+
+            // Add payment status search if matched
+            if (searchCriteria.paymentStatuses && searchCriteria.paymentStatuses.length > 0) {
+                orConditions.push({ payment_status: { in: searchCriteria.paymentStatuses } });
+            }
+
+            // Add assignment type search if matched
+            if (searchCriteria.assignmentTypes && searchCriteria.assignmentTypes.length > 0) {
+                orConditions.push({
+                    bus_trip: { assignment_type: { in: searchCriteria.assignmentTypes } }
+                });
+            }
+
+            // Add numeric search for trip_revenue
+            // Only search trip_revenue if the number is > 31 (to avoid matching day numbers)
+            // OR if there's no date context (month/year)
+            if (searchCriteria.numericValue !== undefined &&
+                (searchCriteria.numericValue > 31 ||
+                    (!searchCriteria.monthNumber && !searchCriteria.yearNumber))) {
+                const numVal = searchCriteria.numericValue;
+                // Use string-based contains matching for numeric search
+                // This allows "100" to match "1000", "1100", "1200" etc.
+                // Convert to string and search in the numeric range
+                const numStr = numVal.toString();
+
+                // If the search is an exact whole number, match values that contain these digits
+                // For example: "100" should match 100, 1000, 1100, 1200, etc.
+                // "1300" should match 1300, 13000, etc.
+                if (numVal >= 100) {
+                    // For 3+ digit numbers, do an exact match or prefix match
+                    orConditions.push({
+                        bus_trip: {
+                            trip_revenue: {
+                                gte: new Prisma.Decimal(numVal),
+                                lt: new Prisma.Decimal(numVal + 1)
+                            }
+                        }
+                    });
+                } else if (numVal > 31) {
+                    // For numbers 32-99, also do exact match
+                    orConditions.push({
+                        bus_trip: {
+                            trip_revenue: {
+                                gte: new Prisma.Decimal(numVal),
+                                lt: new Prisma.Decimal(numVal + 1)
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Add date-based search for month + day + year combinations
+            const currentYear = new Date().getFullYear();
+
+            // If we have both month and day (e.g., "January 11")
+            if (searchCriteria.monthNumber !== undefined && searchCriteria.dayNumber !== undefined) {
+                const month = searchCriteria.monthNumber;
+                const day = searchCriteria.dayNumber;
+                const year = searchCriteria.yearNumber || currentYear;
+
+                // Validate the day exists in the month
+                const daysInMonth = new Date(year, month, 0).getDate();
+                if (day <= daysInMonth) {
+                    const targetDate = new Date(year, month - 1, day);
+                    const nextDate = new Date(year, month - 1, day + 1);
+
+                    // If no year specified, check multiple years
+                    if (!searchCriteria.yearNumber) {
+                        for (let y = currentYear - 4; y <= currentYear + 1; y++) {
+                            const daysInMonthY = new Date(y, month, 0).getDate();
+                            if (day <= daysInMonthY) {
+                                const targetDateY = new Date(y, month - 1, day);
+                                const nextDateY = new Date(y, month - 1, day + 1);
+
+                                orConditions.push({
+                                    date_recorded: {
+                                        gte: targetDateY,
+                                        lt: nextDateY
+                                    }
+                                });
+
+                                orConditions.push({
+                                    bus_trip: {
+                                        date_assigned: {
+                                            gte: targetDateY,
+                                            lt: nextDateY
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } else {
+                        // Specific year provided
+                        orConditions.push({
+                            date_recorded: {
+                                gte: targetDate,
+                                lt: nextDate
+                            }
+                        });
+
+                        orConditions.push({
+                            bus_trip: {
+                                date_assigned: {
+                                    gte: targetDate,
+                                    lt: nextDate
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            // Month only search (e.g., "January")
+            else if (searchCriteria.monthNumber !== undefined && !searchCriteria.dayNumber) {
+                const month = searchCriteria.monthNumber;
+                const year = searchCriteria.yearNumber;
+
+                if (year) {
+                    // Specific month and year
+                    const startOfMonth = new Date(year, month - 1, 1);
+                    const endOfMonth = new Date(year, month, 0, 23, 59, 59);
+
+                    orConditions.push({
+                        date_recorded: {
+                            gte: startOfMonth,
+                            lte: endOfMonth
+                        }
+                    });
+
+                    orConditions.push({
+                        bus_trip: {
+                            date_assigned: {
+                                gte: startOfMonth,
+                                lte: endOfMonth
+                            }
+                        }
+                    });
+                } else {
+                    // Month across multiple years
+                    for (let y = currentYear - 4; y <= currentYear + 1; y++) {
+                        const startOfMonth = new Date(y, month - 1, 1);
+                        const endOfMonth = new Date(y, month, 0, 23, 59, 59);
+
+                        orConditions.push({
+                            date_recorded: {
+                                gte: startOfMonth,
+                                lte: endOfMonth
+                            }
+                        });
+
+                        orConditions.push({
+                            bus_trip: {
+                                date_assigned: {
+                                    gte: startOfMonth,
+                                    lte: endOfMonth
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            // Year only search (e.g., "2026")
+            else if (searchCriteria.yearNumber !== undefined && !searchCriteria.monthNumber) {
+                const year = searchCriteria.yearNumber;
+                const startOfYear = new Date(year, 0, 1);
+                const endOfYear = new Date(year, 11, 31, 23, 59, 59);
+
+                orConditions.push({
+                    date_recorded: {
+                        gte: startOfYear,
+                        lte: endOfYear
+                    }
+                });
+
+                orConditions.push({
+                    bus_trip: {
+                        date_assigned: {
+                            gte: startOfYear,
+                            lte: endOfYear
+                        }
+                    }
+                });
+            }
+            // Day only search (e.g., "15" for 15th of any month) - only if pure day number and <= 31
+            else if (searchCriteria.dayNumber !== undefined &&
+                !searchCriteria.monthNumber &&
+                !searchCriteria.yearNumber &&
+                searchCriteria.numericValue !== undefined &&
+                searchCriteria.numericValue <= 31) {
+                const day = searchCriteria.dayNumber;
+
+                for (let month = 0; month < 12; month++) {
+                    const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
+                    if (day <= daysInMonth) {
+                        const targetDate = new Date(currentYear, month, day);
+                        const nextDate = new Date(currentYear, month, day + 1);
+
+                        orConditions.push({
+                            date_recorded: {
+                                gte: targetDate,
+                                lt: nextDate
+                            }
+                        });
+
+                        orConditions.push({
+                            bus_trip: {
+                                date_assigned: {
+                                    gte: targetDate,
+                                    lt: nextDate
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            where.OR = orConditions;
         }
 
         // Sorting
-        const orderBy: Prisma.revenueOrderByWithRelationInput = {};
+        // Handle sorting for both direct revenue fields and related bus_trip fields
+        let orderBy: Prisma.revenueOrderByWithRelationInput | Prisma.revenueOrderByWithRelationInput[] = {};
+
         if (filters.sort_by === 'date_recorded') {
-            orderBy.date_recorded = filters.sort_order || 'desc';
+            orderBy = { date_recorded: filters.sort_order || 'desc' };
         } else if (filters.sort_by === 'amount') {
-            orderBy.amount = filters.sort_order || 'desc';
+            orderBy = { amount: filters.sort_order || 'desc' };
+        } else if (filters.sort_by === 'updated_at') {
+            orderBy = { updated_at: filters.sort_order || 'desc' };
+        } else if (filters.sort_by === 'trip_revenue') {
+            // Sort by related bus_trip.trip_revenue field
+            orderBy = { bus_trip: { trip_revenue: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'body_number') {
+            // Sort by related bus_trip.bus.body_number field
+            orderBy = { bus_trip: { bus: { body_number: filters.sort_order || 'desc' } } };
+        } else if (filters.sort_by === 'date_assigned') {
+            // Sort by related bus_trip.date_assigned field
+            orderBy = { bus_trip: { date_assigned: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'assignment_type') {
+            // Sort by related bus_trip.assignment_type field
+            orderBy = { bus_trip: { assignment_type: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'assignment_value') {
+            // Sort by related bus_trip.assignment_value field
+            orderBy = { bus_trip: { assignment_value: filters.sort_order || 'desc' } };
+        } else if (filters.sort_by === 'date_expected') {
+            orderBy = { date_expected: filters.sort_order || 'desc' };
         } else {
-            orderBy.created_at = 'desc';
+            orderBy = { updated_at: filters.sort_order || 'desc' };
         }
 
         const skip = (page - 1) * limit;
@@ -546,7 +892,9 @@ export class BusTripRevenueService {
                 date_assigned: trip?.date_assigned?.toISOString() ?? null,
                 trip_revenue: Number(trip?.trip_revenue ?? 0),
                 assignment_type: trip?.assignment_type ?? null,
-                remittance_status: rev.remittance_status,
+                payment_status: rev.payment_status,
+                approval_status: rev.approval_status || 'PENDING',
+                accounting_status: rev.accounting_status || 'DRAFT',
                 date_recorded: rev.date_recorded?.toISOString() ?? null,
                 expected_remittance: Number(expectedRemittance),
                 shortage: Number(shortage),
@@ -645,7 +993,9 @@ export class BusTripRevenueService {
             code: revenue.code,
             assignment_id: revenue.bus_trip_assignment_id!,
             bus_trip_id: revenue.bus_trip_id!,
-            remittance_status: revenue.remittance_status,
+            payment_status: revenue.payment_status,
+            approval_status: revenue.approval_status,
+            accounting_status: revenue.accounting_status,
 
             bus_details: {
                 date_assigned: trip.date_assigned?.toISOString() ?? null,
@@ -692,7 +1042,7 @@ export class BusTripRevenueService {
         };
 
         // Add shortage details if PARTIALLY_PAID
-        if (revenue.remittance_status === 'PARTIALLY_PAID' && shortage.greaterThan(0)) {
+        if (revenue.payment_status === 'PARTIALLY_PAID' && shortage.greaterThan(0)) {
             const driverShare = shortage.mul(new Prisma.Decimal(config.driver_share_percentage / 100));
             const conductorShare = shortage.mul(new Prisma.Decimal(config.conductor_share_percentage / 100));
 
@@ -814,8 +1164,10 @@ export class BusTripRevenueService {
             busTrip.trip_fuel_expense
         );
         const shortage = this.calculateShortage(expectedRemittance, busTrip.trip_revenue);
-        const remittanceStatus = this.determineRemittanceStatus(busTrip.trip_revenue, expectedRemittance);
+        const paymentStatus = this.determinePaymentStatus(busTrip.trip_revenue, expectedRemittance);
         const hasShortage = shortage.greaterThan(0);
+        const amountRemitted = busTrip.trip_revenue ?? new Prisma.Decimal(0);
+
 
         // Get config and revenue type
         const config = await this.getSystemConfig();
@@ -937,21 +1289,25 @@ export class BusTripRevenueService {
             }
 
             // Create revenue record
+            // Auto-generated from bus trip: approval_status = APPROVED, accounting_status = DRAFT
             const revenue = await tx.revenue.create({
                 data: {
                     code: revenueCode,
                     revenue_type_id: revenueType.id,
-                    amount: busTrip.trip_revenue ?? new Prisma.Decimal(0),
+                    amount: amountRemitted,  // Use actual remittance, not trip_revenue
                     date_recorded: dateRecorded,
                     date_expected: dateExpected,
                     description: data.description ?? null,
-                    remittance_status: remittanceStatus,
+                    approval_status: 'APPROVED', // Auto-generated revenue is auto-approved
+                    payment_status: paymentStatus as payment_status,
+                    accounting_status: 'DRAFT', // Journal entry posting is manual
                     driver_receivable_id: driverReceivableId,
                     conductor_receivable_id: conductorReceivableId,
                     payment_method: this.mapPaymentMethod(busTrip.payment_method),
                     bus_trip_assignment_id: data.assignment_id,
                     bus_trip_id: data.bus_trip_id,
                     created_by: userId,
+                    updated_at: new Date()
                 },
             });
 
@@ -972,10 +1328,12 @@ export class BusTripRevenueService {
         });
 
         // Create journal entry (outside transaction to use the service)
-        const tripRevenue = Number(busTrip.trip_revenue ?? 0);
+        const tripRevenueNum = Number(busTrip.trip_revenue ?? 0);
+        const amountRemittedNum = Number(amountRemitted);
         const paymentMethodEnum = this.mapPaymentMethod(busTrip.payment_method);
         const assetAccountCode = this.getAssetAccountCode(paymentMethodEnum);
         const revenueAccountCode = this.getRevenueAccountCode(busTrip.assignment_type);
+
 
         let jePayload: CreateAutoJournalEntryInput;
 
@@ -986,14 +1344,14 @@ export class BusTripRevenueService {
             jePayload = {
                 module: 'Trip Revenue',
                 reference_id: revenueCode,
-                description: `${busTrip.assignment_type} revenue - ₱${tripRevenue} received (Expected: ₱${Number(expectedRemittance)}, Shortage: ₱${Number(shortage)}) - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
+                description: `${busTrip.assignment_type} revenue - ₱${amountRemittedNum} remitted (Expected: ₱${Number(expectedRemittance)}, Shortage: ₱${Number(shortage)}) - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
                 date: dateRecorded.toISOString().split('T')[0],
                 entries: [
                     {
                         account_code: assetAccountCode,
-                        debit: tripRevenue,
+                        debit: amountRemittedNum,
                         credit: 0,
-                        description: 'Cash received from trip',
+                        description: 'Cash received from remittance',
                     },
                     {
                         account_code: ACCOUNT_CODES.DRIVER_RECEIVABLE,
@@ -1019,24 +1377,25 @@ export class BusTripRevenueService {
             jePayload = {
                 module: 'Trip Revenue',
                 reference_id: revenueCode,
-                description: `${busTrip.assignment_type} revenue - ₱${tripRevenue} - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
+                description: `${busTrip.assignment_type} revenue - ₱${amountRemittedNum} - Payment: ${paymentMethodEnum} - Bus: ${busTrip.bus?.body_number}`,
                 date: dateRecorded.toISOString().split('T')[0],
                 entries: [
                     {
                         account_code: assetAccountCode,
-                        debit: tripRevenue,
+                        debit: amountRemittedNum,
                         credit: 0,
-                        description: 'Cash received from trip',
+                        description: 'Cash received from remittance',
                     },
                     {
                         account_code: revenueAccountCode,
                         debit: 0,
-                        credit: tripRevenue,
+                        credit: amountRemittedNum,
                         description: 'Trip revenue recognized',
                     },
                 ],
             };
         }
+
 
         // Create journal entry
         const journalEntry = await this.journalEntryService.createAutoJournalEntry(
@@ -1146,7 +1505,7 @@ export class BusTripRevenueService {
                     data: {
                         driver_receivable_id: null,
                         conductor_receivable_id: null,
-                        remittance_status: 'PAID',
+                        payment_status: 'COMPLETED',
                         updated_by: userId,
                     },
                 });
@@ -1368,9 +1727,9 @@ export class BusTripRevenueService {
                 updateRevenueData.conductor_receivable_id = newConductorReceivableId;
             }
 
-            // Handle remittance_status
-            if (data.remittance_status !== undefined) {
-                updateRevenueData.remittance_status = data.remittance_status;
+            // Handle payment_status (replaces remittance_status)
+            if (data.payment_status !== undefined) {
+                updateRevenueData.payment_status = data.payment_status as payment_status;
             } else if (data.amount !== undefined && existing.bus_trip && !data.delete_receivables) {
                 // Auto-calculate status based on amount if not explicitly provided
                 const expectedRemittance = this.calculateExpectedRemittance(
@@ -1380,7 +1739,7 @@ export class BusTripRevenueService {
                     existing.bus_trip.trip_fuel_expense
                 );
                 const newAmount = new Prisma.Decimal(data.amount);
-                updateRevenueData.remittance_status = newAmount.greaterThanOrEqualTo(expectedRemittance) ? 'PAID' : 'PARTIALLY_PAID';
+                updateRevenueData.payment_status = newAmount.greaterThanOrEqualTo(expectedRemittance) ? 'COMPLETED' : 'PARTIALLY_PAID';
             }
 
             const updated = await tx.revenue.update({
@@ -1600,6 +1959,8 @@ export class BusTripRevenueService {
                 if (amountToApply.lessThanOrEqualTo(0)) continue;
 
                 // Create payment record
+                // CRITICAL: accounting_status MUST start as DRAFT
+                // It will be updated to POSTED when the linked JE is posted
                 const payment = await tx.revenue_installment_payment.create({
                     data: {
                         installment_id: installment.id,
@@ -1608,6 +1969,7 @@ export class BusTripRevenueService {
                         payment_date: paymentDate,
                         payment_method: data.payment_method,
                         payment_reference: data.payment_reference ?? null,
+                        accounting_status: 'DRAFT', // Explicit: must be DRAFT until JE is POSTED
                         created_by: userId,
                     },
                 });
@@ -1645,8 +2007,8 @@ export class BusTripRevenueService {
             // Update receivable totals
             const newReceivablePaid = receivable.paid_amount.add(amountPaid);
             const newReceivableBalance = receivable.balance.sub(amountPaid);
-            const newReceivableStatus: receivable_status = newReceivableBalance.lessThanOrEqualTo(0)
-                ? 'PAID'
+            const newReceivableStatus: payment_status = newReceivableBalance.lessThanOrEqualTo(0)
+                ? 'COMPLETED'
                 : 'PARTIALLY_PAID';
 
             const updatedReceivable = await tx.receivable.update({
@@ -1673,7 +2035,7 @@ export class BusTripRevenueService {
         // Create a single journal entry for the total payment
         const jePayload: CreateAutoJournalEntryInput = {
             module: 'Receivable Payment',
-            reference_id: `${revenue.code}-PAY-${result.paymentRecords[0]?.id}`,
+            reference_id: `Payment for ${revenue.code}`,
             description: result.updatedInstallments.length > 1
                 ? `Receivable payment - ${receivable.code} - Installments #${result.updatedInstallments.map(i => i.installment_number).join(', #')}`
                 : `Receivable payment - ${receivable.code} - Installment #${startingInstallment.installment_number}`,
@@ -1922,7 +2284,7 @@ export class BusTripRevenueService {
 
         const revenue = await prisma.revenue.findUnique({
             where: { id },
-            select: { id: true, code: true, is_deleted: true, remittance_status: true },
+            select: { id: true, code: true, is_deleted: true, payment_status: true },
         });
 
         if (!revenue) {
@@ -1934,7 +2296,7 @@ export class BusTripRevenueService {
         }
 
         // Prevent archiving if there are unpaid receivables
-        if (revenue.remittance_status === 'PENDING' || revenue.remittance_status === 'PARTIALLY_PAID') {
+        if (revenue.payment_status === 'PENDING' || revenue.payment_status === 'PARTIALLY_PAID') {
             throw new BadRequestError('Cannot archive revenue with pending or partial receivables');
         }
 
@@ -1947,12 +2309,11 @@ export class BusTripRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.BUS_TRIP_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: false },
-            { is_deleted: true, archived_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code, payment_status: revenue.payment_status },
             req
         );
 
@@ -1988,12 +2349,11 @@ export class BusTripRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logUnarchive(
+            AuditEntityTypes.BUS_TRIP_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: true },
-            { is_deleted: false, restored_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code },
             req
         );
 

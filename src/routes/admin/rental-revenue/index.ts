@@ -112,7 +112,7 @@ router.get('/unrecorded', rentalRevenueController.getUnrecordedRentals);
  *       - Assignment ID (assignment_id)
  *       - Total Amount (total_rental_amount)
  *       - Balance (balance_amount)
- *       - Payment Method (payment_method: CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT)
+ *       - Payment Method (payment_method: CASH, BANK_TRANSFER, E_WALLET)
  *       - Rental Status (rental_status: approved, completed, cancelled)
  *       - Date Recorded (date_recorded)
  *       
@@ -157,7 +157,7 @@ router.get('/unrecorded', rentalRevenueController.getUnrecordedRentals);
  *         name: payment_method
  *         schema:
  *           type: string
- *           enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *           enum: [CASH, BANK_TRANSFER, E_WALLET]
  *         description: Filter by payment method
  *       - in: query
  *         name: amount_min
@@ -254,7 +254,7 @@ router.get('/', rentalRevenueController.listRentalRevenues);
  *                 description: Revenue description/notes
  *               payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *                 default: CASH
  *               payment_reference:
  *                 type: string
@@ -334,7 +334,7 @@ router.get('/:id', rentalRevenueController.getRentalRevenueById);
  *       **Editable Fields:**
  *       - date_recorded, date_expected
  *       - description
- *       - payment_method (enum: CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT)
+ *       - payment_method (enum: CASH, BANK_TRANSFER, E_WALLET)
  *       - payment_reference
  *       - down_payment_amount, down_payment_date
  *       - remittance_status
@@ -363,7 +363,7 @@ router.get('/:id', rentalRevenueController.getRentalRevenueById);
  *                 type: string
  *               payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *               payment_reference:
  *                 type: string
  *               down_payment_amount:
@@ -379,7 +379,7 @@ router.get('/:id', rentalRevenueController.getRentalRevenueById);
  *                 description: If true, records balance payment
  *               balance_payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *               balance_payment_reference:
  *                 type: string
  *     responses:
@@ -402,8 +402,18 @@ router.patch('/:id', rentalRevenueController.updateRentalRevenue);
  *   post:
  *     tags:
  *       - Rental Revenue
- *     summary: Cancel rental revenue
- *     description: Cancel a rental revenue record (sets rental_status to 'cancelled')
+ *     summary: Cancel rental revenue with proper accounting
+ *     description: |
+ *       Cancel a rental revenue record with full accounting handling.
+ *       
+ *       ACCOUNTING RULES:
+ *       1. If downpayment JE is POSTED → creates reversal JE
+ *       2. If any balance payment JE is POSTED → creates reversal JE
+ *       3. Cancels outstanding receivables (zeros out balances)
+ *       4. Updates rental_status to 'cancelled'
+ *       5. All actions are logged to audit
+ *       
+ *       This ensures the system remains in an accounting-correct state after cancellation.
  *     parameters:
  *       - in: path
  *         name: id
@@ -412,6 +422,7 @@ router.patch('/:id', rentalRevenueController.updateRentalRevenue);
  *           type: integer
  *         description: Revenue ID
  *     requestBody:
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
@@ -419,10 +430,22 @@ router.patch('/:id', rentalRevenueController.updateRentalRevenue);
  *             properties:
  *               cancellation_reason:
  *                 type: string
- *                 description: Reason for cancellation
+ *                 description: Reason for cancellation (required for audit trail)
+ *                 example: "Customer requested cancellation"
  *     responses:
  *       200:
- *         description: Rental revenue cancelled successfully
+ *         description: Rental revenue cancelled successfully with reversal JEs created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/RentalRevenueDetail'
  *       404:
  *         description: Rental revenue not found
  */
@@ -457,7 +480,7 @@ router.post('/:id/cancel', rentalRevenueController.cancelRentalRevenue);
  *             properties:
  *               payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *                 default: CASH
  *               payment_reference:
  *                 type: string
@@ -500,7 +523,7 @@ router.post('/:id/pay-balance', rentalRevenueController.payBalance);
  *           type: string
  *         payment_method:
  *           type: string
- *           enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *           enum: [CASH, BANK_TRANSFER, E_WALLET]
  *         remittance_status:
  *           type: string
  *         assignment_id:

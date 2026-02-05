@@ -14,10 +14,12 @@
  * - Preserves financial flags (is_revenue_recorded, is_expense_recorded)
  * - Retry logic for failed API calls
  * - Comprehensive logging
+ * - AUTO-REVENUE GENERATION: After sync, automatically generates revenue for new bus trips
  */
 
 import { PrismaClient, bus_trip_employee_role } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { busTripRevenueService } from '../../src/services/busTripRevenue.service';
 
 const prisma = new PrismaClient();
 
@@ -150,6 +152,13 @@ interface SyncResult {
   duration: number;
 }
 
+interface AutoRevenueStats {
+  total: number;
+  processed: number;
+  failed: number;
+  errors: string[];
+}
+
 interface FullSyncResult {
   success: boolean;
   startTime: Date;
@@ -163,6 +172,7 @@ interface FullSyncResult {
     busTrips: SyncResult;
     busTripEmployees: SyncResult;
   };
+  autoRevenue?: AutoRevenueStats;
 }
 
 // ============================================================================
@@ -1017,6 +1027,7 @@ export async function syncExternalData(): Promise<FullSyncResult> {
   let rentalEmployeesResult: SyncResult = emptyResult('rental_employee_local');
   let busTripsResult: SyncResult = emptyResult('bus_trip_local');
   let busTripEmployeesResult: SyncResult = emptyResult('bus_trip_employee_local');
+  let autoRevenueStats: AutoRevenueStats | undefined;
   
   try {
     // Fetch all external data in parallel
@@ -1092,6 +1103,38 @@ export async function syncExternalData(): Promise<FullSyncResult> {
       busTripsResult.stats.errors.push('Failed to fetch bus trip data');
       busTripEmployeesResult.stats.errors.push('Failed to fetch bus trip data');
     }
+
+    // Step 5: AUTO-GENERATE REVENUE for new bus trips
+    // CRITICAL BUSINESS RULE: Every bus trip must have a corresponding revenue record
+    console.log('');
+    console.log('[SYNC] Step 5/5: Auto-generating revenue for unsynced bus trips...');
+    
+    try {
+      const autoRevenueResult = await busTripRevenueService.processUnsyncedTrips(
+        'sync_system',
+        { username: 'Sync System', role: 'SYSTEM' }
+      );
+      
+      autoRevenueStats = {
+        total: autoRevenueResult.total,
+        processed: autoRevenueResult.processed,
+        failed: autoRevenueResult.failed,
+        errors: autoRevenueResult.results
+          .filter(r => !r.success && r.error)
+          .map(r => `${r.assignment_id}/${r.bus_trip_id}: ${r.error}`),
+      };
+      
+      console.log(`[SYNC] Auto-revenue generation: ${autoRevenueStats.processed} processed, ${autoRevenueStats.failed} failed out of ${autoRevenueStats.total} total`);
+    } catch (autoRevError) {
+      const errorMsg = autoRevError instanceof Error ? autoRevError.message : String(autoRevError);
+      console.error('[SYNC] Error during auto-revenue generation:', errorMsg);
+      autoRevenueStats = {
+        total: 0,
+        processed: 0,
+        failed: 0,
+        errors: [`Auto-revenue generation failed: ${errorMsg}`],
+      };
+    }
     
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -1163,6 +1206,7 @@ export async function syncExternalData(): Promise<FullSyncResult> {
       busTrips: busTripsResult,
       busTripEmployees: busTripEmployeesResult,
     },
+    autoRevenue: autoRevenueStats,
   };
 }
 

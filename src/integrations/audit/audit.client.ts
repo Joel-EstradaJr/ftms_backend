@@ -1,69 +1,62 @@
 // ============================================================================
 // AUDIT LOG CLIENT - CENTRALIZED AUDIT LOGGING FOR FINANCE BACKEND
 // ============================================================================
-// This client sends audit logs to the Audit microservice.
-// Follows strict payload rules based on action_type_code:
-// - CREATE: new_data required, previous_data must be null
-// - UPDATE: new_data AND previous_data required
-// - DELETE: previous_data required, new_data must be null
-// - ARCHIVE/UNARCHIVE: new_data required (status field), previous_data null
-// - APPROVE/REJECT: new_data and previous_data optional
-// - EXPORT/IMPORT: neither new_data nor previous_data
+// This client sends DENORMALIZED, HUMAN-READABLE audit logs to the Audit service.
+// 
+// KEY FEATURES:
+// - Automatically resolves foreign keys to meaningful names
+// - Formats currency, dates, and status values for display
+// - Creates audit logs understandable by non-technical reviewers
+// - Supports all action types: CREATE, UPDATE, DELETE, APPROVE, REJECT, etc.
+//
+// PAYLOAD STRUCTURE:
+// Instead of raw data like { department_id: 23, amount: "1000.00" }
+// We send denormalized data like:
+// {
+//   summary: "Miscellaneous Income of ₱1,000.00",
+//   fields: [
+//     { label: "Department", value: "Inventory", raw_id: 23 },
+//     { label: "Amount", value: "₱1,000.00", type: "currency" }
+//   ]
+// }
 // ============================================================================
 
 import axios from 'axios';
 import { config } from '../../config/env';
 import { logger } from '../../config/logger';
 import { Request } from 'express';
+import {
+  AuditActionType,
+  AuditUser,
+  AuditEntity,
+  DenormalizedAuditData,
+  AuditPayloadOptions,
+  EnhancedAuditLogPayload,
+} from './audit.types';
+import {
+  getPayloadBuilder,
+  buildGenericAuditData,
+  buildChangeData,
+} from './audit.payloadBuilders';
 
 // ============================================================================
-// TYPES
+// RE-EXPORT TYPES FOR BACKWARD COMPATIBILITY
 // ============================================================================
+
+export type { AuditActionType, AuditUser, AuditEntity, AuditPayloadOptions };
 
 /**
- * Audit log payload matching the Audit microservice schema
+ * Legacy audit log payload (still supported for backward compatibility)
  */
 export interface AuditLogPayload {
-  entity_type: string;          // e.g., "expense", "journal_entry", "purchase_request"
-  entity_id: string;            // ID of the entity being logged
-  action_type_code: AuditActionType;  // Action code from action_type table
-  action_by?: string;           // User ID who performed the action
-  action_from?: string;         // Department/module of the user
-  previous_data?: object | null; // Previous state (only changed fields for UPDATE)
-  new_data?: object | null;     // New state (only changed fields for UPDATE)
-  ip_address?: string;          // IP address of the request
-}
-
-/**
- * Supported audit action types
- */
-export type AuditActionType =
-  | 'CREATE'
-  | 'UPDATE'
-  | 'DELETE'
-  | 'EXPORT'
-  | 'IMPORT'
-  | 'ARCHIVE'
-  | 'UNARCHIVE'
-  | 'APPROVE'
-  | 'REJECT';
-
-/**
- * User info for audit logging
- */
-export interface AuditUser {
-  id: string;
-  name?: string;
-  role?: string;
-  department?: string;
-}
-
-/**
- * Entity info for audit logging
- */
-export interface AuditEntity {
-  id: any;
-  code?: string;
+  entity_type: string;
+  entity_id: string;
+  action_type_code: AuditActionType;
+  action_by?: string;
+  action_from?: string;
+  previous_data?: object | null;
+  new_data?: object | null;
+  ip_address?: string;
 }
 
 // ============================================================================
@@ -278,29 +271,50 @@ export class AuditLogClient {
   // ============================================================================
 
   /**
-   * Log CREATE action
+   * Log CREATE action with denormalized, human-readable data
+   * Automatically resolves foreign keys to meaningful names
    */
   static async logCreate(
     entityType: string,
     entity: AuditEntity,
     newData: any,
     user: AuditUser,
-    req?: Request
+    req?: Request,
+    options?: AuditPayloadOptions
   ): Promise<void> {
-    await this.log({
-      entity_type: entityType,
-      entity_id: this.buildEntityId(entity),
-      action_type_code: 'CREATE',
-      action_by: user.id,
-      action_from: user.department || this.defaultActionFrom,
-      new_data: newData,
-      previous_data: null,
-      ip_address: this.getIpAddress(req),
-    });
+    try {
+      // Get the appropriate payload builder for this entity type
+      const builder = getPayloadBuilder(entityType);
+      const denormalizedData = await builder(newData, options);
+
+      await this.sendEnhancedAuditLog({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'CREATE',
+        action_by: user.id,
+        action_by_name: user.name,
+        action_from: user.department || this.defaultActionFrom,
+        new_data: denormalizedData,
+        previous_data: null,
+        ip_address: this.getIpAddress(req),
+      });
+    } catch (error: any) {
+      logger.error(`Error building audit payload for CREATE: ${error.message}`);
+      // Fallback to basic audit log
+      await this.log({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'CREATE',
+        action_by: user.id,
+        action_from: user.department || this.defaultActionFrom,
+        new_data: newData,
+        ip_address: this.getIpAddress(req),
+      });
+    }
   }
 
   /**
-   * Log UPDATE action
+   * Log UPDATE action with denormalized data and clear change descriptions
    */
   static async logUpdate(
     entityType: string,
@@ -308,25 +322,50 @@ export class AuditLogClient {
     oldData: any,
     newData: any,
     user: AuditUser,
-    req?: Request
+    req?: Request,
+    options?: AuditPayloadOptions
   ): Promise<void> {
-    // Calculate only changed fields
-    const { previous, current } = this.calculateChanges(oldData, newData);
-    
-    await this.log({
-      entity_type: entityType,
-      entity_id: this.buildEntityId(entity),
-      action_type_code: 'UPDATE',
-      action_by: user.id,
-      action_from: user.department || this.defaultActionFrom,
-      previous_data: previous,
-      new_data: current,
-      ip_address: this.getIpAddress(req),
-    });
+    try {
+      const builder = getPayloadBuilder(entityType);
+
+      // Build denormalized payloads for both states
+      const previousDenormalized = await builder(oldData, options);
+      const newDenormalized = await builder(newData, options);
+
+      // Build change data showing what specifically changed
+      const changeData = buildChangeData(oldData, newData, options);
+
+      await this.sendEnhancedAuditLog({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'UPDATE',
+        action_by: user.id,
+        action_by_name: user.name,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: previousDenormalized,
+        new_data: newDenormalized,
+        change_data: changeData,
+        ip_address: this.getIpAddress(req),
+      });
+    } catch (error: any) {
+      logger.error(`Error building audit payload for UPDATE: ${error.message}`);
+      // Fallback to basic change calculation
+      const { previous, current } = this.calculateChanges(oldData, newData);
+      await this.log({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'UPDATE',
+        action_by: user.id,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: previous,
+        new_data: current,
+        ip_address: this.getIpAddress(req),
+      });
+    }
   }
 
   /**
-   * Log DELETE action
+   * Log DELETE action with denormalized data showing what was deleted
    */
   static async logDelete(
     entityType: string,
@@ -334,26 +373,88 @@ export class AuditLogClient {
     deletedData: any,
     user: AuditUser,
     reason?: string,
-    req?: Request
+    req?: Request,
+    options?: AuditPayloadOptions
   ): Promise<void> {
-    const previousData = reason 
-      ? { ...deletedData, _deletion_reason: reason }
-      : deletedData;
-      
-    await this.log({
-      entity_type: entityType,
-      entity_id: this.buildEntityId(entity),
-      action_type_code: 'DELETE',
-      action_by: user.id,
-      action_from: user.department || this.defaultActionFrom,
-      previous_data: previousData,
-      new_data: null,
-      ip_address: this.getIpAddress(req),
-    });
+    try {
+      const builder = getPayloadBuilder(entityType);
+      const denormalizedData = await builder(deletedData, options);
+
+      // Add deletion reason if provided
+      if (reason && denormalizedData.fields) {
+        denormalizedData.fields.push({
+          label: 'Deletion Reason',
+          value: reason,
+          type: 'text',
+        });
+      }
+
+      await this.sendEnhancedAuditLog({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'DELETE',
+        action_by: user.id,
+        action_by_name: user.name,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: denormalizedData,
+        new_data: null,
+        ip_address: this.getIpAddress(req),
+      });
+    } catch (error: any) {
+      logger.error(`Error building audit payload for DELETE: ${error.message}`);
+      const previousData = reason ? { ...deletedData, _deletion_reason: reason } : deletedData;
+      await this.log({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'DELETE',
+        action_by: user.id,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: previousData,
+        ip_address: this.getIpAddress(req),
+      });
+    }
   }
 
   /**
-   * Log ARCHIVE action
+   * Send enhanced audit log with denormalized data
+   */
+  private static async sendEnhancedAuditLog(payload: EnhancedAuditLogPayload): Promise<void> {
+    try {
+      const finalPayload = {
+        entity_type: this.normalizeEntityType(payload.entity_type),
+        entity_id: payload.entity_id,
+        action_type_code: payload.action_type_code.toUpperCase(),
+        action_by: payload.action_by || null,
+        action_by_name: payload.action_by_name || null,
+        action_from: payload.action_from || this.defaultActionFrom,
+        previous_data: payload.previous_data || null,
+        new_data: payload.new_data || null,
+        change_data: payload.change_data || null,
+        ip_address: payload.ip_address || null,
+      };
+
+      await axios.post(
+        `${this.baseUrl}/api/audit-logs`,
+        finalPayload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.apiKey,
+          },
+          timeout: 5000,
+        }
+      );
+
+      logger.debug(`📝 Audit log created: ${payload.entity_type} - ${payload.action_type_code}`);
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message;
+      logger.error(`❌ Failed to create audit log [${payload.action_type_code} ${payload.entity_type}]: ${errorMessage}`);
+      this.logFailedAudit(payload as any, errorMessage);
+    }
+  }
+
+  /**
+   * Log ARCHIVE action with human-readable summary
    */
   static async logArchive(
     entityType: string,
@@ -362,20 +463,32 @@ export class AuditLogClient {
     metadata?: object,
     req?: Request
   ): Promise<void> {
-    await this.log({
+    const newData: DenormalizedAuditData = {
+      summary: `Archived ${entityType.replace(/_/g, ' ')}`,
+      fields: [
+        { label: 'Status', value: 'Archived', type: 'status' },
+        ...(metadata ? Object.entries(metadata).map(([key, value]) => ({
+          label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: String(value),
+          type: 'text' as const,
+        })) : []),
+      ],
+    };
+
+    await this.sendEnhancedAuditLog({
       entity_type: entityType,
       entity_id: this.buildEntityId(entity),
       action_type_code: 'ARCHIVE',
       action_by: user.id,
+      action_by_name: user.name,
       action_from: user.department || this.defaultActionFrom,
-      new_data: { status: 'ARCHIVED', ...metadata },
-      previous_data: null,
+      new_data: newData,
       ip_address: this.getIpAddress(req),
     });
   }
 
   /**
-   * Log UNARCHIVE action
+   * Log UNARCHIVE action with human-readable summary
    */
   static async logUnarchive(
     entityType: string,
@@ -384,20 +497,32 @@ export class AuditLogClient {
     metadata?: object,
     req?: Request
   ): Promise<void> {
-    await this.log({
+    const newData: DenormalizedAuditData = {
+      summary: `Restored ${entityType.replace(/_/g, ' ')}`,
+      fields: [
+        { label: 'Status', value: 'Active', type: 'status' },
+        ...(metadata ? Object.entries(metadata).map(([key, value]) => ({
+          label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: String(value),
+          type: 'text' as const,
+        })) : []),
+      ],
+    };
+
+    await this.sendEnhancedAuditLog({
       entity_type: entityType,
       entity_id: this.buildEntityId(entity),
       action_type_code: 'UNARCHIVE',
       action_by: user.id,
+      action_by_name: user.name,
       action_from: user.department || this.defaultActionFrom,
-      new_data: { status: 'ACTIVE', ...metadata },
-      previous_data: null,
+      new_data: newData,
       ip_address: this.getIpAddress(req),
     });
   }
 
   /**
-   * Log APPROVE action
+   * Log APPROVE action with denormalized data
    */
   static async logApprove(
     entityType: string,
@@ -405,22 +530,53 @@ export class AuditLogClient {
     user: AuditUser,
     previousData?: object,
     newData?: object,
-    req?: Request
+    req?: Request,
+    options?: AuditPayloadOptions
   ): Promise<void> {
-    await this.log({
-      entity_type: entityType,
-      entity_id: this.buildEntityId(entity),
-      action_type_code: 'APPROVE',
-      action_by: user.id,
-      action_from: user.department || this.defaultActionFrom,
-      previous_data: previousData || null,
-      new_data: newData || { status: 'APPROVED' },
-      ip_address: this.getIpAddress(req),
-    });
+    try {
+      const builder = getPayloadBuilder(entityType);
+
+      const prevDenormalized = previousData ? await builder(previousData as Record<string, any>, options) : null;
+      const newDenormalized = newData
+        ? await builder(newData as Record<string, any>, options)
+        : {
+            summary: `Approved ${entityType.replace(/_/g, ' ')}`,
+            fields: [{ label: 'Status', value: 'Approved', type: 'status' as const }],
+          };
+
+      // Ensure status is shown as Approved
+      if (newDenormalized.fields && !newDenormalized.fields.find(f => f.label === 'Status')) {
+        newDenormalized.fields.unshift({ label: 'Status', value: 'Approved', type: 'status' });
+      }
+
+      await this.sendEnhancedAuditLog({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'APPROVE',
+        action_by: user.id,
+        action_by_name: user.name,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: prevDenormalized,
+        new_data: newDenormalized,
+        ip_address: this.getIpAddress(req),
+      });
+    } catch (error: any) {
+      logger.error(`Error building audit payload for APPROVE: ${error.message}`);
+      await this.log({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'APPROVE',
+        action_by: user.id,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: previousData,
+        new_data: newData || { status: 'APPROVED' },
+        ip_address: this.getIpAddress(req),
+      });
+    }
   }
 
   /**
-   * Log REJECT action
+   * Log REJECT action with denormalized data and rejection reason
    */
   static async logReject(
     entityType: string,
@@ -429,22 +585,53 @@ export class AuditLogClient {
     reason?: string,
     previousData?: object,
     newData?: object,
-    req?: Request
+    req?: Request,
+    options?: AuditPayloadOptions
   ): Promise<void> {
-    await this.log({
-      entity_type: entityType,
-      entity_id: this.buildEntityId(entity),
-      action_type_code: 'REJECT',
-      action_by: user.id,
-      action_from: user.department || this.defaultActionFrom,
-      previous_data: previousData || null,
-      new_data: newData || { status: 'REJECTED', reason },
-      ip_address: this.getIpAddress(req),
-    });
+    try {
+      const builder = getPayloadBuilder(entityType);
+
+      const prevDenormalized = previousData ? await builder(previousData as Record<string, any>, options) : null;
+      const newDenormalized = newData
+        ? await builder(newData as Record<string, any>, options)
+        : {
+            summary: `Rejected ${entityType.replace(/_/g, ' ')}`,
+            fields: [{ label: 'Status', value: 'Rejected', type: 'status' as const }],
+          };
+
+      // Add rejection reason
+      if (reason && newDenormalized.fields) {
+        newDenormalized.fields.push({ label: 'Rejection Reason', value: reason, type: 'text' });
+      }
+
+      await this.sendEnhancedAuditLog({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'REJECT',
+        action_by: user.id,
+        action_by_name: user.name,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: prevDenormalized,
+        new_data: newDenormalized,
+        ip_address: this.getIpAddress(req),
+      });
+    } catch (error: any) {
+      logger.error(`Error building audit payload for REJECT: ${error.message}`);
+      await this.log({
+        entity_type: entityType,
+        entity_id: this.buildEntityId(entity),
+        action_type_code: 'REJECT',
+        action_by: user.id,
+        action_from: user.department || this.defaultActionFrom,
+        previous_data: previousData,
+        new_data: newData || { status: 'REJECTED', reason },
+        ip_address: this.getIpAddress(req),
+      });
+    }
   }
 
   /**
-   * Log EXPORT action
+   * Log EXPORT action with human-readable metadata
    */
   static async logExport(
     entityType: string,
@@ -453,20 +640,33 @@ export class AuditLogClient {
     metadata?: object,
     req?: Request
   ): Promise<void> {
-    await this.log({
+    const newData: DenormalizedAuditData = {
+      summary: `Exported ${entityType.replace(/_/g, ' ')} data`,
+      fields: [
+        { label: 'Export Type', value: exportType, type: 'text' },
+        { label: 'Exported At', value: new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }), type: 'datetime' },
+        ...(metadata ? Object.entries(metadata).map(([key, value]) => ({
+          label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: String(value),
+          type: 'text' as const,
+        })) : []),
+      ],
+    };
+
+    await this.sendEnhancedAuditLog({
       entity_type: entityType,
       entity_id: `${entityType}_export_${Date.now()}`,
       action_type_code: 'EXPORT',
       action_by: user.id,
+      action_by_name: user.name,
       action_from: user.department || this.defaultActionFrom,
-      new_data: null,
-      previous_data: null,
+      new_data: newData,
       ip_address: this.getIpAddress(req),
     });
   }
 
   /**
-   * Log IMPORT action
+   * Log IMPORT action with human-readable metadata
    */
   static async logImport(
     entityType: string,
@@ -475,14 +675,27 @@ export class AuditLogClient {
     metadata?: object,
     req?: Request
   ): Promise<void> {
-    await this.log({
+    const newData: DenormalizedAuditData = {
+      summary: `Imported ${entityType.replace(/_/g, ' ')} data`,
+      fields: [
+        { label: 'Import Type', value: importType, type: 'text' },
+        { label: 'Imported At', value: new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }), type: 'datetime' },
+        ...(metadata ? Object.entries(metadata).map(([key, value]) => ({
+          label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: String(value),
+          type: 'text' as const,
+        })) : []),
+      ],
+    };
+
+    await this.sendEnhancedAuditLog({
       entity_type: entityType,
       entity_id: `${entityType}_import_${Date.now()}`,
       action_type_code: 'IMPORT',
       action_by: user.id,
+      action_by_name: user.name,
       action_from: user.department || this.defaultActionFrom,
-      new_data: null,
-      previous_data: null,
+      new_data: newData,
       ip_address: this.getIpAddress(req),
     });
   }
