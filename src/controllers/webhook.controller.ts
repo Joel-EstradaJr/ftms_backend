@@ -1354,7 +1354,7 @@ export async function handleRentalCreateWebhook(
     // Audit log for rental creation
     await AuditLogClient.logCreate(
       'Rental Local',
-      { assignment_id: rental.assignment_id },
+      { id: rental.assignment_id },
       {
         assignment_id: rental.assignment_id,
         bus_id: rental.bus_id,

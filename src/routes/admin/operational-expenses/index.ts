@@ -2115,7 +2115,7 @@ router.post('/:id/reimbursement/payment', async (req: AuthRequest, res: Response
 
     let journalEntryId: number | null = null;
     try {
-      const journalEntry = await journalEntryService.createAutoJournalEntry(journalEntryInput);
+      const journalEntry = await journalEntryService.createAutoJournalEntry(journalEntryInput, userId, req.user, req);
       journalEntryId = journalEntry.id;
       logger.info(`[OperationalExpenses] Created JE ${journalEntry.id} for reimbursement payment on expense ${id}`);
       
