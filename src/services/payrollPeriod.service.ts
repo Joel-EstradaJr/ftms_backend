@@ -404,7 +404,7 @@ export class PayrollPeriodService {
       }
 
       // Use the new HR API sync function
-      const { fetchAndSyncPayrollFromHR } = await import('../../lib/hr/payrollSync');
+      const { fetchAndSyncPayrollFromHR } = await import('../../lib/hr/payrollSync.js');
 
       const result = await fetchAndSyncPayrollFromHR(
         data.period_start,
@@ -435,7 +435,7 @@ export class PayrollPeriodService {
         total_gross: updatedPeriod?.total_gross?.toString() || '0',
         total_deductions: updatedPeriod?.total_deductions?.toString() || '0',
         total_net: updatedPeriod?.total_net?.toString() || '0',
-        errors: result.errors.map(e => ({ employee_number: e.split(':')[0], error: e })),
+        errors: result.errors.map((e: string) => ({ employee_number: e.split(':')[0], error: e })),
       };
     } catch (error) {
       logger.error('Error processing payroll:', error);

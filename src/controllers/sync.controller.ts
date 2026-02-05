@@ -163,7 +163,7 @@ export const triggerExternalDataSync = async (req: Request, res: Response): Prom
  */
 export const getSyncStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { prisma } = await import('../config/database');
+    const { prisma } = await import('../config/database.js');
 
     // Get counts for each local table
     const [
@@ -287,12 +287,12 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
  */
 export const getDepartments = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { getActiveDepartments } = await import('../../lib/sync/departmentSync');
+    const { getActiveDepartments } = await import('../../lib/sync/departmentSync.js');
     const departments = await getActiveDepartments();
 
     res.status(200).json({
       status: 'success',
-      data: departments.map(d => ({
+      data: departments.map((d: { id: number; department_name: string }) => ({
         id: d.id,
         name: d.department_name,
       })),
