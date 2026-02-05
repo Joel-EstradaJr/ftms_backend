@@ -9,17 +9,14 @@ import { errorHandler } from './middleware/errorHandler';
 import { setupSwagger, addDocsInfoToHealth, validateSwaggerSpec } from './middleware/swagger.middleware';
 
 // Routes
-// Temporarily commented out routes with compilation errors
-// import staffRevenueRoutes from './routes/staff/revenue.routes';
-import staffExpenseRoutes from './routes/staff/expense.routes';
-// import staffPayrollRoutes from './routes/staff/payroll.routes';
-// import staffReimbursementRoutes from './routes/staff/reimbursement.routes';
-// import staffBudgetRoutes from './routes/staff/budget.routes';
-// import staffJournalEntryRoutes from './routes/staff/journalEntry.routes';
-// import staffAssetRoutes from './routes/staff/asset.routes';
-// import staffReceivableRoutes from './routes/staff/receivable.routes';
-// import staffPayableRoutes from './routes/staff/payable.routes';
-// import staffLoanRoutes from './routes/staff/loan.routes';
+// Staff routes (feature parity with admin - same business logic)
+import staffDashboardRoutes from './routes/staff/dashboard.routes';
+import staffBusTripRevenueRoutes from './routes/staff/bus-trip-revenue';
+import staffRentalRevenueRoutes from './routes/staff/rental-revenue';
+import staffOtherRevenueRoutes from './routes/staff/otherRevenue.routes';
+import staffOperationalExpenseRoutes from './routes/staff/operational-expenses';
+import staffOtherExpenseRoutes from './routes/staff/other-expense';
+
 import chartOfAccountsRoutes from './routes/admin/chart-of-accounts';
 import adminPayrollPeriodsRoutes from './routes/admin/payroll-periods';
 // Removed: adminJournalEntriesRoutes - replaced by universal /api/journal-entry routes
@@ -148,18 +145,16 @@ export const createApp = (): Application => {
   app.use('/api/v1/reports', reportRoutes);  // Financial Reports module
   app.use('/api/v1/admin', chartOfAccountsRoutes);
 
-  // Staff routes (Limited access - read + create for some modules)
-  // Temporarily commented out routes with compilation errors
-  // app.use('/api/v1/staff/revenues', staffRevenueRoutes);
-  app.use('/api/v1/staff/expenses', staffExpenseRoutes);
-  // app.use('/api/v1/staff/payrolls', staffPayrollRoutes);
-  // app.use('/api/v1/staff/reimbursements', staffReimbursementRoutes);
-  // app.use('/api/v1/staff/budgets', staffBudgetRoutes);
-  // Removed: /api/v1/staff/journal-entries - replaced by /api/journal-entry
-  // app.use('/api/v1/staff/assets', staffAssetRoutes);
-  // app.use('/api/v1/staff/receivables', staffReceivableRoutes);
-  // app.use('/api/v1/staff/payables', staffPayableRoutes);
-  // app.use('/api/v1/staff/loans', staffLoanRoutes);
+  // Staff routes (Full feature parity with Admin - same business logic, same behavior)
+  // Revenue modules
+  app.use('/api/v1/staff/bus-trip-revenue', staffBusTripRevenueRoutes);  // Bus Trip Revenue module
+  app.use('/api/v1/staff/rental-revenue', staffRentalRevenueRoutes);  // Rental Revenue module
+  app.use('/api/v1/staff/other-revenue', staffOtherRevenueRoutes);  // Other Revenue module
+  // Expense modules
+  app.use('/api/v1/staff/operational-expenses', staffOperationalExpenseRoutes);  // Operational Expense module
+  app.use('/api/v1/staff/other-expense', staffOtherExpenseRoutes);  // Administrative/Other Expense module
+  // Dashboard
+  app.use('/api/v1/staff/dashboard', staffDashboardRoutes);  // Dashboard module
 
   // Integration routes (machine-to-machine communication)
   app.use('/api/integration', integrationRoutes);
