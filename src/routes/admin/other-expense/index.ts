@@ -3,9 +3,14 @@ import { authenticate, AuthRequest } from '../../../middleware/auth';
 import { prisma } from '../../../config/database';
 import { logger } from '../../../config/logger';
 import { approval_status, payment_method, payment_status, installment_status, Prisma } from '@prisma/client';
-import { JournalEntryAutoService } from '../../../services/journalEntryAuto.service';
+import { JournalEntryAutoService, CreateAutoJournalEntryInput } from '../../../services/journalEntryAuto.service';
 import { supplierSyncService } from '../../../services/supplierSync.service';
 import { AuditLogClient, AuditEntityTypes } from '../../../integrations/audit/audit.client';
+import {
+    EXPENSE_TYPE_TO_EXPENSE_COA,
+    EXPENSE_TYPE_TO_PAYABLE_COA,
+    PAYMENT_METHOD_TO_ASSET_COA
+} from '../../../lib/coaMapping';
 
 const router = Router();
 
@@ -29,20 +34,6 @@ const ADMIN_EXPENSE_TYPE_CODES = [
     'EXPT-003', 'EXPT-004', 'EXPT-005', 'EXPT-006', 'EXPT-007',
     'EXPT-008', 'EXPT-009', 'EXPT-010', 'EXPT-011', 'EXPT-012'
 ];
-
-// Expense type to COA account code mapping
-const EXPENSE_TYPE_TO_COA: Record<string, string> = {
-    'EXPT-003': '4200', // Bad Debt Expense
-    'EXPT-004': '4205', // Office Supplies Expense
-    'EXPT-005': '4210', // Utilities Expense
-    'EXPT-006': '4215', // Rent Expense
-    'EXPT-007': '4220', // Internet Expense
-    'EXPT-008': '4225', // Professional Fees Expense
-    'EXPT-009': '4230', // Insurance Expense
-    'EXPT-010': '4235', // License & Permit Expense
-    'EXPT-011': '4240', // Communication Expense
-    'EXPT-012': '4245', // Miscellaneous Expense
-};
 
 // ===========================
 // Reference Data Endpoints
@@ -616,7 +607,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
                     vendor_id: vendor_id || null,
                     invoice_number,
                     approval_status: 'PENDING',
-                    accounting_status: 'DRAFT',
+                    // accounting_status remains NULL until approval creates JE
                     payment_status: 'PENDING',
                     payment_method: paymentMethod,
                     payment_reference,
@@ -1002,25 +993,26 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
             });
         }
 
-        // Determine accounts for journal entry
+        // Determine accounts for journal entry using centralized COA mappings
         const expenseTypeCode = existing.expense_type?.code || 'EXPT-012';
-        const debitAccountCode = EXPENSE_TYPE_TO_COA[expenseTypeCode] || '4245'; // Default to Miscellaneous
+        const debitAccountCode = EXPENSE_TYPE_TO_EXPENSE_COA[expenseTypeCode] || '4245'; // Expense COA
 
         // Credit account based on payment method
         let creditAccountCode: string;
         switch (existing.payment_method) {
             case 'BANK_TRANSFER':
-                creditAccountCode = '1005'; // Bank Account
+                creditAccountCode = PAYMENT_METHOD_TO_ASSET_COA['BANK_TRANSFER'] || '1005';
                 break;
             case 'E_WALLET':
-                creditAccountCode = '1010'; // E-Wallet
+                creditAccountCode = PAYMENT_METHOD_TO_ASSET_COA['E_WALLET'] || '1010';
                 break;
             case 'REIMBURSEMENT':
-                creditAccountCode = '2010'; // Accounts Payable - Employees
+                // Use dedicated AP account for this expense type
+                creditAccountCode = EXPENSE_TYPE_TO_PAYABLE_COA[expenseTypeCode] || '2155';
                 break;
             case 'CASH':
             default:
-                creditAccountCode = '1000'; // Cash on Hand
+                creditAccountCode = PAYMENT_METHOD_TO_ASSET_COA['CASH'] || '1000';
                 break;
         }
 
@@ -1050,10 +1042,11 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
             const jeCode = `JE-${nextJENum.toString().padStart(6, '0')}`;
 
             // Create journal entry
+            // JE date should be the approval date (current date), not the expense recorded date
             const journalEntry = await tx.journal_entry.create({
                 data: {
                     code: jeCode,
-                    date: existing.date_recorded || new Date(),
+                    date: new Date(), // Use approval date, not expense recorded date
                     reference: existing.code,
                     description: `Admin expense: ${existing.description || existing.expense_type?.name || 'Administrative Expense'}`,
                     total_debit: existing.amount,
@@ -1094,7 +1087,7 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
                 where: { id: parseInt(id) },
                 data: {
                     approval_status: 'APPROVED',
-                    accounting_status: 'POSTED',
+                    accounting_status: 'DRAFT', // Match JE status - will be POSTED when JE is posted
                     approved_by: userId,
                     approved_at: new Date(),
                     approval_remarks: remarks || null,
@@ -1234,6 +1227,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
 /**
  * POST /payment
  * Record a payment for an expense installment schedule
+ * Creates Journal Entry: DR Accounts Payable, CR Cash/Bank
  */
 router.post('/payment', async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -1286,7 +1280,61 @@ router.post('/payment', async (req: AuthRequest, res: Response, next: NextFuncti
             });
         }
 
-        // Use transaction for atomicity
+        const paymentDateValue = paymentDate ? new Date(paymentDate) : new Date();
+        const paymentMethodValue = paymentMethod || 'CASH';
+
+        // =========================================================================
+        // STEP 1: Create Journal Entry FIRST (before transaction)
+        // BUSINESS RULE: Each payment creates its own JE with status = DRAFT
+        // JE: DR Accounts Payable, CR Cash/Bank
+        // =========================================================================
+        let journalEntryId: number | null = null;
+
+        try {
+            // Get asset account based on payment method
+            const assetAccountCode = PAYMENT_METHOD_TO_ASSET_COA[paymentMethodValue] || PAYMENT_METHOD_TO_ASSET_COA['CASH'];
+            // Use expense type specific payable account if available
+            const expenseTypeCode = expense.expense_type?.code || 'EXPT-012';
+            const payableAccountCode = EXPENSE_TYPE_TO_PAYABLE_COA[expenseTypeCode] || '2000'; // Default AP
+            const paymentDateStr = paymentDateValue.toISOString().split('T')[0];
+
+            const journalEntryInput: CreateAutoJournalEntryInput = {
+                module: 'ADMIN_EXPENSE_PAYMENT',
+                reference_id: `Payment for ${expense.code}`,
+                description: `Payment for ${expense.expense_type?.name || 'Administrative Expense'} - ${expense.code}`,
+                date: paymentDateStr,
+                entries: [
+                    {
+                        account_code: payableAccountCode,
+                        debit: amountPaid,
+                        credit: 0,
+                        description: `Reduce AP - Payment to vendor`
+                    },
+                    {
+                        account_code: assetAccountCode,
+                        debit: 0,
+                        credit: amountPaid,
+                        description: `Payment made - ${paymentMethodValue}`
+                    }
+                ]
+            };
+
+            // Create JE with DRAFT status
+            const journalEntry = await journalEntryService.createAutoJournalEntry(
+                journalEntryInput,
+                userId
+            );
+            journalEntryId = journalEntry.id;
+
+            logger.info(`[OTHER_EXPENSE] Created payment journal entry ${journalEntry.code} with DRAFT status`);
+        } catch (jeError) {
+            logger.error(`[OTHER_EXPENSE] Failed to create payment journal entry:`, jeError);
+            // Continue with payment recording even if JE creation fails
+        }
+
+        // =========================================================================
+        // STEP 2: Use transaction for atomicity (with JE link)
+        // =========================================================================
         const result = await prisma.$transaction(async (tx) => {
             const payments: any[] = [];
             let remainingAmount = amountPaid;
@@ -1312,14 +1360,18 @@ router.post('/payment', async (req: AuthRequest, res: Response, next: NextFuncti
 
                     if (amountToApply <= 0) continue;
 
-                    // Create payment record
+                    // Create payment record with JE link
+                    // BUSINESS RULE: Payment accounting_status = DRAFT
+                    // It becomes POSTED only when the linked JE is posted
                     const payment = await tx.expense_installment_payment.create({
                         data: {
                             installment_id: installmentId,
                             expense_id: expenseId,
                             amount_paid: amountToApply,
-                            payment_date: new Date(paymentDate || new Date()),
-                            payment_method: paymentMethod as payment_method || 'CASH',
+                            payment_date: paymentDateValue,
+                            payment_method: paymentMethodValue as payment_method,
+                            journal_entry_id: journalEntryId,
+                            accounting_status: 'DRAFT', // Will be POSTED when JE is posted
                             created_by: userId,
                         },
                     });
@@ -1362,14 +1414,18 @@ router.post('/payment', async (req: AuthRequest, res: Response, next: NextFuncti
                 const currentBalance = Number(installment.balance);
                 const amountToApply = Math.min(amountPaid, currentBalance);
 
-                // Create payment record
+                // Create payment record with JE link
+                // BUSINESS RULE: Payment accounting_status = DRAFT
+                // It becomes POSTED only when the linked JE is posted
                 const payment = await tx.expense_installment_payment.create({
                     data: {
                         installment_id: installmentId,
                         expense_id: expenseId,
                         amount_paid: amountToApply,
-                        payment_date: new Date(paymentDate || new Date()),
-                        payment_method: paymentMethod as payment_method || 'CASH',
+                        payment_date: paymentDateValue,
+                        payment_method: paymentMethodValue as payment_method,
+                        journal_entry_id: journalEntryId,
+                        accounting_status: 'DRAFT', // Will be POSTED when JE is posted
                         created_by: userId,
                     },
                 });
@@ -1419,30 +1475,71 @@ router.post('/payment', async (req: AuthRequest, res: Response, next: NextFuncti
                     status: payableStatusValue,
                     paid_amount: totalPaid,
                     balance: Math.max(0, totalDue - totalPaid),
-                    last_payment_date: new Date(paymentDate || new Date()),
-
+                    last_payment_date: paymentDateValue,
                     last_payment_amount: amountPaid,
                     updated_by: userId,
                     updated_at: new Date(),
                 },
             });
 
-            logger.info(`[OTHER_EXPENSE] Recorded payment of ${amountPaid} for expense ${expense.code}`);
-
             return {
                 payments,
                 payableStatus: payableStatusValue,
-
                 totalPaid,
                 totalDue,
                 balance: Math.max(0, totalDue - totalPaid),
             };
         });
 
+        // Audit log - PAYMENT action (use UPDATE since payment modifies expense payment status)
+        try {
+            const previousPaymentStatus = expense.payable?.status || 'PENDING';
+            const previousBalance = Number(expense.payable?.balance || expense.amount);
+
+            await AuditLogClient.logUpdate(
+                AuditEntityTypes.EXPENSE,
+                { id: expense.id, code: expense.code },
+                // Previous state (before payment)
+                {
+                    code: expense.code,
+                    category: expense.expense_type?.name || 'Administrative',
+                    amount: Number(expense.amount),
+                    status: previousPaymentStatus,
+                    description: expense.description || `${expense.expense_type?.name || 'Administrative'} expense`,
+                    remarks: `Balance: ₱${previousBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                },
+                // New state (after payment)
+                {
+                    code: expense.code,
+                    category: expense.expense_type?.name || 'Administrative',
+                    amount: Number(expense.amount),
+                    status: result.payableStatus,
+                    description: expense.description || `${expense.expense_type?.name || 'Administrative'} expense`,
+                    payment_method: paymentMethodValue,
+                    payment_reference: journalEntryId ? `JE-${journalEntryId.toString().padStart(6, '0')}` : undefined,
+                    remarks: `Payment: ₱${amountPaid.toLocaleString('en-PH', { minimumFractionDigits: 2 })} | Balance: ₱${result.balance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                },
+                {
+                    id: userId,
+                    name: req.user?.username || userId,
+                    role: req.user?.role || 'admin',
+                    department: 'Finance',
+                },
+                req
+            );
+        } catch (auditError) {
+            logger.error(`[OTHER_EXPENSE] Failed to create audit log for payment:`, auditError);
+        }
+
+        logger.info(`[OTHER_EXPENSE] Recorded payment of ${amountPaid} for expense ${expense.code}, JE: ${journalEntryId || 'N/A'}`);
+
         res.json({
             success: true,
             message: `Payment of ${amountPaid} recorded successfully`,
-            data: result,
+            data: {
+                ...result,
+                journal_entry_id: journalEntryId,
+            },
         });
     } catch (error: any) {
         logger.error('Error recording expense payment:', error);

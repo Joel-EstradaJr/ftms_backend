@@ -402,8 +402,18 @@ router.patch('/:id', rentalRevenueController.updateRentalRevenue);
  *   post:
  *     tags:
  *       - Rental Revenue
- *     summary: Cancel rental revenue
- *     description: Cancel a rental revenue record (sets rental_status to 'cancelled')
+ *     summary: Cancel rental revenue with proper accounting
+ *     description: |
+ *       Cancel a rental revenue record with full accounting handling.
+ *       
+ *       ACCOUNTING RULES:
+ *       1. If downpayment JE is POSTED → creates reversal JE
+ *       2. If any balance payment JE is POSTED → creates reversal JE
+ *       3. Cancels outstanding receivables (zeros out balances)
+ *       4. Updates rental_status to 'cancelled'
+ *       5. All actions are logged to audit
+ *       
+ *       This ensures the system remains in an accounting-correct state after cancellation.
  *     parameters:
  *       - in: path
  *         name: id
@@ -412,6 +422,7 @@ router.patch('/:id', rentalRevenueController.updateRentalRevenue);
  *           type: integer
  *         description: Revenue ID
  *     requestBody:
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
@@ -419,10 +430,22 @@ router.patch('/:id', rentalRevenueController.updateRentalRevenue);
  *             properties:
  *               cancellation_reason:
  *                 type: string
- *                 description: Reason for cancellation
+ *                 description: Reason for cancellation (required for audit trail)
+ *                 example: "Customer requested cancellation"
  *     responses:
  *       200:
- *         description: Rental revenue cancelled successfully
+ *         description: Rental revenue cancelled successfully with reversal JEs created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/RentalRevenueDetail'
  *       404:
  *         description: Rental revenue not found
  */

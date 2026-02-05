@@ -2,16 +2,18 @@
  * WEBHOOK ROUTES
  * 
  * Endpoints for receiving webhook events from external systems
- * to update is_active status of _local records.
+ * to update is_active status of _local records and create new records with auto-revenue.
  * 
  * All endpoints:
- * - POST /api/webhooks/employee        - Single employee update
- * - POST /api/webhooks/bus             - Single bus update
- * - POST /api/webhooks/rental          - Single rental update
- * - POST /api/webhooks/bus-trip        - Single bus trip update
- * - POST /api/webhooks/department      - Single department update
- * - POST /api/webhooks/employees/batch - Batch employee update
- * - POST /api/webhooks/buses/batch     - Batch bus update
+ * - POST /api/webhooks/employee         - Single employee update
+ * - POST /api/webhooks/bus              - Single bus update
+ * - POST /api/webhooks/rental           - Single rental update
+ * - POST /api/webhooks/rental/create    - Create rental with auto-revenue
+ * - POST /api/webhooks/bus-trip         - Single bus trip update
+ * - POST /api/webhooks/bus-trip/create  - Create bus trip with auto-revenue
+ * - POST /api/webhooks/department       - Single department update
+ * - POST /api/webhooks/employees/batch  - Batch employee update
+ * - POST /api/webhooks/buses/batch      - Batch bus update
  */
 
 import { Router } from 'express';
@@ -19,7 +21,9 @@ import {
   handleEmployeeWebhook,
   handleBusWebhook,
   handleRentalWebhook,
+  handleRentalCreateWebhook,
   handleBusTripWebhook,
+  handleBusTripCreateWebhook,
   handleBatchEmployeeWebhook,
   handleBatchBusWebhook,
   handleDepartmentWebhook,
@@ -291,6 +295,210 @@ router.post('/rental', handleRentalWebhook);
 
 /**
  * @swagger
+ * /api/webhooks/rental/create:
+ *   post:
+ *     summary: Create new rental with automatic revenue generation
+ *     description: |
+ *       Creates a new rental record from Operations System and automatically
+ *       generates the corresponding Revenue record, Receivables (if balance exists),
+ *       and Journal Entry.
+ *       
+ *       CRITICAL BUSINESS RULE:
+ *       Every new rental MUST have a corresponding Revenue record.
+ *       This endpoint ensures revenue is generated automatically upon rental creation.
+ *     tags:
+ *       - General | Webhooks
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - assignment_id
+ *               - bus_id
+ *               - rental_status
+ *               - rental_details
+ *             properties:
+ *               assignment_id:
+ *                 type: string
+ *                 description: The unique rental assignment identifier
+ *                 example: "BA-xc70dskp7o2py7iuci4jxeur"
+ *               bus_id:
+ *                 type: integer
+ *                 description: Bus ID from Operations/Inventory
+ *                 example: 24
+ *               bus_plate_number:
+ *                 type: string
+ *                 description: Bus plate number (informational)
+ *                 example: "PLATE-0020"
+ *               bus_type:
+ *                 type: string
+ *                 description: Bus type
+ *                 example: "ORDINARY"
+ *               body_number:
+ *                 type: string
+ *                 description: Bus body number
+ *                 example: "BODY-0020"
+ *               rental_status:
+ *                 type: string
+ *                 description: Status of the rental
+ *                 example: "approved"
+ *               is_active:
+ *                 type: boolean
+ *                 default: true
+ *               rental_details:
+ *                 type: object
+ *                 required:
+ *                   - rental_package
+ *                   - total_rental_amount
+ *                 properties:
+ *                   rental_package:
+ *                     type: string
+ *                     description: Rental package/destination
+ *                     example: "Manila → Batangas Port"
+ *                   rental_start_date:
+ *                     type: string
+ *                     format: date-time
+ *                     nullable: true
+ *                     example: "2026-01-10T00:00:00.000Z"
+ *                   rental_end_date:
+ *                     type: string
+ *                     format: date-time
+ *                     nullable: true
+ *                     example: "2026-01-11T00:00:00.000Z"
+ *                   total_rental_amount:
+ *                     type: number
+ *                     description: Total rental amount
+ *                     example: 12500
+ *                   down_payment_amount:
+ *                     type: number
+ *                     nullable: true
+ *                     description: Down payment received
+ *                     example: 5000
+ *                   balance_amount:
+ *                     type: number
+ *                     nullable: true
+ *                     description: Remaining balance
+ *                     example: 7500
+ *                   down_payment_date:
+ *                     type: string
+ *                     format: date-time
+ *                     nullable: true
+ *                     example: "2026-01-10T00:00:00.000Z"
+ *                   full_payment_date:
+ *                     type: string
+ *                     format: date-time
+ *                     nullable: true
+ *                     example: null
+ *                   cancelled_at:
+ *                     type: string
+ *                     format: date-time
+ *                     nullable: true
+ *                     example: null
+ *                   cancellation_reason:
+ *                     type: string
+ *                     nullable: true
+ *                     example: null
+ *               employees:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     employee_id:
+ *                       type: string
+ *                       description: Employee number
+ *                       example: "EMP-2021-OPS-007"
+ *                     employee_firstName:
+ *                       type: string
+ *                       nullable: true
+ *                     employee_middleName:
+ *                       type: string
+ *                       nullable: true
+ *                     employee_lastName:
+ *                       type: string
+ *                       nullable: true
+ *                     employee_position_name:
+ *                       type: string
+ *                       example: "Driver"
+ *     responses:
+ *       201:
+ *         description: Rental created with revenue auto-generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Rental created and revenue auto-generated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     rental:
+ *                       type: object
+ *                       properties:
+ *                         assignment_id:
+ *                           type: string
+ *                         is_active:
+ *                           type: boolean
+ *                         is_revenue_recorded:
+ *                           type: boolean
+ *                     revenue:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         code:
+ *                           type: string
+ *                         amount:
+ *                           type: number
+ *                         payment_status:
+ *                           type: string
+ *                         has_receivable:
+ *                           type: boolean
+ *                     journal_entry:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         code:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *       200:
+ *         description: Rental already exists (idempotent response)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Rental already exists with revenue recorded"
+ *       400:
+ *         description: Invalid request body
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WebhookErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WebhookErrorResponse'
+ */
+router.post('/rental/create', handleRentalCreateWebhook);
+
+/**
+ * @swagger
  * /api/webhooks/bus-trip:
  *   post:
  *     summary: Receive bus trip lifecycle webhook from Operations System
@@ -375,6 +583,164 @@ router.post('/rental', handleRentalWebhook);
  *               $ref: '#/components/schemas/WebhookErrorResponse'
  */
 router.post('/bus-trip', handleBusTripWebhook);
+
+/**
+ * @swagger
+ * /api/webhooks/bus-trip/create:
+ *   post:
+ *     summary: Create new bus trip with automatic revenue generation
+ *     description: |
+ *       Creates a new bus trip record from Operations System and automatically
+ *       generates the corresponding Revenue record, Receivables (if applicable),
+ *       and Journal Entry.
+ *       
+ *       CRITICAL BUSINESS RULE:
+ *       Every new bus trip MUST have a corresponding Revenue record.
+ *       This endpoint ensures revenue is generated automatically upon trip creation.
+ *     tags:
+ *       - General | Webhooks
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - assignment_id
+ *               - bus_trip_id
+ *               - bus_id
+ *               - date_assigned
+ *               - trip_revenue
+ *               - assignment_type
+ *               - assignment_value
+ *             properties:
+ *               assignment_id:
+ *                 type: string
+ *                 description: The assignment identifier
+ *                 example: "ASSIGN-001"
+ *               bus_trip_id:
+ *                 type: string
+ *                 description: The bus trip identifier
+ *                 example: "TRIP-001"
+ *               bus_id:
+ *                 type: string
+ *                 description: Bus ID from Inventory
+ *                 example: "1"
+ *               bus_route:
+ *                 type: string
+ *                 description: Route name
+ *                 example: "Manila-Baguio"
+ *               date_assigned:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Date the trip was assigned
+ *                 example: "2026-02-05T08:00:00.000Z"
+ *               trip_fuel_expense:
+ *                 type: number
+ *                 description: Fuel expense for this trip
+ *                 example: 2500
+ *               trip_revenue:
+ *                 type: number
+ *                 description: Revenue collected from this trip
+ *                 example: 15000
+ *               assignment_type:
+ *                 type: string
+ *                 enum: [BOUNDARY, PERCENTAGE]
+ *                 description: Type of driver/conductor assignment
+ *                 example: "BOUNDARY"
+ *               assignment_value:
+ *                 type: number
+ *                 description: Boundary amount or percentage value
+ *                 example: 5000
+ *               payment_method:
+ *                 type: string
+ *                 description: Payment method used
+ *                 example: "Company_Cash"
+ *               is_active:
+ *                 type: boolean
+ *                 default: true
+ *               employee_driver:
+ *                 type: object
+ *                 properties:
+ *                   employee_id:
+ *                     type: string
+ *                   employee_firstName:
+ *                     type: string
+ *                   employee_middleName:
+ *                     type: string
+ *                     nullable: true
+ *                   employee_lastName:
+ *                     type: string
+ *               employee_conductor:
+ *                 type: object
+ *                 properties:
+ *                   employee_id:
+ *                     type: string
+ *                   employee_firstName:
+ *                     type: string
+ *                   employee_middleName:
+ *                     type: string
+ *                     nullable: true
+ *                   employee_lastName:
+ *                     type: string
+ *     responses:
+ *       201:
+ *         description: Bus trip created with revenue auto-generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Bus Trip created and revenue auto-generated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bus_trip:
+ *                       type: object
+ *                       properties:
+ *                         assignment_id:
+ *                           type: string
+ *                         bus_trip_id:
+ *                           type: string
+ *                         is_active:
+ *                           type: boolean
+ *                         is_revenue_recorded:
+ *                           type: boolean
+ *                     revenue:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         code:
+ *                           type: string
+ *                         amount:
+ *                           type: number
+ *                         payment_status:
+ *                           type: string
+ *                         has_receivables:
+ *                           type: boolean
+ *                     journal_entry:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         code:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *       200:
+ *         description: Bus trip already exists with revenue recorded
+ *       400:
+ *         description: Invalid request body
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/bus-trip/create', handleBusTripCreateWebhook);
 
 /**
  * @swagger
