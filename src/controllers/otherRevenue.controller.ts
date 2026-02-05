@@ -35,7 +35,7 @@ export const list = async (req: Request, res: Response): Promise<void> => {
         const endDate = req.query.endDate as string | undefined;
         const revenueTypeId = req.query.revenueTypeId ? parseInt(req.query.revenueTypeId as string) : undefined;
         const status = req.query.status as string | undefined;
-        const sortBy = (req.query.sortBy as 'date_recorded' | 'amount' | 'created_at') || 'date_recorded';
+        const sortBy = (req.query.sortBy as 'date_recorded' | 'amount' | 'created_at' | 'updated_at') || 'updated_at';
         const sortOrder = (req.query.sortOrder as 'asc' | 'desc') || 'desc';
 
         const result = await listOtherRevenue({
@@ -212,6 +212,12 @@ export const create = async (req: Request, res: Response): Promise<void> => {
 /**
  * PATCH /api/v1/admin/other-revenue/:id
  * Update an existing other revenue record
+ * 
+ * Supports converting between:
+ * - Normal Revenue → Receivable (installment-based): include isUnearnedRevenue=true + schedule fields
+ * - Receivable → Normal Revenue: include isUnearnedRevenue=false (will HARD DELETE installments)
+ * 
+ * Note: Conversion is only allowed while approval_status = PENDING
  */
 export const update = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -255,6 +261,23 @@ export const update = async (req: Request, res: Response): Promise<void> => {
             input.remarks = req.body.remarks;
         }
 
+        // Unearned revenue conversion fields
+        // Parse isUnearnedRevenue properly - handle string "false" as false
+        if (req.body.isUnearnedRevenue !== undefined) {
+            input.isUnearnedRevenue = req.body.isUnearnedRevenue === true || req.body.isUnearnedRevenue === 'true';
+            logger.info(`[OTHER_REVENUE] Update - isUnearnedRevenue parsed: ${input.isUnearnedRevenue} (raw: ${req.body.isUnearnedRevenue})`);
+        }
+        if (req.body.scheduleFrequency !== undefined) {
+            input.scheduleFrequency = req.body.scheduleFrequency;
+        }
+        if (req.body.scheduleStartDate !== undefined) {
+            input.scheduleStartDate = req.body.scheduleStartDate;
+        }
+        if (req.body.numberOfPayments !== undefined) {
+            input.numberOfPayments = parseInt(req.body.numberOfPayments);
+        }
+
+        logger.info(`[OTHER_REVENUE] Update request for ID ${id}:`, JSON.stringify(input));
         const result = await updateOtherRevenue(id, input);
 
         res.status(200).json({
@@ -415,7 +438,8 @@ export const deleteHandler = async (req: Request, res: Response): Promise<void> 
         }
 
         const deletedBy = req.body.deleted_by || 'system';
-        const result = await softDeleteOtherRevenue(id, deletedBy);
+        const deletionReason = req.body.reason || req.body.deletion_reason;
+        const result = await softDeleteOtherRevenue(id, deletedBy, deletionReason, req);
 
         res.status(200).json({
             status: 'success',

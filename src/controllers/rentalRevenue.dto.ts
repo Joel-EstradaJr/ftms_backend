@@ -4,20 +4,32 @@
 // All fields aligned with database schema (revenue + rental_local tables)
 // ============================================================================
 
-import { payment_method, receivable_status } from '@prisma/client';
+import { payment_method, payment_status, approval_status, journal_status } from '@prisma/client';
 
 // ============================================================================
 // ENUMS (for validation)
 // ============================================================================
 
-export const VALID_PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'E_WALLET', 'REIMBURSEMENT'] as const;
+// Note: REIMBURSEMENT is excluded from revenue payment methods.
+// Reimbursement is only applicable to expense records, not revenue records.
+// If external data contains "Reimbursement", it will be mapped to CASH.
+export const VALID_PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'E_WALLET'] as const;
 export type PaymentMethodEnum = typeof VALID_PAYMENT_METHODS[number];
 
 export const VALID_RENTAL_STATUSES = ['approved', 'completed', 'cancelled'] as const;
 export type RentalStatusType = typeof VALID_RENTAL_STATUSES[number];
 
-export const VALID_REMITTANCE_STATUSES = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED', 'WRITTEN_OFF'] as const;
-export type RemittanceStatusType = typeof VALID_REMITTANCE_STATUSES[number];
+// Updated: payment_status replaces remittance_status
+export const VALID_PAYMENT_STATUSES = ['PENDING', 'PARTIALLY_PAID', 'COMPLETED', 'OVERDUE', 'CANCELLED', 'WRITTEN_OFF'] as const;
+export type PaymentStatusType = typeof VALID_PAYMENT_STATUSES[number];
+
+// New: approval_status enum
+export const VALID_APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
+export type ApprovalStatusType = typeof VALID_APPROVAL_STATUSES[number];
+
+// New: accounting_status (journal_status) enum
+export const VALID_ACCOUNTING_STATUSES = ['DRAFT', 'POSTED', 'ADJUSTED', 'REVERSED'] as const;
+export type AccountingStatusType = typeof VALID_ACCOUNTING_STATUSES[number];
 
 // ============================================================================
 // LIST FILTERS
@@ -34,7 +46,9 @@ export interface RentalRevenueListFilters {
     
     // Status filters
     rental_status?: RentalStatusType;
-    remittance_status?: RemittanceStatusType;
+    payment_status?: PaymentStatusType;  // Updated from remittance_status
+    approval_status?: ApprovalStatusType;  // New
+    accounting_status?: AccountingStatusType;  // New
     
     // Payment method filter (enum)
     payment_method?: PaymentMethodEnum;
@@ -67,7 +81,9 @@ export interface RentalRevenueListItem {
     date_recorded: string | null;
     description: string | null;
     payment_method: PaymentMethodEnum | null;
-    remittance_status: string;
+    payment_status: string;  // Updated from remittance_status
+    approval_status: string;  // New
+    accounting_status: string;  // New
     
     // Rental fields (from rental_local via rental_assignment_id)
     assignment_id: string;
@@ -109,7 +125,9 @@ export interface RentalRevenueDetailResponse {
     description: string | null;
     payment_method: PaymentMethodEnum | null;
     payment_reference: string | null;
-    remittance_status: string;
+    payment_status: string;  // Updated from remittance_status
+    approval_status: string;  // New
+    accounting_status: string;  // New
     journal_entry_id: number | null;
     
     // Rental fields (from rental_local)
@@ -139,7 +157,7 @@ export interface RentalRevenueDetailResponse {
         role: string | null;
     }>;
     
-    // Receivable info (if exists)
+    // Receivable info (for balance tracking)
     receivable: {
         id: number;
         code: string;
@@ -149,7 +167,21 @@ export interface RentalRevenueDetailResponse {
         balance: number;
     } | null;
     
-    // Journal entry summary
+    // Installment payments (balance payments via receivable system)
+    installment_payments: Array<{
+        id: number;
+        amount_paid: number;
+        payment_date: string | null;
+        payment_method: PaymentMethodEnum | null;
+        payment_reference: string | null;
+        journal_entry: {
+            id: number;
+            code: string;
+            status: string;
+        } | null;
+    }>;
+    
+    // Journal entry summary (for downpayment)
     journal_entry: {
         id: number;
         code: string;
@@ -199,7 +231,7 @@ export interface UpdateRentalRevenueDTO {
     down_payment_date?: string;
     
     // Status management
-    remittance_status?: RemittanceStatusType;
+    payment_status?: PaymentStatusType;
     
     // Balance payment (triggers full_payment_date update)
     pay_balance?: boolean;
@@ -234,7 +266,6 @@ export interface RentalRevenueAnalytics {
         CASH: number;
         BANK_TRANSFER: number;
         E_WALLET: number;
-        REIMBURSEMENT: number;
     };
     
     recent_rentals: RentalRevenueListItem[];

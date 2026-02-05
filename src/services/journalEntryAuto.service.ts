@@ -3,6 +3,7 @@ import { AuditLogClient } from '../integrations/audit/audit.client';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
 import { Prisma } from '@prisma/client';
+import { generateCode } from '../utils/codeGenerator';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -60,29 +61,11 @@ export class JournalEntryAutoService {
   // --------------------------------------------------------------------------
 
   /**
-   * Generate a unique journal entry code
+   * Generate a unique journal entry code using unified code generator
    * Format: JE-YYYY-XXXX (e.g., JE-2026-0001)
    */
   private async generateJournalEntryCode(): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `JE-${year}-`;
-    
-    const lastJE = await prisma.journal_entry.findFirst({
-      where: { code: { startsWith: prefix } },
-      orderBy: { code: 'desc' },
-      select: { code: true },
-    });
-
-    let nextNumber = 1;
-    if (lastJE?.code) {
-      const parts = lastJE.code.split('-');
-      const lastNumber = parseInt(parts[2], 10);
-      if (!isNaN(lastNumber)) {
-        nextNumber = lastNumber + 1;
-      }
-    }
-
-    return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+    return generateCode('journal_entry');
   }
 
   /**
@@ -319,6 +302,39 @@ export class JournalEntryAutoService {
         },
       });
 
+      // Update linked records of the original JE to ADJUSTED status
+      await tx.revenue.updateMany({
+        where: { journal_entry_id: input.adjustment_of_id },
+        data: { 
+          accounting_status: 'ADJUSTED',
+          updated_by: userId,
+        },
+      });
+
+      await tx.expense.updateMany({
+        where: { journal_entry_id: input.adjustment_of_id },
+        data: { 
+          accounting_status: 'ADJUSTED',
+          updated_by: userId,
+        },
+      });
+
+      await tx.revenue_installment_payment.updateMany({
+        where: { journal_entry_id: input.adjustment_of_id },
+        data: { 
+          accounting_status: 'ADJUSTED',
+          updated_by: userId,
+        },
+      });
+
+      await tx.expense_installment_payment.updateMany({
+        where: { journal_entry_id: input.adjustment_of_id },
+        data: { 
+          accounting_status: 'ADJUSTED',
+          updated_by: userId,
+        },
+      });
+
       // Fetch the complete entry with lines
       return tx.journal_entry.findUnique({
         where: { id: je.id },
@@ -450,6 +466,39 @@ export class JournalEntryAutoService {
         where: { id: input.reversal_of_id },
         data: {
           status: 'REVERSED',
+          updated_by: userId,
+        },
+      });
+
+      // Update linked records of the original JE to REVERSED status
+      await tx.revenue.updateMany({
+        where: { journal_entry_id: input.reversal_of_id },
+        data: { 
+          accounting_status: 'REVERSED',
+          updated_by: userId,
+        },
+      });
+
+      await tx.expense.updateMany({
+        where: { journal_entry_id: input.reversal_of_id },
+        data: { 
+          accounting_status: 'REVERSED',
+          updated_by: userId,
+        },
+      });
+
+      await tx.revenue_installment_payment.updateMany({
+        where: { journal_entry_id: input.reversal_of_id },
+        data: { 
+          accounting_status: 'REVERSED',
+          updated_by: userId,
+        },
+      });
+
+      await tx.expense_installment_payment.updateMany({
+        where: { journal_entry_id: input.reversal_of_id },
+        data: { 
+          accounting_status: 'REVERSED',
           updated_by: userId,
         },
       });
@@ -645,6 +694,7 @@ export class JournalEntryAutoService {
 
   /**
    * Post a DRAFT journal entry (change status to POSTED)
+   * Also updates the accounting_status of all linked records (revenue, expense, installment payments)
    */
   async postJournalEntry(
     id: number,
@@ -668,29 +718,71 @@ export class JournalEntryAutoService {
       );
     }
 
-    const journalEntry = await prisma.journal_entry.update({
-      where: { id },
-      data: {
-        status: 'POSTED',
-        approved_by: userId,
-        approved_at: new Date(),
-        updated_by: userId,
-      },
-      include: {
-        lines: {
-          include: {
-            account: {
-              select: {
-                id: true,
-                account_code: true,
-                account_name: true,
-                normal_balance: true,
+    // Use transaction to update JE and all linked records atomically
+    const journalEntry = await prisma.$transaction(async (tx) => {
+      // Update the journal entry status to POSTED
+      const updatedJE = await tx.journal_entry.update({
+        where: { id },
+        data: {
+          status: 'POSTED',
+          approved_by: userId,
+          approved_at: new Date(),
+          updated_by: userId,
+        },
+        include: {
+          lines: {
+            include: {
+              account: {
+                select: {
+                  id: true,
+                  account_code: true,
+                  account_name: true,
+                  normal_balance: true,
+                },
               },
             },
+            orderBy: { line_number: 'asc' },
           },
-          orderBy: { line_number: 'asc' },
         },
-      },
+      });
+
+      // Update linked revenue accounting_status to POSTED
+      await tx.revenue.updateMany({
+        where: { journal_entry_id: id },
+        data: { 
+          accounting_status: 'POSTED',
+          updated_by: userId,
+        },
+      });
+
+      // Update linked expense accounting_status to POSTED
+      await tx.expense.updateMany({
+        where: { journal_entry_id: id },
+        data: { 
+          accounting_status: 'POSTED',
+          updated_by: userId,
+        },
+      });
+
+      // Update linked revenue installment payment accounting_status to POSTED
+      await tx.revenue_installment_payment.updateMany({
+        where: { journal_entry_id: id },
+        data: { 
+          accounting_status: 'POSTED',
+          updated_by: userId,
+        },
+      });
+
+      // Update linked expense installment payment accounting_status to POSTED
+      await tx.expense_installment_payment.updateMany({
+        where: { journal_entry_id: id },
+        data: { 
+          accounting_status: 'POSTED',
+          updated_by: userId,
+        },
+      });
+
+      return updatedJE;
     });
 
     // Audit log
@@ -703,7 +795,7 @@ export class JournalEntryAutoService {
       req
     );
 
-    logger.info(`[JournalEntryAutoService] Posted JE: ${journalEntry.code}`);
+    logger.info(`[JournalEntryAutoService] Posted JE: ${journalEntry.code} and updated linked records`);
     return this.transformJournalEntry(journalEntry);
   }
 

@@ -112,7 +112,7 @@ router.get('/unrecorded', rentalRevenueController.getUnrecordedRentals);
  *       - Assignment ID (assignment_id)
  *       - Total Amount (total_rental_amount)
  *       - Balance (balance_amount)
- *       - Payment Method (payment_method: CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT)
+ *       - Payment Method (payment_method: CASH, BANK_TRANSFER, E_WALLET)
  *       - Rental Status (rental_status: approved, completed, cancelled)
  *       - Date Recorded (date_recorded)
  *       
@@ -157,7 +157,7 @@ router.get('/unrecorded', rentalRevenueController.getUnrecordedRentals);
  *         name: payment_method
  *         schema:
  *           type: string
- *           enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *           enum: [CASH, BANK_TRANSFER, E_WALLET]
  *         description: Filter by payment method
  *       - in: query
  *         name: amount_min
@@ -254,7 +254,7 @@ router.get('/', rentalRevenueController.listRentalRevenues);
  *                 description: Revenue description/notes
  *               payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *                 default: CASH
  *               payment_reference:
  *                 type: string
@@ -334,7 +334,7 @@ router.get('/:id', rentalRevenueController.getRentalRevenueById);
  *       **Editable Fields:**
  *       - date_recorded, date_expected
  *       - description
- *       - payment_method (enum: CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT)
+ *       - payment_method (enum: CASH, BANK_TRANSFER, E_WALLET)
  *       - payment_reference
  *       - down_payment_amount, down_payment_date
  *       - remittance_status
@@ -363,7 +363,7 @@ router.get('/:id', rentalRevenueController.getRentalRevenueById);
  *                 type: string
  *               payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *               payment_reference:
  *                 type: string
  *               down_payment_amount:
@@ -379,7 +379,7 @@ router.get('/:id', rentalRevenueController.getRentalRevenueById);
  *                 description: If true, records balance payment
  *               balance_payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *               balance_payment_reference:
  *                 type: string
  *     responses:
@@ -457,7 +457,7 @@ router.post('/:id/cancel', rentalRevenueController.cancelRentalRevenue);
  *             properties:
  *               payment_method:
  *                 type: string
- *                 enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *                 enum: [CASH, BANK_TRANSFER, E_WALLET]
  *                 default: CASH
  *               payment_reference:
  *                 type: string
@@ -500,7 +500,7 @@ router.post('/:id/pay-balance', rentalRevenueController.payBalance);
  *           type: string
  *         payment_method:
  *           type: string
- *           enum: [CASH, BANK_TRANSFER, E_WALLET, REIMBURSEMENT]
+ *           enum: [CASH, BANK_TRANSFER, E_WALLET]
  *         remittance_status:
  *           type: string
  *         assignment_id:

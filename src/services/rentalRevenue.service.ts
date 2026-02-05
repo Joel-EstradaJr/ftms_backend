@@ -2,14 +2,19 @@
 // RENTAL REVENUE SERVICE
 // Core business logic for managing rental revenue records
 // All fields aligned with database schema (revenue + rental_local tables)
+// 
+// Payment Flow:
+// 1. Downpayment: Creates revenue record + receivable for balance
+// 2. Balance Payment: Creates installment payment record
 // ============================================================================
 
 import { prisma } from '../config/database';
 import { NotFoundError, ValidationError, BadRequestError } from '../utils/errors';
 import { logger } from '../config/logger';
-import { Prisma, payment_method, receivable_status } from '@prisma/client';
+import { Prisma, payment_method, payment_status, approval_status, journal_status, installment_status } from '@prisma/client';
 import { JournalEntryAutoService, CreateAutoJournalEntryInput } from './journalEntryAuto.service';
-import { AuditLogClient } from '../integrations/audit/audit.client';
+import { AuditLogClient, AuditEntityTypes } from '../integrations/audit/audit.client';
+import { generateCode } from '../utils/codeGenerator';
 import {
     RentalRevenueListFilters,
     RentalRevenueListItem,
@@ -21,19 +26,28 @@ import {
     PaginatedRentalRevenueResponse,
     PaymentMethodEnum,
 } from '../controllers/rentalRevenue.dto';
+import {
+    REVENUE_TYPE_TO_REVENUE_COA,
+    REVENUE_TYPE_TO_RECEIVABLE_COA,
+    PAYMENT_METHOD_TO_ASSET_COA
+} from '../lib/coaMapping';
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS (Using centralized COA mappings)
 // ============================================================================
 
 const RENTAL_REVENUE_TYPE_CODE = 'REVT-003'; // Rental revenue type code
 
-// Account codes for journal entries (matching Bus Trip Revenue pattern)
+/**
+ * Account codes for journal entries
+ * Uses centralized COA mapping for consistency across all services
+ */
 const ACCOUNT_CODES = {
-    CASH: '1000',
-    BANK_TRANSFER: '1005',
-    E_WALLET: '1010',
-    RENTAL_REVENUE: '3010', // Rental revenue account
+    CASH: PAYMENT_METHOD_TO_ASSET_COA['CASH'],                           // 1000
+    BANK_TRANSFER: PAYMENT_METHOD_TO_ASSET_COA['BANK_TRANSFER'],         // 1005
+    E_WALLET: PAYMENT_METHOD_TO_ASSET_COA['E_WALLET'],                   // 1010
+    RENTAL_REVENUE: REVENUE_TYPE_TO_REVENUE_COA['REVT-003'],             // 3010 - Rental Service Revenue
+    RENTAL_RECEIVABLE: REVENUE_TYPE_TO_RECEIVABLE_COA['REVT-003'],       // 1110 - AR - Rental Revenue
 };
 
 // ============================================================================
@@ -63,32 +77,54 @@ export class RentalRevenueService {
     }
 
     // --------------------------------------------------------------------------
-    // CODE GENERATION
+    // HELPER: Map payment method string to valid enum
     // --------------------------------------------------------------------------
 
     /**
-     * Generate unique revenue code in format REV-YYYY-XXXX
+     * Map payment method string from rental_local to valid enum
+     * Handles case differences and alternative names
+     * 
+     * NOTE: REIMBURSEMENT is mapped to CASH for revenue records.
+     * Reimbursement payment method is only applicable to expense records,
+     * not revenue records. External data may contain "Reimbursement" but
+     * for revenue we treat it as CASH (Company_Cash).
+     */
+    private mapPaymentMethod(paymentMethodStr: string | null): payment_method {
+        if (!paymentMethodStr) return 'CASH';
+
+        const normalized = paymentMethodStr.toUpperCase().replace(/[^A-Z_]/g, '_');
+
+        switch (normalized) {
+            case 'CASH':
+            case 'COMPANY_CASH':
+            case 'REIMBURSEMENT':
+                // REIMBURSEMENT is treated as CASH for revenue records
+                // (Reimbursement is only applicable to expense records)
+                return 'CASH';
+            case 'BANK_TRANSFER':
+            case 'BANK':
+                return 'BANK_TRANSFER';
+            case 'E_WALLET':
+            case 'EWALLET':
+            case 'GCASH':
+            case 'PAYMAYA':
+                return 'E_WALLET';
+            default:
+                // Default to CASH for unknown payment methods
+                return 'CASH';
+        }
+    }
+
+    // --------------------------------------------------------------------------
+    // CODE GENERATION (Using Unified Code Generator)
+    // --------------------------------------------------------------------------
+
+    /**
+     * Generate unique revenue code using unified code generator
+     * Format: REV-YYYY-XXXX
      */
     private async generateRevenueCode(): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `REV-${year}-`;
-
-        const lastRevenue = await prisma.revenue.findFirst({
-            where: { code: { startsWith: prefix } },
-            orderBy: { code: 'desc' },
-            select: { code: true },
-        });
-
-        let nextNumber = 1;
-        if (lastRevenue?.code) {
-            const parts = lastRevenue.code.split('-');
-            const lastNumber = parseInt(parts[2], 10);
-            if (!isNaN(lastNumber)) {
-                nextNumber = lastNumber + 1;
-            }
-        }
-
-        return `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        return generateCode('revenue');
     }
 
     // --------------------------------------------------------------------------
@@ -142,9 +178,9 @@ export class RentalRevenueService {
             where.payment_method = filters.payment_method as payment_method;
         }
 
-        // Remittance status filter
-        if (filters.remittance_status) {
-            where.remittance_status = filters.remittance_status as receivable_status;
+        // Payment status filter (replaces remittance_status)
+        if (filters.payment_status) {
+            where.payment_status = filters.payment_status as payment_status;
         }
 
         // Amount filters
@@ -206,7 +242,7 @@ export class RentalRevenueService {
         // Matches table columns: Revenue Code, Assignment ID, Status, and related rental/bus data
         if (filters.search) {
             const searchTerm = filters.search.trim();
-            
+
             // Build OR conditions for text search
             const searchConditions: Prisma.revenueWhereInput[] = [
                 { code: { contains: searchTerm, mode: 'insensitive' } },
@@ -217,19 +253,20 @@ export class RentalRevenueService {
                 { rental: { bus: { license_plate: { contains: searchTerm, mode: 'insensitive' } } } },
                 { rental: { bus: { body_number: { contains: searchTerm, mode: 'insensitive' } } } },
             ];
-            
+
             // Only add payment_method search if the term matches a valid enum value
+            // Note: REIMBURSEMENT is excluded as it's not used for revenue records
             const searchUpper = searchTerm.toUpperCase();
-            if (['CASH', 'BANK_TRANSFER', 'E_WALLET', 'REIMBURSEMENT'].includes(searchUpper)) {
+            if (['CASH', 'BANK_TRANSFER', 'E_WALLET'].includes(searchUpper)) {
                 searchConditions.push({ payment_method: { equals: searchUpper as payment_method } });
             }
-            
+
             where.OR = searchConditions;
         }
 
         // Build order by
         const orderBy: Prisma.revenueOrderByWithRelationInput = {};
-        const sortField = filters.sort_by || 'created_at';
+        const sortField = filters.sort_by || 'updated_at';
         const sortOrder = filters.sort_order || 'desc';
 
         switch (sortField) {
@@ -244,10 +281,13 @@ export class RentalRevenueService {
                 break;
             case 'balance_amount':
                 // Sort by rental balance - requires raw query or different approach
-                orderBy.created_at = sortOrder;
+                orderBy.updated_at = sortOrder;
+                break;
+            case 'updated_at':
+                orderBy.updated_at = sortOrder;
                 break;
             default:
-                orderBy.created_at = sortOrder;
+                orderBy.updated_at = sortOrder;
         }
 
         // Execute query
@@ -280,7 +320,9 @@ export class RentalRevenueService {
             date_recorded: this.formatDate(rev.date_recorded),
             description: rev.description,
             payment_method: rev.payment_method as PaymentMethodEnum | null,
-            remittance_status: rev.remittance_status,
+            payment_status: rev.payment_status,
+            approval_status: rev.approval_status,
+            accounting_status: rev.accounting_status,
 
             // Rental fields
             assignment_id: rev.rental_assignment_id || '',
@@ -335,14 +377,35 @@ export class RentalRevenueService {
                         employees: true,
                     },
                 },
-                receivable: true,
+                receivable: {
+                    include: {
+                        installment_schedule: {
+                            include: {
+                                payments: {
+                                    include: {
+                                        journal_entry: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
                 journal_entry: true,
+                installment_payments: {
+                    include: {
+                        journal_entry: true,
+                    },
+                },
             },
         });
 
         if (!revenue) {
             throw new NotFoundError('Rental revenue not found');
         }
+
+        // Collect all installment payments from receivable schedule or direct payments
+        const installmentPayments = revenue.receivable?.installment_schedule
+            ?.flatMap((schedule) => schedule.payments || []) || [];
 
         return {
             // Revenue fields
@@ -357,7 +420,9 @@ export class RentalRevenueService {
             description: revenue.description,
             payment_method: revenue.payment_method as PaymentMethodEnum | null,
             payment_reference: revenue.payment_reference,
-            remittance_status: revenue.remittance_status,
+            payment_status: revenue.payment_status,
+            approval_status: revenue.approval_status,
+            accounting_status: revenue.accounting_status,
             journal_entry_id: revenue.journal_entry_id,
 
             // Rental fields
@@ -387,7 +452,7 @@ export class RentalRevenueService {
                 role: null,
             })),
 
-            // Receivable
+            // Receivable (for balance tracking)
             receivable: revenue.receivable
                 ? {
                     id: revenue.receivable.id,
@@ -399,7 +464,23 @@ export class RentalRevenueService {
                 }
                 : null,
 
-            // Journal entry
+            // Installment payments (balance payments)
+            installment_payments: installmentPayments.map((payment) => ({
+                id: payment.id,
+                amount_paid: this.toNumber(payment.amount_paid),
+                payment_date: this.formatDate(payment.payment_date),
+                payment_method: payment.payment_method as PaymentMethodEnum | null,
+                payment_reference: payment.payment_reference,
+                journal_entry: payment.journal_entry
+                    ? {
+                        id: payment.journal_entry.id,
+                        code: payment.journal_entry.code,
+                        status: payment.journal_entry.status,
+                    }
+                    : null,
+            })),
+
+            // Journal entry (for downpayment)
             journal_entry: revenue.journal_entry
                 ? {
                     id: revenue.journal_entry.id,
@@ -421,6 +502,15 @@ export class RentalRevenueService {
     // CREATE RENTAL REVENUE
     // --------------------------------------------------------------------------
 
+    /**
+     * Create rental revenue record with receivable for balance.
+     * 
+     * Flow:
+     * 1. Create revenue record for downpayment amount
+     * 2. If balance exists, create receivable + installment schedule
+     * 3. Create journal entry for downpayment
+     * 4. Link revenue to receivable
+     */
     async createRentalRevenue(
         data: CreateRentalRevenueDTO,
         userId: string,
@@ -464,45 +554,96 @@ export class RentalRevenueService {
         // Generate revenue code
         const revenueCode = await this.generateRevenueCode();
 
-        // Calculate amount (use downpayment for initial revenue)
+        // Calculate amounts
+        const totalRentalAmount = this.toNumber(rental.total_rental_amount);
         const downPayment = data.down_payment_amount !== undefined
             ? data.down_payment_amount
             : this.toNumber(rental.down_payment_amount);
+        const balanceAmount = totalRentalAmount - downPayment;
 
-        // Create revenue record
-        const revenue = await prisma.revenue.create({
-            data: {
-                code: revenueCode,
-                revenue_type_id: revenueType.id,
-                amount: downPayment,
-                date_recorded: data.date_recorded ? new Date(data.date_recorded) : new Date(),
-                description: data.description || `Rental revenue for assignment ${data.assignment_id}`,
-                payment_method: (data.payment_method as payment_method) || 'CASH',
-                payment_reference: data.payment_reference,
-                remittance_status: 'PENDING',
-                rental_assignment_id: data.assignment_id,
-                created_by: userId,
-            },
-        });
-
-        // Update rental to mark as revenue recorded
-        await prisma.rental_local.update({
-            where: { assignment_id: data.assignment_id },
-            data: {
-                is_revenue_recorded: true,
-                down_payment_date: new Date(),
-            },
-        });
-
-        // Create journal entry for downpayment
+        // Map payment method (REIMBURSEMENT -> CASH for revenue records)
+        const mappedPaymentMethod = this.mapPaymentMethod(data.payment_method || null);
         const dateRecorded = data.date_recorded ? new Date(data.date_recorded) : new Date();
-        const paymentMethodStr = (data.payment_method as payment_method) || 'CASH';
-        const assetAccountCode = this.getAssetAccountCode(paymentMethodStr);
+
+        // Use transaction for atomicity
+        const result = await prisma.$transaction(async (tx) => {
+            let receivableId: number | undefined;
+
+            // Create receivable for balance if balance > 0
+            if (balanceAmount > 0) {
+                const receivableCode = await generateCode('receivable');
+                const receivable = await tx.receivable.create({
+                    data: {
+                        code: receivableCode,
+                        debtor_name: `Rental Customer - ${data.assignment_id}`,
+                        description: `Balance payment for rental assignment ${data.assignment_id}`,
+                        total_amount: balanceAmount,
+                        balance: balanceAmount,
+                        paid_amount: 0,
+                        status: 'PENDING',
+                        number_of_payments: 1, // Single balance payment
+                        frequency: 'MONTHLY', // Default frequency
+                        created_by: userId,
+                    },
+                });
+                receivableId = receivable.id;
+
+                // Create single installment schedule for the balance
+                await tx.revenue_installment_schedule.create({
+                    data: {
+                        receivable_id: receivableId,
+                        installment_number: 1,
+                        due_date: new Date(dateRecorded.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+                        amount_due: balanceAmount,
+                        amount_paid: 0,
+                        balance: balanceAmount,
+                        status: 'PENDING',
+                        created_by: userId,
+                    },
+                });
+
+                logger.info(`Created receivable ${receivableCode} for rental balance of ₱${balanceAmount}`);
+            }
+
+            // Create revenue record
+            const revenue = await tx.revenue.create({
+                data: {
+                    code: revenueCode,
+                    revenue_type_id: revenueType!.id,
+                    amount: downPayment,
+                    date_recorded: dateRecorded,
+                    description: data.description || `Rental revenue for assignment ${data.assignment_id}`,
+                    payment_method: mappedPaymentMethod,
+                    payment_reference: data.payment_reference,
+                    approval_status: 'APPROVED', // Auto-approved for rental revenue
+                    accounting_status: 'DRAFT',
+                    payment_status: balanceAmount > 0 ? 'PENDING' : 'COMPLETED', // PENDING if balance exists
+                    rental_assignment_id: data.assignment_id,
+                    receivable_id: receivableId, // Link to receivable for balance tracking
+                    created_by: userId,
+                    updated_at: new Date(),
+                },
+            });
+
+            // Update rental to mark as revenue recorded
+            await tx.rental_local.update({
+                where: { assignment_id: data.assignment_id },
+                data: {
+                    is_revenue_recorded: true,
+                    down_payment_date: dateRecorded,
+                },
+            });
+
+            return { revenue, receivableId };
+        });
+
+        // Create journal entry for downpayment (outside transaction for JE service)
+        const assetAccountCode = this.getAssetAccountCode(mappedPaymentMethod);
 
         const jePayload: CreateAutoJournalEntryInput = {
             module: 'Rental Revenue',
             reference_id: revenueCode,
-            description: `Bus rental downpayment - Assignment: ${data.assignment_id} - Amount: ₱${downPayment} - Payment: ${paymentMethodStr}`,
+            description: `Bus rental downpayment - Assignment: ${data.assignment_id} - Amount: ₱${downPayment} - Payment: ${mappedPaymentMethod}`,
             date: dateRecorded.toISOString().split('T')[0],
             entries: [
                 {
@@ -530,22 +671,22 @@ export class RentalRevenueService {
 
         // Link journal entry to revenue
         await prisma.revenue.update({
-            where: { id: revenue.id },
+            where: { id: result.revenue.id },
             data: { journal_entry_id: journalEntry.id },
         });
 
         // Audit log
         await AuditLogClient.logCreate(
             'Rental Revenue',
-            { id: revenue.id, code: revenueCode },
-            revenue,
+            { id: result.revenue.id, code: revenueCode },
+            result.revenue,
             { id: userId, name: userInfo?.username, role: userInfo?.role },
             req
         );
 
-        logger.info(`Created rental revenue ${revenueCode} for assignment ${data.assignment_id} with journal entry ${journalEntry.code}`);
+        logger.info(`Created rental revenue ${revenueCode} for assignment ${data.assignment_id} with journal entry ${journalEntry.code}${result.receivableId ? ` and receivable for balance ₱${balanceAmount}` : ''}`);
 
-        return this.getRentalRevenueById(revenue.id);
+        return this.getRentalRevenueById(result.revenue.id);
     }
 
     // --------------------------------------------------------------------------
@@ -584,13 +725,14 @@ export class RentalRevenueService {
             revenueUpdate.description = data.description;
         }
         if (data.payment_method !== undefined) {
-            revenueUpdate.payment_method = data.payment_method as payment_method;
+            // Map payment method (REIMBURSEMENT -> CASH for revenue records)
+            revenueUpdate.payment_method = this.mapPaymentMethod(data.payment_method);
         }
         if (data.payment_reference !== undefined) {
             revenueUpdate.payment_reference = data.payment_reference;
         }
-        if (data.remittance_status !== undefined) {
-            revenueUpdate.remittance_status = data.remittance_status as receivable_status;
+        if (data.payment_status !== undefined) {
+            revenueUpdate.payment_status = data.payment_status as payment_status;
         }
 
         // Update revenue
@@ -660,7 +802,7 @@ export class RentalRevenueService {
         await prisma.revenue.update({
             where: { id },
             data: {
-                remittance_status: 'CANCELLED',
+                payment_status: 'CANCELLED',
                 updated_by: userId,
             },
         });
@@ -686,6 +828,24 @@ export class RentalRevenueService {
     // PAY BALANCE
     // --------------------------------------------------------------------------
 
+    /**
+     * Pay the outstanding balance for a rental revenue.
+     * 
+     * Creates an installment payment record instead of a new revenue record.
+     * This ensures:
+     * - Single revenue record per rental (shown in table)
+     * - Balance payments tracked via receivable/installment system
+     * - Proper journal entry linkage for installment payment
+     * - Consistent with other revenue receivable patterns
+     * 
+     * @param id - The revenue ID
+     * @param paymentMethod - Payment method for balance payment
+     * @param paymentReference - Optional payment reference
+     * @param userId - User performing the action
+     * @param userInfo - User info for audit
+     * @param req - Request object for audit
+     * @returns The updated revenue record with payment details
+     */
     async payBalance(
         id: number,
         paymentMethod: PaymentMethodEnum,
@@ -694,10 +854,18 @@ export class RentalRevenueService {
         userInfo: any,
         req: any
     ): Promise<RentalRevenueDetailResponse> {
-        // Get existing revenue
+        // Get existing revenue with receivable and installment schedule
         const existing = await prisma.revenue.findFirst({
             where: { id, is_deleted: false, rental_assignment_id: { not: null } },
-            include: { rental: true },
+            include: { 
+                rental: true, 
+                revenue_type: true,
+                receivable: {
+                    include: {
+                        installment_schedule: true,
+                    },
+                },
+            },
         });
 
         if (!existing) {
@@ -713,35 +881,31 @@ export class RentalRevenueService {
             throw new BadRequestError('No balance remaining to pay');
         }
 
-        // Update revenue amount to include balance
-        const currentAmount = this.toNumber(existing.amount);
-        await prisma.revenue.update({
-            where: { id },
-            data: {
-                amount: currentAmount + balanceAmount,
-                remittance_status: 'PAID',
-                updated_by: userId,
-            },
-        });
+        // Check if receivable exists (should have been created when recording revenue)
+        if (!existing.receivable) {
+            throw new BadRequestError('No receivable record found for this rental. Cannot process balance payment.');
+        }
 
-        // Update rental
-        await prisma.rental_local.update({
-            where: { assignment_id: existing.rental_assignment_id! },
-            data: {
-                balance_amount: 0,
-                full_payment_date: new Date(),
-                rental_status: 'completed',
-            },
-        });
+        // Get the pending installment schedule
+        const pendingInstallment = existing.receivable.installment_schedule.find(
+            (s) => s.status === 'PENDING' || s.status === 'PARTIALLY_PAID'
+        );
+
+        if (!pendingInstallment) {
+            throw new BadRequestError('No pending installment found for balance payment');
+        }
+
+        // Map payment method (REIMBURSEMENT -> CASH for revenue records)
+        const mappedPaymentMethod = this.mapPaymentMethod(paymentMethod);
+        const dateRecorded = new Date();
 
         // Create journal entry for balance payment
-        const assetAccountCode = this.getAssetAccountCode(paymentMethod);
-        const dateRecorded = new Date();
+        const assetAccountCode = this.getAssetAccountCode(mappedPaymentMethod);
 
         const jePayload: CreateAutoJournalEntryInput = {
             module: 'Rental Revenue',
             reference_id: existing.code,
-            description: `Bus rental balance payment - Assignment: ${existing.rental_assignment_id} - Amount: ₱${balanceAmount} - Payment: ${paymentMethod}`,
+            description: `Bus rental balance payment - Assignment: ${existing.rental_assignment_id} - Amount: ₱${balanceAmount} - Payment: ${mappedPaymentMethod}`,
             date: dateRecorded.toISOString().split('T')[0],
             entries: [
                 {
@@ -767,17 +931,85 @@ export class RentalRevenueService {
             req
         );
 
-        // Audit log
+        // Use transaction for atomicity
+        await prisma.$transaction(async (tx) => {
+            // Create installment payment record
+            await tx.revenue_installment_payment.create({
+                data: {
+                    installment_id: pendingInstallment.id,
+                    revenue_id: id,
+                    amount_paid: balanceAmount,
+                    payment_date: dateRecorded,
+                    payment_method: mappedPaymentMethod,
+                    payment_reference: paymentReference,
+                    journal_entry_id: journalEntry.id,
+                    created_by: userId,
+                },
+            });
+
+            // Update installment schedule to PAID
+            await tx.revenue_installment_schedule.update({
+                where: { id: pendingInstallment.id },
+                data: {
+                    amount_paid: balanceAmount,
+                    balance: 0,
+                    status: 'PAID',
+                    updated_by: userId,
+                },
+            });
+
+            // Update receivable to COMPLETED
+            await tx.receivable.update({
+                where: { id: existing.receivable!.id },
+                data: {
+                    status: 'COMPLETED',
+                    paid_amount: balanceAmount,
+                    balance: 0,
+                    last_payment_date: dateRecorded,
+                    last_payment_amount: balanceAmount,
+                    updated_by: userId,
+                },
+            });
+
+            // Update revenue status to COMPLETED
+            await tx.revenue.update({
+                where: { id },
+                data: {
+                    payment_status: 'COMPLETED',
+                    updated_by: userId,
+                },
+            });
+
+            // Update rental
+            await tx.rental_local.update({
+                where: { assignment_id: existing.rental_assignment_id! },
+                data: {
+                    balance_amount: 0,
+                    full_payment_date: dateRecorded,
+                    rental_status: 'completed',
+                },
+            });
+        });
+
+        // Audit log for balance payment
         await AuditLogClient.logUpdate(
             'Rental Revenue',
             { id: existing.id, code: existing.code },
-            { balance_amount: balanceAmount, remittance_status: 'PENDING' },
-            { balance_amount: 0, remittance_status: 'PAID', journal_entry_id: journalEntry.id },
+            { balance_amount: balanceAmount, payment_status: 'PENDING' },
+            { 
+                balance_amount: 0, 
+                payment_status: 'COMPLETED', 
+                installment_payment: {
+                    amount: balanceAmount,
+                    payment_method: mappedPaymentMethod,
+                    journal_entry_id: journalEntry.id,
+                },
+            },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
             req
         );
 
-        logger.info(`Paid balance for rental revenue ${existing.code} with journal entry ${journalEntry.code}`);
+        logger.info(`Paid balance ₱${balanceAmount} for rental revenue ${existing.code} with journal entry ${journalEntry.code}`);
 
         return this.getRentalRevenueById(id);
     }
@@ -813,7 +1045,7 @@ export class RentalRevenueService {
                 _sum: { amount: true },
             }),
             prisma.revenue.groupBy({
-                by: ['remittance_status'],
+                by: ['payment_status'],
                 where,
                 _count: true,
             }),
@@ -857,15 +1089,18 @@ export class RentalRevenueService {
         });
 
         // Transform payment method counts
+        // Note: REIMBURSEMENT is excluded as it's not used for revenue records
         const paymentMethodMap: Record<PaymentMethodEnum, number> = {
             CASH: 0,
             BANK_TRANSFER: 0,
             E_WALLET: 0,
-            REIMBURSEMENT: 0,
         };
         byPaymentMethod.forEach((item) => {
-            if (item.payment_method) {
+            if (item.payment_method && item.payment_method !== 'REIMBURSEMENT') {
                 paymentMethodMap[item.payment_method as PaymentMethodEnum] = item._count;
+            } else if (item.payment_method === 'REIMBURSEMENT') {
+                // Count REIMBURSEMENT as CASH (legacy data handling)
+                paymentMethodMap.CASH += item._count;
             }
         });
 
@@ -1043,7 +1278,7 @@ export class RentalRevenueService {
 
         const revenue = await prisma.revenue.findUnique({
             where: { id },
-            select: { id: true, code: true, is_deleted: true, remittance_status: true },
+            select: { id: true, code: true, is_deleted: true, payment_status: true },
         });
 
         if (!revenue) {
@@ -1063,12 +1298,11 @@ export class RentalRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logArchive(
+            AuditEntityTypes.RENTAL_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: false },
-            { is_deleted: true, archived_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code, payment_status: revenue.payment_status },
             req
         );
 
@@ -1104,12 +1338,11 @@ export class RentalRevenueService {
             },
         });
 
-        await AuditLogClient.logUpdate(
-            'Revenue',
+        await AuditLogClient.logUnarchive(
+            AuditEntityTypes.RENTAL_REVENUE,
             { id, code: revenue.code },
-            { is_deleted: true },
-            { is_deleted: false, restored_by: userId },
             { id: userId, name: userInfo?.username, role: userInfo?.role },
+            { code: revenue.code },
             req
         );
 
