@@ -9,10 +9,16 @@
  * - is_deleted: Internal lifecycle control (never modified by webhooks)
  * - Inactive records can still be used for historical references
  * - Deleted records are excluded from all usage
+ * 
+ * AUTO-REVENUE GENERATION:
+ * - New bus trips received via webhook will automatically generate Revenue records
+ * - This ensures no manual intervention is required for bus trip revenue tracking
  */
 
 import { Request, Response } from 'express';
 import { PrismaClient, bus_trip_employee_role } from '@prisma/client';
+import { busTripRevenueService } from '../services/busTripRevenue.service';
+import { logger } from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -497,6 +503,336 @@ export async function handleBusTripWebhook(
     return res.status(500).json({
       success: false,
       message: 'Internal server error processing bus trip webhook',
+      error: errorMsg,
+    });
+  }
+}
+
+// ============================================================================
+// BUS TRIP CREATE WEBHOOK (WITH AUTO-REVENUE GENERATION)
+// ============================================================================
+
+/**
+ * Full Bus Trip webhook payload from Operations System (for creation)
+ */
+interface BusTripCreateWebhookPayload {
+  assignment_id: string;
+  bus_trip_id: string;
+  bus_id: string;
+  bus_route: string;
+  date_assigned: string;
+  trip_fuel_expense: number;
+  trip_revenue: number;
+  assignment_type: string; // BOUNDARY, PERCENTAGE
+  assignment_value: number;
+  payment_method: string; // Company_Cash, Reimbursement
+  is_revenue_recorded?: boolean;
+  is_expense_recorded?: boolean;
+  is_active?: boolean;
+  // Employee data
+  employee_driver?: {
+    employee_id: string;
+    employee_firstName: string;
+    employee_middleName?: string | null;
+    employee_lastName: string;
+    employee_suffix?: string | null;
+    is_active?: boolean;
+  } | null;
+  employee_conductor?: {
+    employee_id: string;
+    employee_firstName: string;
+    employee_middleName?: string | null;
+    employee_lastName: string;
+    employee_suffix?: string | null;
+    is_active?: boolean;
+  } | null;
+}
+
+interface BusTripCreateWebhookResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    bus_trip: {
+      assignment_id: string;
+      bus_trip_id: string;
+      is_active: boolean;
+      is_revenue_recorded: boolean;
+    };
+    revenue?: {
+      id: number;
+      code: string;
+      amount: number;
+      payment_status: string;
+      has_receivables: boolean;
+    };
+    journal_entry?: {
+      id: number;
+      code: string;
+      status: string;
+    };
+  };
+  error?: string;
+}
+
+/**
+ * Handle bus trip CREATE webhook from Operations System
+ * This endpoint creates a new bus trip record AND auto-generates revenue
+ * 
+ * Endpoint: POST /api/webhooks/bus-trip/create
+ * 
+ * CRITICAL BUSINESS RULE:
+ * Every new bus trip MUST have a corresponding Revenue record.
+ * This webhook ensures that revenue is generated automatically upon trip creation.
+ */
+export async function handleBusTripCreateWebhook(
+  req: Request<{}, {}, BusTripCreateWebhookPayload>,
+  res: Response<BusTripCreateWebhookResponse>
+) {
+  const payload = req.body;
+
+  // Validate required fields for creation
+  if (!payload.assignment_id || !payload.bus_trip_id) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields: assignment_id and bus_trip_id',
+    });
+  }
+
+  if (!payload.bus_id || !payload.date_assigned || payload.trip_revenue === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields for bus trip creation: bus_id, date_assigned, trip_revenue',
+    });
+  }
+
+  try {
+    logger.info(`[WEBHOOK] Creating Bus Trip: ${payload.assignment_id}/${payload.bus_trip_id} with auto-revenue generation`);
+
+    // Check if bus trip already exists
+    const existing = await prisma.bus_trip_local.findUnique({
+      where: {
+        assignment_id_bus_trip_id: {
+          assignment_id: payload.assignment_id,
+          bus_trip_id: payload.bus_trip_id,
+        },
+      },
+    });
+
+    if (existing) {
+      // If already exists and revenue is recorded, just return success
+      if (existing.is_revenue_recorded) {
+        return res.status(200).json({
+          success: true,
+          message: `Bus Trip ${payload.assignment_id}/${payload.bus_trip_id} already exists with revenue recorded`,
+          data: {
+            bus_trip: {
+              assignment_id: existing.assignment_id,
+              bus_trip_id: existing.bus_trip_id,
+              is_active: existing.is_active,
+              is_revenue_recorded: existing.is_revenue_recorded,
+            },
+          },
+        });
+      }
+      // Otherwise, skip to revenue generation below
+    }
+
+    // Create bus trip record in transaction
+    const busTrip = await prisma.$transaction(async (tx) => {
+      // Check if bus exists
+      const busExists = await tx.bus_local.findUnique({
+        where: { bus_id: payload.bus_id },
+        select: { bus_id: true },
+      });
+
+      // Upsert bus trip
+      const trip = await tx.bus_trip_local.upsert({
+        where: {
+          assignment_id_bus_trip_id: {
+            assignment_id: payload.assignment_id,
+            bus_trip_id: payload.bus_trip_id,
+          },
+        },
+        update: {
+          bus_id: busExists ? payload.bus_id : null,
+          bus_route: payload.bus_route,
+          date_assigned: parseDate(payload.date_assigned),
+          trip_fuel_expense: payload.trip_fuel_expense,
+          trip_revenue: payload.trip_revenue,
+          assignment_type: payload.assignment_type,
+          assignment_value: payload.assignment_value,
+          payment_method: payload.payment_method,
+          is_active: payload.is_active ?? true,
+          is_deleted: false,
+          last_synced_at: new Date(),
+        },
+        create: {
+          assignment_id: payload.assignment_id,
+          bus_trip_id: payload.bus_trip_id,
+          bus_id: busExists ? payload.bus_id : null,
+          bus_route: payload.bus_route,
+          date_assigned: parseDate(payload.date_assigned),
+          trip_fuel_expense: payload.trip_fuel_expense,
+          trip_revenue: payload.trip_revenue,
+          assignment_type: payload.assignment_type,
+          assignment_value: payload.assignment_value,
+          payment_method: payload.payment_method,
+          is_revenue_recorded: false, // Will be set to true after revenue generation
+          is_expense_recorded: payload.is_expense_recorded ?? false,
+          is_active: payload.is_active ?? true,
+          is_deleted: false,
+          last_synced_at: new Date(),
+        },
+      });
+
+      // Upsert driver employee assignment
+      if (payload.employee_driver?.employee_id) {
+        const driverExists = await tx.employee_local.findUnique({
+          where: { employee_number: payload.employee_driver.employee_id },
+          select: { employee_number: true },
+        });
+
+        if (driverExists) {
+          await tx.bus_trip_employee_local.upsert({
+            where: {
+              assignment_id_bus_trip_id_employee_number: {
+                assignment_id: payload.assignment_id,
+                bus_trip_id: payload.bus_trip_id,
+                employee_number: payload.employee_driver.employee_id,
+              },
+            },
+            update: {
+              role: bus_trip_employee_role.DRIVER,
+              is_active: payload.employee_driver.is_active ?? true,
+              is_deleted: false,
+              last_synced_at: new Date(),
+            },
+            create: {
+              assignment_id: payload.assignment_id,
+              bus_trip_id: payload.bus_trip_id,
+              employee_number: payload.employee_driver.employee_id,
+              role: bus_trip_employee_role.DRIVER,
+              is_active: payload.employee_driver.is_active ?? true,
+              is_deleted: false,
+              last_synced_at: new Date(),
+            },
+          });
+        }
+      }
+
+      // Upsert conductor employee assignment
+      if (payload.employee_conductor?.employee_id) {
+        const conductorExists = await tx.employee_local.findUnique({
+          where: { employee_number: payload.employee_conductor.employee_id },
+          select: { employee_number: true },
+        });
+
+        if (conductorExists) {
+          await tx.bus_trip_employee_local.upsert({
+            where: {
+              assignment_id_bus_trip_id_employee_number: {
+                assignment_id: payload.assignment_id,
+                bus_trip_id: payload.bus_trip_id,
+                employee_number: payload.employee_conductor.employee_id,
+              },
+            },
+            update: {
+              role: bus_trip_employee_role.CONDUCTOR,
+              is_active: payload.employee_conductor.is_active ?? true,
+              is_deleted: false,
+              last_synced_at: new Date(),
+            },
+            create: {
+              assignment_id: payload.assignment_id,
+              bus_trip_id: payload.bus_trip_id,
+              employee_number: payload.employee_conductor.employee_id,
+              role: bus_trip_employee_role.CONDUCTOR,
+              is_active: payload.employee_conductor.is_active ?? true,
+              is_deleted: false,
+              last_synced_at: new Date(),
+            },
+          });
+        }
+      }
+
+      return trip;
+    });
+
+    // AUTO-GENERATE REVENUE (critical business rule)
+    // Only generate if not already recorded
+    let revenueData = null;
+    let journalEntryData = null;
+
+    if (!busTrip.is_revenue_recorded) {
+      try {
+        logger.info(`[WEBHOOK] Auto-generating revenue for bus trip ${payload.assignment_id}/${payload.bus_trip_id}`);
+        
+        const revenue = await busTripRevenueService.createRevenue(
+          {
+            assignment_id: payload.assignment_id,
+            bus_trip_id: payload.bus_trip_id,
+          },
+          'webhook_system', // System user for webhook-generated records
+          { username: 'Webhook System', role: 'SYSTEM' }
+        );
+
+        revenueData = {
+          id: revenue.id,
+          code: revenue.code,
+          amount: Number(revenue.remittance?.amount_remitted ?? 0),
+          payment_status: revenue.payment_status,
+          has_receivables: !!(revenue.shortage_details?.driver_receivable || revenue.shortage_details?.conductor_receivable),
+        };
+
+        if (revenue.journal_entry) {
+          journalEntryData = {
+            id: revenue.journal_entry.id,
+            code: revenue.journal_entry.code,
+            status: revenue.journal_entry.status,
+          };
+        }
+
+        logger.info(`[WEBHOOK] Successfully created revenue ${revenue.code} for bus trip ${payload.assignment_id}/${payload.bus_trip_id}`);
+      } catch (revenueError) {
+        // Log error but don't fail the webhook - the bus trip was created
+        logger.error(`[WEBHOOK] Failed to auto-generate revenue for bus trip ${payload.assignment_id}/${payload.bus_trip_id}:`, revenueError);
+        // Revenue can be generated later via manual process or retry
+      }
+    }
+
+    // Re-fetch the bus trip to get updated is_revenue_recorded status
+    const updatedBusTrip = await prisma.bus_trip_local.findUnique({
+      where: {
+        assignment_id_bus_trip_id: {
+          assignment_id: payload.assignment_id,
+          bus_trip_id: payload.bus_trip_id,
+        },
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: revenueData 
+        ? `Bus Trip created and revenue auto-generated successfully`
+        : `Bus Trip created (revenue generation pending)`,
+      data: {
+        bus_trip: {
+          assignment_id: updatedBusTrip!.assignment_id,
+          bus_trip_id: updatedBusTrip!.bus_trip_id,
+          is_active: updatedBusTrip!.is_active,
+          is_revenue_recorded: updatedBusTrip!.is_revenue_recorded,
+        },
+        ...(revenueData && { revenue: revenueData }),
+        ...(journalEntryData && { journal_entry: journalEntryData }),
+      },
+    });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`[WEBHOOK] Error handling bus trip create webhook:`, error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error processing bus trip create webhook',
       error: errorMsg,
     });
   }

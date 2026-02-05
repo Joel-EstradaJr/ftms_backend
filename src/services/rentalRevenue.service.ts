@@ -934,6 +934,8 @@ export class RentalRevenueService {
         // Use transaction for atomicity
         await prisma.$transaction(async (tx) => {
             // Create installment payment record
+            // CRITICAL: accounting_status MUST start as DRAFT
+            // It will be updated to POSTED when the linked JE is posted
             await tx.revenue_installment_payment.create({
                 data: {
                     installment_id: pendingInstallment.id,
@@ -943,6 +945,7 @@ export class RentalRevenueService {
                     payment_method: mappedPaymentMethod,
                     payment_reference: paymentReference,
                     journal_entry_id: journalEntry.id,
+                    accounting_status: 'DRAFT', // Explicit: must be DRAFT until JE is POSTED
                     created_by: userId,
                 },
             });

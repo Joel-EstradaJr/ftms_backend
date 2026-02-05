@@ -1959,6 +1959,8 @@ export class BusTripRevenueService {
                 if (amountToApply.lessThanOrEqualTo(0)) continue;
 
                 // Create payment record
+                // CRITICAL: accounting_status MUST start as DRAFT
+                // It will be updated to POSTED when the linked JE is posted
                 const payment = await tx.revenue_installment_payment.create({
                     data: {
                         installment_id: installment.id,
@@ -1967,6 +1969,7 @@ export class BusTripRevenueService {
                         payment_date: paymentDate,
                         payment_method: data.payment_method,
                         payment_reference: data.payment_reference ?? null,
+                        accounting_status: 'DRAFT', // Explicit: must be DRAFT until JE is POSTED
                         created_by: userId,
                     },
                 });

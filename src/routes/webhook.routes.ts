@@ -20,6 +20,7 @@ import {
   handleBusWebhook,
   handleRentalWebhook,
   handleBusTripWebhook,
+  handleBusTripCreateWebhook,
   handleBatchEmployeeWebhook,
   handleBatchBusWebhook,
   handleDepartmentWebhook,
@@ -375,6 +376,164 @@ router.post('/rental', handleRentalWebhook);
  *               $ref: '#/components/schemas/WebhookErrorResponse'
  */
 router.post('/bus-trip', handleBusTripWebhook);
+
+/**
+ * @swagger
+ * /api/webhooks/bus-trip/create:
+ *   post:
+ *     summary: Create new bus trip with automatic revenue generation
+ *     description: |
+ *       Creates a new bus trip record from Operations System and automatically
+ *       generates the corresponding Revenue record, Receivables (if applicable),
+ *       and Journal Entry.
+ *       
+ *       CRITICAL BUSINESS RULE:
+ *       Every new bus trip MUST have a corresponding Revenue record.
+ *       This endpoint ensures revenue is generated automatically upon trip creation.
+ *     tags:
+ *       - General | Webhooks
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - assignment_id
+ *               - bus_trip_id
+ *               - bus_id
+ *               - date_assigned
+ *               - trip_revenue
+ *               - assignment_type
+ *               - assignment_value
+ *             properties:
+ *               assignment_id:
+ *                 type: string
+ *                 description: The assignment identifier
+ *                 example: "ASSIGN-001"
+ *               bus_trip_id:
+ *                 type: string
+ *                 description: The bus trip identifier
+ *                 example: "TRIP-001"
+ *               bus_id:
+ *                 type: string
+ *                 description: Bus ID from Inventory
+ *                 example: "1"
+ *               bus_route:
+ *                 type: string
+ *                 description: Route name
+ *                 example: "Manila-Baguio"
+ *               date_assigned:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Date the trip was assigned
+ *                 example: "2026-02-05T08:00:00.000Z"
+ *               trip_fuel_expense:
+ *                 type: number
+ *                 description: Fuel expense for this trip
+ *                 example: 2500
+ *               trip_revenue:
+ *                 type: number
+ *                 description: Revenue collected from this trip
+ *                 example: 15000
+ *               assignment_type:
+ *                 type: string
+ *                 enum: [BOUNDARY, PERCENTAGE]
+ *                 description: Type of driver/conductor assignment
+ *                 example: "BOUNDARY"
+ *               assignment_value:
+ *                 type: number
+ *                 description: Boundary amount or percentage value
+ *                 example: 5000
+ *               payment_method:
+ *                 type: string
+ *                 description: Payment method used
+ *                 example: "Company_Cash"
+ *               is_active:
+ *                 type: boolean
+ *                 default: true
+ *               employee_driver:
+ *                 type: object
+ *                 properties:
+ *                   employee_id:
+ *                     type: string
+ *                   employee_firstName:
+ *                     type: string
+ *                   employee_middleName:
+ *                     type: string
+ *                     nullable: true
+ *                   employee_lastName:
+ *                     type: string
+ *               employee_conductor:
+ *                 type: object
+ *                 properties:
+ *                   employee_id:
+ *                     type: string
+ *                   employee_firstName:
+ *                     type: string
+ *                   employee_middleName:
+ *                     type: string
+ *                     nullable: true
+ *                   employee_lastName:
+ *                     type: string
+ *     responses:
+ *       201:
+ *         description: Bus trip created with revenue auto-generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Bus Trip created and revenue auto-generated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bus_trip:
+ *                       type: object
+ *                       properties:
+ *                         assignment_id:
+ *                           type: string
+ *                         bus_trip_id:
+ *                           type: string
+ *                         is_active:
+ *                           type: boolean
+ *                         is_revenue_recorded:
+ *                           type: boolean
+ *                     revenue:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         code:
+ *                           type: string
+ *                         amount:
+ *                           type: number
+ *                         payment_status:
+ *                           type: string
+ *                         has_receivables:
+ *                           type: boolean
+ *                     journal_entry:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         code:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *       200:
+ *         description: Bus trip already exists with revenue recorded
+ *       400:
+ *         description: Invalid request body
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/bus-trip/create', handleBusTripCreateWebhook);
 
 /**
  * @swagger
