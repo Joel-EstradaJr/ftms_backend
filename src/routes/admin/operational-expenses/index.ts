@@ -4,6 +4,16 @@ import { prisma } from '../../../config/database';
 import { logger } from '../../../config/logger';
 import { approval_status, payment_method, payment_status, installment_status, receivable_frequency, Prisma } from '@prisma/client';
 import { operationalExpenseService } from '../../../services/operationalExpense.service';
+import { AuditLogClient, AuditEntityTypes } from '../../../integrations/audit/audit.client';
+import { JournalEntryAutoService, CreateAutoJournalEntryInput } from '../../../services/journalEntryAuto.service';
+import {
+    EXPENSE_TYPE_TO_EXPENSE_COA,
+    EXPENSE_TYPE_TO_PAYABLE_COA,
+    PAYMENT_METHOD_TO_ASSET_COA
+} from '../../../lib/coaMapping';
+
+// Journal entry service for payment JE creation
+const journalEntryService = new JournalEntryAutoService();
 
 const router = Router();
 
@@ -822,7 +832,7 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
         date_recorded: expense_information.date_recorded ? new Date(expense_information.date_recorded) : new Date(),
         description: remarks,
         approval_status: 'PENDING',
-        accounting_status: 'DRAFT',
+        // accounting_status remains NULL until approval creates JE
         payment_status: 'PENDING',
         payment_method: paymentMethod,
 
@@ -866,6 +876,21 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
       });
     }
 
+    // Audit log - CREATE action
+    await AuditLogClient.logCreate(
+      AuditEntityTypes.EXPENSE,
+      { id: expense.id, code: expense.code },
+      expense,
+      {
+        id: userId,
+        name: req.user?.username || userId,
+        role: req.user?.role || 'admin',
+      },
+      req
+    );
+
+    logger.info(`[OPERATIONAL_EXPENSE] Created expense ${expense.code} by ${userId}`);
+
     res.status(201).json({
       success: true,
       message: 'Expense created successfully',
@@ -895,6 +920,7 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
     // Check if expense exists and is editable
     const existing = await prisma.expense.findFirst({
       where: { id: parseInt(id), is_deleted: false },
+      include: { expense_type: true },
     });
 
     if (!existing) {
@@ -936,6 +962,22 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
       },
     });
 
+    // Audit log - UPDATE action
+    await AuditLogClient.logUpdate(
+      AuditEntityTypes.EXPENSE,
+      { id: expense.id, code: expense.code },
+      existing,
+      expense,
+      {
+        id: userId,
+        name: req.user?.username || userId,
+        role: req.user?.role || 'admin',
+      },
+      req
+    );
+
+    logger.info(`[OPERATIONAL_EXPENSE] Updated expense ${expense.code} by ${userId}`);
+
     res.json({
       success: true,
       message: 'Expense updated successfully',
@@ -952,7 +994,7 @@ router.put('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
 
 /**
  * PATCH /:id/soft-delete
- * Soft delete expense
+ * Soft delete expense (only PENDING status)
  */
 router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -960,7 +1002,28 @@ router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: N
     const { reason } = req.body;
     const userId = req.user?.sub || 'system';
 
-    const expense = await prisma.expense.update({
+    // Check if expense exists and is deletable
+    const existing = await prisma.expense.findFirst({
+      where: { id: parseInt(id), is_deleted: false },
+      include: { expense_type: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: 'Expense not found',
+      });
+    }
+
+    // Only allow deletion for PENDING approval status
+    if (existing.approval_status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only PENDING expenses can be deleted',
+      });
+    }
+
+    await prisma.expense.update({
       where: { id: parseInt(id) },
       data: {
         is_deleted: true,
@@ -969,6 +1032,25 @@ router.patch('/:id/soft-delete', async (req: AuthRequest, res: Response, next: N
         deletion_remarks: reason || null,
       },
     });
+
+    // Audit log - ARCHIVE action for soft delete
+    await AuditLogClient.logArchive(
+      AuditEntityTypes.EXPENSE,
+      { id: existing.id, code: existing.code },
+      {
+        id: userId,
+        name: req.user?.username || userId,
+        role: req.user?.role || 'admin',
+      },
+      {
+        deletion_reason: reason || 'No reason provided',
+        expense_type: existing.expense_type?.name || 'Unknown',
+        amount: existing.amount?.toString(),
+      },
+      req
+    );
+
+    logger.info(`[OPERATIONAL_EXPENSE] Deleted expense ${existing.code} by ${userId}. Reason: ${reason || 'N/A'}`);
 
     res.json({
       success: true,
@@ -1111,7 +1193,7 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
         where: { id: parseInt(id) },
         data: {
           approval_status: 'APPROVED',
-          accounting_status: 'POSTED',
+          accounting_status: 'DRAFT', // Match JE status - will be POSTED when JE is posted
           approved_by: userId,
           approved_at: new Date(),
           approval_remarks: remarks || null,
@@ -1121,6 +1203,22 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response, next: NextFu
 
       return { expense, journalEntry, jeCode };
     });
+
+    // Audit log - APPROVE action
+    await AuditLogClient.logApprove(
+      AuditEntityTypes.EXPENSE,
+      { id: result.expense.id, code: result.expense.code },
+      {
+        id: userId,
+        name: req.user?.username || userId,
+        role: req.user?.role || 'admin',
+      },
+      { ...existing, approval_status: existing.approval_status },
+      { ...result.expense, approval_status: 'APPROVED' },
+      req
+    );
+
+    logger.info(`[OPERATIONAL_EXPENSE] Approved expense ${result.expense.code} by ${userId}`);
 
     res.json({
       success: true,
@@ -1154,6 +1252,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
 
     const existing = await prisma.expense.findFirst({
       where: { id: parseInt(id), is_deleted: false },
+      include: { expense_type: true },
     });
 
     if (!existing) {
@@ -1179,7 +1278,25 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
         rejection_remarks: reason || null,
         updated_by: userId,
       },
+      include: { expense_type: true },
     });
+
+    // Audit log - REJECT action
+    await AuditLogClient.logReject(
+      AuditEntityTypes.EXPENSE,
+      { id: expense.id, code: expense.code },
+      {
+        id: userId,
+        name: req.user?.username || userId,
+        role: req.user?.role || 'admin',
+      },
+      reason || 'No reason provided',
+      { ...existing, approval_status: existing.approval_status },
+      { ...expense, approval_status: 'REJECTED', rejection_remarks: reason },
+      req
+    );
+
+    logger.info(`[OPERATIONAL_EXPENSE] Rejected expense ${expense.code} by ${userId}. Reason: ${reason || 'N/A'}`);
 
     res.json({
       success: true,
@@ -1200,6 +1317,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response, next: NextFun
  * POST /:id/payment
  * Record payment for a reimbursable expense installment
  * Supports cascade payments across multiple installments
+ * Creates Journal Entry: DR Accounts Payable, CR Cash/Bank
  */
 router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -1230,6 +1348,7 @@ router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFu
         is_deleted: false,
       },
       include: {
+        expense_type: true,
         payable: {
           include: {
             installment_schedule: {
@@ -1305,7 +1424,57 @@ router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFu
     // Find starting installment index in unpaid installments
     const startIndex = allInstallments.findIndex(inst => inst.id === installment_id);
 
-    // Execute cascade payment in transaction
+    // =========================================================================
+    // STEP 1: Create Journal Entry FIRST (before transaction)
+    // BUSINESS RULE: Each payment creates its own JE with status = DRAFT
+    // JE: DR Accounts Payable, CR Cash/Bank
+    // =========================================================================
+    let journalEntryId: number | null = null;
+    
+    try {
+      // Get asset account based on payment method
+      const paymentMethod = paymentMethodInput || 'CASH';
+      const assetAccountCode = PAYMENT_METHOD_TO_ASSET_COA[paymentMethod] || PAYMENT_METHOD_TO_ASSET_COA['CASH'];
+      const payableAccountCode = EXPENSE_TYPE_TO_PAYABLE_COA['EXPT-001'] || '2100'; // Operational AP
+      const paymentDateStr = paymentDateValue.toISOString().split('T')[0];
+
+      const journalEntryInput: CreateAutoJournalEntryInput = {
+        module: 'OPERATIONAL_EXPENSE_PAYMENT',
+        reference_id: `Payment for ${expense.code}`,
+        description: `Reimbursement payment for ${expense.expense_type?.name || 'Operational Expense'} - ${expense.code}`,
+        date: paymentDateStr,
+        entries: [
+          {
+            account_code: payableAccountCode,
+            debit: amount_paid,
+            credit: 0,
+            description: `Reduce AP - Reimbursement payment`
+          },
+          {
+            account_code: assetAccountCode,
+            debit: 0,
+            credit: amount_paid,
+            description: `Payment made - ${paymentMethod}`
+          }
+        ]
+      };
+
+      // Create JE with DRAFT status
+      const journalEntry = await journalEntryService.createAutoJournalEntry(
+        journalEntryInput,
+        userId
+      );
+      journalEntryId = journalEntry.id;
+
+      logger.info(`[OPERATIONAL_EXPENSE] Created payment journal entry ${journalEntry.code} with DRAFT status`);
+    } catch (jeError) {
+      logger.error(`[OPERATIONAL_EXPENSE] Failed to create payment journal entry:`, jeError);
+      // Continue with payment recording even if JE creation fails
+    }
+
+    // =========================================================================
+    // STEP 2: Execute cascade payment in transaction (with JE link)
+    // =========================================================================
     const result = await prisma.$transaction(async (tx) => {
       let remainingAmount = amountPaid;
       const updatedInstallments: Array<{
@@ -1319,6 +1488,7 @@ router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFu
       }> = [];
       const paymentRecords: any[] = [];
 
+
       // Start from the selected installment and cascade forward
       for (let i = startIndex; i < allInstallments.length && remainingAmount.greaterThan(0); i++) {
         const installment = allInstallments[i];
@@ -1331,7 +1501,9 @@ router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFu
 
         if (amountToApply.lessThanOrEqualTo(0)) continue;
 
-        // Create payment record
+        // Create payment record with JE link
+        // BUSINESS RULE: Payment accounting_status = DRAFT
+        // It becomes POSTED only when the linked JE is posted
         const payment = await tx.expense_installment_payment.create({
           data: {
             installment_id: installment.id,
@@ -1340,6 +1512,8 @@ router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFu
             payment_date: paymentDateValue,
             payment_method: paymentMethodInput || 'CASH',
             payment_reference: payment_reference || null,
+            journal_entry_id: journalEntryId,
+            accounting_status: 'DRAFT', // Will be POSTED when JE is posted
             created_by: userId,
           },
         });
@@ -1405,7 +1579,47 @@ router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFu
       return { paymentRecords, updatedInstallments, updatedPayable };
     });
 
-    logger.info(`[OperationalExpenses] Recorded cascade payment for ${result.updatedInstallments.length} installment(s), total: ${amountPaid}`);
+    // Audit log - PAYMENT action (use UPDATE since payment modifies expense payment status)
+    try {
+      const previousPaymentStatus = payable.status || 'PENDING';
+      const previousBalance = Number(payable.balance);
+
+      await AuditLogClient.logUpdate(
+        AuditEntityTypes.EXPENSE,
+        { id: expense.id, code: expense.code },
+        // Previous state (before payment)
+        {
+          code: expense.code,
+          category: expense.expense_type?.name || 'Operational',
+          amount: Number(expense.amount),
+          status: previousPaymentStatus,
+          description: expense.description || `${expense.expense_type?.name || 'Operational'} expense`,
+          remarks: `Balance: ₱${previousBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+        },
+        // New state (after payment)
+        {
+          code: expense.code,
+          category: expense.expense_type?.name || 'Operational',
+          amount: Number(expense.amount),
+          status: result.updatedPayable.status,
+          description: expense.description || `${expense.expense_type?.name || 'Operational'} expense`,
+          payment_method: paymentMethodInput || 'CASH',
+          payment_reference: journalEntryId ? `JE-${journalEntryId.toString().padStart(6, '0')}` : payment_reference || undefined,
+          remarks: `Payment: ₱${Number(amount_paid).toLocaleString('en-PH', { minimumFractionDigits: 2 })} | Balance: ₱${Number(result.updatedPayable.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+        },
+        {
+          id: userId,
+          name: req.user?.username || userId,
+          role: req.user?.role || 'admin',
+          department: 'Finance',
+        },
+        req
+      );
+    } catch (auditError) {
+      logger.error(`[OPERATIONAL_EXPENSE] Failed to create audit log for payment:`, auditError);
+    }
+
+    logger.info(`[OPERATIONAL_EXPENSE] Recorded cascade payment for ${result.updatedInstallments.length} installment(s), total: ${amountPaid}, JE: ${journalEntryId || 'N/A'}`);
 
     res.json({
       success: true,
@@ -1423,6 +1637,7 @@ router.post('/:id/payment', async (req: AuthRequest, res: Response, next: NextFu
           status: result.updatedPayable.status,
         },
         total_applied: Number(amountPaid),
+        journal_entry_id: journalEntryId,
       },
     });
   } catch (error) {
@@ -1698,13 +1913,14 @@ router.post('/:id/reimbursement/payment', async (req: AuthRequest, res: Response
       });
     }
 
-    // Get expense with payable
+    // Get expense with payable and expense_type
     const expense = await prisma.expense.findFirst({
       where: {
         id: parseInt(id),
         is_deleted: false,
       },
       include: {
+        expense_type: true,
         payable: {
           include: {
             installment_schedule: {
@@ -1868,6 +2084,93 @@ router.post('/:id/reimbursement/payment', async (req: AuthRequest, res: Response
 
       return { payment, updatedPayable };
     });
+
+    // Create Journal Entry for the reimbursement payment
+    const paymentMethod = paymentMethodInput || 'CASH';
+    const paymentDateStr = paymentDateValue.toISOString().split('T')[0];
+    const expenseTypeName = expense.expense_type?.name || 'General';
+    const payableAccountCode = EXPENSE_TYPE_TO_PAYABLE_COA[expenseTypeName] || '2100'; // Default to A/P - Trade
+    const assetAccountCode = PAYMENT_METHOD_TO_ASSET_COA[paymentMethod] || '1001'; // Default to Cash on Hand
+
+    const journalEntryInput: CreateAutoJournalEntryInput = {
+      module: 'OPERATIONAL_EXPENSE_REIMBURSEMENT',
+      reference_id: `Reimbursement for ${expense.code}`,
+      description: `Reimbursement payment to employee for ${expenseTypeName} - ${expense.code}`,
+      date: paymentDateStr,
+      entries: [
+        {
+          account_code: payableAccountCode,
+          debit: Number(amountPaid),
+          credit: 0,
+          description: `Reduce A/P - Reimbursement payment to employee`,
+        },
+        {
+          account_code: assetAccountCode,
+          debit: 0,
+          credit: Number(amountPaid),
+          description: `Payment made - ${paymentMethod}`,
+        },
+      ],
+    };
+
+    let journalEntryId: number | null = null;
+    try {
+      const journalEntry = await journalEntryService.createAutoJournalEntry(journalEntryInput);
+      journalEntryId = journalEntry.id;
+      logger.info(`[OperationalExpenses] Created JE ${journalEntry.id} for reimbursement payment on expense ${id}`);
+      
+      // Update the payment record with the journal entry id
+      await prisma.expense_installment_payment.update({
+        where: { id: result.payment.id },
+        data: {
+          journal_entry_id: journalEntry.id,
+          accounting_status: 'DRAFT',
+        },
+      });
+    } catch (jeError) {
+      logger.error(`[OperationalExpenses] Failed to create JE for reimbursement payment on expense ${id}:`, jeError);
+      // Don't fail the payment, just log the error
+    }
+
+    // Audit Log for payment (use UPDATE since payment modifies expense payment status)
+    try {
+      const previousPaymentStatus = payable?.status || 'PENDING';
+      const previousBalance = payable ? Number(payable.balance) : Number(expense.amount);
+
+      await AuditLogClient.logUpdate(
+        AuditEntityTypes.EXPENSE,
+        { id: expense.id, code: expense.code },
+        // Previous state (before payment)
+        {
+          code: expense.code,
+          category: expense.expense_type?.name || 'Operational',
+          amount: Number(expense.amount),
+          status: previousPaymentStatus,
+          description: expense.description || `${expense.expense_type?.name || 'Operational'} expense`,
+          remarks: `Balance: ₱${previousBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+        },
+        // New state (after payment)
+        {
+          code: expense.code,
+          category: expense.expense_type?.name || 'Operational',
+          amount: Number(expense.amount),
+          status: result.updatedPayable.status,
+          description: expense.description || `${expense.expense_type?.name || 'Operational'} expense`,
+          payment_method: paymentMethod,
+          payment_reference: journalEntryId ? `JE-${journalEntryId.toString().padStart(6, '0')}` : payment_reference || undefined,
+          remarks: `Payment: ₱${Number(amountPaid).toLocaleString('en-PH', { minimumFractionDigits: 2 })} | Balance: ₱${Number(result.updatedPayable.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+        },
+        {
+          id: userId,
+          name: req.user?.username || userId,
+          role: req.user?.role || 'admin',
+          department: 'Finance',
+        },
+        req
+      );
+    } catch (auditError) {
+      logger.error('Audit log failed:', auditError);
+    }
 
     logger.info(`[OperationalExpenses] Recorded reimbursement payment for expense ${id}, amount: ${amountPaid}`);
 
